@@ -5,10 +5,9 @@ import kotlinx.serialization.Serializable
 
 // Response DTOs — docs/02-api-spec.md 4장 (routes)
 
-/** GET /routes list item. NOTE: the list JSON example has no `isSaved` field (unlike detail) —
- * only docs/02-api-spec.md's prose mentions "로그인 시 저장 여부 포함" for this endpoint, which
- * conflicts with its own example schema. The example schema is treated as authoritative here;
- * see the round report for the discrepancy. */
+/** GET /routes list item. The list JSON example in docs/02-api-spec.md has no `isSaved` field,
+ * but its prose ("로그인 시 저장 여부 포함") does call for one — confirmed policy: include it here
+ * to match detail's behavior. Optional-JWT: false when unauthenticated. */
 @Serializable
 data class RouteSummaryResponse(
     val routeId: String,
@@ -19,6 +18,7 @@ data class RouteSummaryResponse(
     val status: RouteStatus,
     val finisherCount: Int,
     val thumbnailGeoJson: GeoJsonLineString,
+    val isSaved: Boolean,
 )
 
 @Serializable

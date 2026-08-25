@@ -4,6 +4,7 @@ import com.dallim.common.GeoJsonLineString
 import com.dallim.common.PostGis
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.PreparedStatement
@@ -156,6 +157,20 @@ class RouteRepository(
             .where { (SavedRouteTable.userId eq userId) and (SavedRouteTable.routeId eq routeId) }
             .limit(1)
             .count() > 0
+    }
+
+    /**
+     * GET /routes list isSaved — batch lookup of which of [routeIds] are saved by [userId], in a
+     * single `routeId IN (...) AND userId = ?` query instead of one round-trip per item (N+1).
+     * Returns the subset of [routeIds] that are saved; empty when [routeIds] is empty.
+     */
+    fun findSavedRouteIds(userId: String, routeIds: List<String>): Set<String> {
+        if (routeIds.isEmpty()) return emptySet()
+        return transaction(database) {
+            SavedRouteTable.select(SavedRouteTable.routeId)
+                .where { (SavedRouteTable.userId eq userId) and (SavedRouteTable.routeId inList routeIds) }
+                .mapTo(mutableSetOf()) { it[SavedRouteTable.routeId] }
+        }
     }
 
     private fun bindArgs(stmt: PreparedStatement, args: List<Any>) {

@@ -19,6 +19,7 @@ class RouteService(private val routeRepository: RouteRepository) {
         sort: String,
         page: Int,
         size: Int,
+        userId: String?,
     ): RouteListResponse {
         val safePage = page.coerceAtLeast(0)
         val safeSize = size.coerceIn(1, 100)
@@ -35,8 +36,16 @@ class RouteService(private val routeRepository: RouteRepository) {
             size = safeSize,
         )
 
+        // Batch isSaved lookup (single IN-query) instead of one saved_routes lookup per item,
+        // to avoid N+1 queries. Optional JWT: unauthenticated requests get isSaved = false.
+        val savedRouteIds = if (userId != null) {
+            routeRepository.findSavedRouteIds(userId, rows.map { it.id })
+        } else {
+            emptySet()
+        }
+
         return RouteListResponse(
-            items = rows.map { it.toSummary() },
+            items = rows.map { it.toSummary(isSaved = it.id in savedRouteIds) },
             totalCount = totalCount,
             page = safePage,
             size = safeSize,
@@ -88,7 +97,7 @@ class RouteService(private val routeRepository: RouteRepository) {
     /** Used by GET /home todaySketch (see HomeService) — POPULAR-preferred pick, else random. */
     fun pickTodaySketchCandidate(): RouteRepository.RouteRow? = routeRepository.findTodaySketchCandidate()
 
-    private fun RouteRepository.RouteRow.toSummary() = RouteSummaryResponse(
+    private fun RouteRepository.RouteRow.toSummary(isSaved: Boolean) = RouteSummaryResponse(
         routeId = id,
         name = name,
         emoji = emoji,
@@ -97,5 +106,6 @@ class RouteService(private val routeRepository: RouteRepository) {
         status = status,
         finisherCount = finisherCount,
         thumbnailGeoJson = geoJson,
+        isSaved = isSaved,
     )
 }

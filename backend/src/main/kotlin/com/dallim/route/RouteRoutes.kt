@@ -18,30 +18,14 @@ import org.koin.ktor.ext.inject
  * wrap in ApiResponse. StatusPages translates any thrown ApiException (e.g. 404 ROUTE_NOT_FOUND)
  * into the common error envelope.
  *
- * GET /routes/{routeId} is usable anonymously but personalizes `isSaved` when a valid Bearer
- * token is present, via `authenticate(AUTH_JWT, optional = true)`. GET /routes itself is fully
- * public — its response schema has no per-item isSaved field (see RouteDtos.kt doc comment).
+ * Both GET /routes (list) and GET /routes/{routeId} (detail) are usable anonymously but
+ * personalize `isSaved` when a valid Bearer token is present, via
+ * `authenticate(AUTH_JWT, optional = true)`.
  */
 fun Route.routeRoutes() {
     val routeService by inject<RouteService>()
 
     route("/routes") {
-        get {
-            val q = call.request.queryParameters
-            val response = routeService.listRoutes(
-                lat = q["lat"]?.toDoubleOrNull(),
-                lng = q["lng"]?.toDoubleOrNull(),
-                radiusKm = q["radiusKm"]?.toDoubleOrNull() ?: 5.0,
-                minDistanceKm = q["minDistanceKm"]?.toDoubleOrNull(),
-                maxDistanceKm = q["maxDistanceKm"]?.toDoubleOrNull(),
-                status = q["status"]?.let { raw -> runCatching { RouteStatus.valueOf(raw) }.getOrNull() },
-                sort = q["sort"] ?: "popular",
-                page = q["page"]?.toIntOrNull() ?: 0,
-                size = q["size"]?.toIntOrNull() ?: 20,
-            )
-            call.respond(HttpStatusCode.OK, ApiResponse.success(response))
-        }
-
         get("/{routeId}/finishers") {
             val routeId = call.parameters["routeId"]!!
             val response = routeService.getFinishers(routeId)
@@ -49,6 +33,24 @@ fun Route.routeRoutes() {
         }
 
         authenticate(AUTH_JWT, optional = true) {
+            get {
+                val q = call.request.queryParameters
+                val userId = call.currentUserId()
+                val response = routeService.listRoutes(
+                    lat = q["lat"]?.toDoubleOrNull(),
+                    lng = q["lng"]?.toDoubleOrNull(),
+                    radiusKm = q["radiusKm"]?.toDoubleOrNull() ?: 5.0,
+                    minDistanceKm = q["minDistanceKm"]?.toDoubleOrNull(),
+                    maxDistanceKm = q["maxDistanceKm"]?.toDoubleOrNull(),
+                    status = q["status"]?.let { raw -> runCatching { RouteStatus.valueOf(raw) }.getOrNull() },
+                    sort = q["sort"] ?: "popular",
+                    page = q["page"]?.toIntOrNull() ?: 0,
+                    size = q["size"]?.toIntOrNull() ?: 20,
+                    userId = userId,
+                )
+                call.respond(HttpStatusCode.OK, ApiResponse.success(response))
+            }
+
             get("/{routeId}") {
                 val routeId = call.parameters["routeId"]!!
                 val userId = call.currentUserId()
