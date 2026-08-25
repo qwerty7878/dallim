@@ -7,6 +7,7 @@ import com.dallim.app.common.safeApiCall
 import com.dallim.app.onboarding.firstroute.CurrentLocationProvider
 import com.dallim.network.route.RouteApi
 import com.dallim.network.route.RouteListItem
+import com.dallim.network.user.UserApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,8 @@ data class DiscoverUiState(
     val distanceFilter: DistanceFilter = DistanceFilter.ALL,
     val statusFilter: RouteStatusFilter = RouteStatusFilter.ALL,
     val sort: SortOption = SortOption.POPULAR,
+    /** POST/DELETE saved-routes 요청이 진행 중인 routeId — 중복 탭 방지용. */
+    val togglingSaveRouteIds: Set<String> = emptySet(),
 )
 
 /**
@@ -66,6 +69,7 @@ data class DiscoverUiState(
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val routeApi: RouteApi,
+    private val userApi: UserApi,
     private val locationProvider: CurrentLocationProvider,
 ) : ViewModel() {
 
@@ -97,6 +101,46 @@ class DiscoverViewModel @Inject constructor(
         if (_uiState.value.sort == sort) return
         _uiState.update { it.copy(sort = sort) }
         reload()
+    }
+
+    /**
+     * 저장/저장취소 토글 — POST|DELETE /users/me/saved-routes/{routeId}.
+     * 낙관적 업데이트로 아이콘을 즉시 반영하고, 실패 시 원래 상태로 되돌린다
+     * (SavedRoutesViewModel.onUnsave와 동일한 removing-set 패턴, 다만 여기서는 아이템을
+     * 목록에서 지우는 대신 isSaved 플래그만 뒤집는다).
+     */
+    fun onToggleSave(routeId: String) {
+        val current = _uiState.value
+        if (routeId in current.togglingSaveRouteIds) return
+        val target = current.items.find { it.routeId == routeId } ?: return
+        val nextSaved = !target.isSaved
+
+        _uiState.update { state ->
+            state.copy(
+                items = state.items.map { if (it.routeId == routeId) it.copy(isSaved = nextSaved) else it },
+                togglingSaveRouteIds = state.togglingSaveRouteIds + routeId,
+            )
+        }
+
+        viewModelScope.launch {
+            val result = if (nextSaved) {
+                safeApiCall<Unit> { userApi.saveRoute(routeId) }
+            } else {
+                safeApiCall<Unit> { userApi.unsaveRoute(routeId) }
+            }
+
+            _uiState.update { state ->
+                val toggling = state.togglingSaveRouteIds - routeId
+                when (result) {
+                    is UiResult.Success -> state.copy(togglingSaveRouteIds = toggling)
+                    is UiResult.Error -> state.copy(
+                        items = state.items.map { if (it.routeId == routeId) it.copy(isSaved = !nextSaved) else it },
+                        togglingSaveRouteIds = toggling,
+                    )
+                    UiResult.Loading -> state
+                }
+            }
+        }
     }
 
     fun retry() = reload()

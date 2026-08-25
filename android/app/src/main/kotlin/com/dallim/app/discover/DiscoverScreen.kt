@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,6 +72,7 @@ fun DiscoverRoute(
         onSortChange = viewModel::onSortChange,
         onRetryClick = viewModel::retry,
         onLoadNextPage = viewModel::loadNextPage,
+        onToggleSaveClick = viewModel::onToggleSave,
         modifier = modifier,
     )
 }
@@ -84,6 +87,7 @@ private fun DiscoverScreen(
     onSortChange: (SortOption) -> Unit,
     onRetryClick: () -> Unit,
     onLoadNextPage: () -> Unit,
+    onToggleSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -153,7 +157,12 @@ private fun DiscoverScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
             ) {
                 items(uiState.items, key = { it.routeId }) { route ->
-                    RouteRow(route = route, onClick = { onRouteClick(route.routeId) })
+                    RouteRow(
+                        route = route,
+                        isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
+                        onClick = { onRouteClick(route.routeId) },
+                        onToggleSaveClick = { onToggleSaveClick(route.routeId) },
+                    )
                 }
                 if (uiState.isLoadingMore) {
                     item {
@@ -219,7 +228,12 @@ private fun FilterSection(
 }
 
 @Composable
-private fun RouteRow(route: RouteListItem, onClick: () -> Unit) {
+private fun RouteRow(
+    route: RouteListItem,
+    isTogglingSave: Boolean,
+    onClick: () -> Unit,
+    onToggleSaveClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -255,11 +269,20 @@ private fun RouteRow(route: RouteListItem, onClick: () -> Unit) {
             )
             RouteStatusBadge(status = route.status.toRouteStatus(), modifier = Modifier.padding(top = Spacing.xs))
         }
-        Text(
-            text = "${route.finisherCount}명 완주",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "${route.finisherCount}명 완주",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+            )
+            IconButton(onClick = onToggleSaveClick, enabled = !isTogglingSave) {
+                Icon(
+                    imageVector = if (route.isSaved) Icons.Filled.Bookmark else Icons.Outlined.Bookmark,
+                    contentDescription = if (route.isSaved) "저장 취소" else "코스 저장",
+                    tint = if (route.isSaved) DallimColors.TextPrimary else DallimColors.TextSecondary,
+                )
+            }
+        }
     }
 }
 
@@ -291,6 +314,24 @@ private fun DiscoverScreenPreview() {
                                 listOf(127.058, 37.256),
                             ),
                         ),
+                        isSaved = true,
+                    ),
+                    RouteListItem(
+                        routeId = "rt_002",
+                        name = "물고기",
+                        emoji = "🐟",
+                        distanceKm = 3.4,
+                        estimatedMinutes = 24,
+                        status = "DISCOVERY",
+                        finisherCount = 12,
+                        thumbnailGeoJson = GeoJsonLineString(
+                            coordinates = listOf(
+                                listOf(127.05, 37.25),
+                                listOf(127.053, 37.254),
+                                listOf(127.056, 37.252),
+                            ),
+                        ),
+                        isSaved = false,
                     ),
                 ),
                 isLoadingInitial = false,
@@ -302,6 +343,7 @@ private fun DiscoverScreenPreview() {
             onSortChange = {},
             onRetryClick = {},
             onLoadNextPage = {},
+            onToggleSaveClick = {},
         )
     }
 }
