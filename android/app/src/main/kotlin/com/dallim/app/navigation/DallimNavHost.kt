@@ -1,14 +1,6 @@
 package com.dallim.app.navigation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,15 +8,25 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.dallim.app.discover.DiscoverRoute
 import com.dallim.app.home.HomeRoute
+import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
+import com.dallim.app.onboarding.firstroute.FirstRouteSuggestionRoute
+import com.dallim.app.onboarding.login.LoginRoute
+import com.dallim.app.onboarding.permission.PermissionRoute
+import com.dallim.app.onboarding.profile.ProfileSetupRoute
+import com.dallim.app.onboarding.signup.SignupRoute
+import com.dallim.app.onboarding.splash.SplashRoute
+import com.dallim.app.onboarding.terms.TermsRoute
 import com.dallim.app.route.detail.RouteDetailRoute
 import com.dallim.app.route.saved.SavedRoutesRoute
 
 /**
- * Root NavHost. Only the splash placeholder (S-00) plus the S-10/S-11/S-16/S-17 홈&탐색 screens
- * are wired up here — this round's scope. The onboarding screens (S-01~S-06) are implemented
- * under onboarding/ but intentionally NOT wired into this NavHost yet (out of scope for this
- * round, left untouched); android-dev adds one `composable(DallimDestinations.X) { ... }` per
- * remaining screen as S-01~S-06/S-20~S-41 land (docs/01-feature-spec.md 1장).
+ * Root NavHost. S-00~S-06 온보딩과 S-10/S-11/S-16/S-17 홈&탐색 screens are wired up here.
+ * S-00(SPLASH)는 back stack의 최하단에서 한 번만 지나가는 목적지이므로, 온보딩/로그인 어디서
+ * 진입했든 "-> 홈" 전이는 전부 `popUpTo(DallimDestinations.SPLASH) { inclusive = true }`로
+ * 스플래시까지 통째로 걷어내 온보딩 스택으로 뒤로가기가 되지 않게 한다. 러닝/달림북
+ * (S-20~S-41)은 아직 화면 구현체가 없어 이번 라운드에도 배선하지 않는다 — android-dev가 해당
+ * 화면을 구현할 때 `composable(DallimDestinations.X) { ... }`를 추가한다
+ * (docs/01-feature-spec.md 1장).
  */
 @Composable
 fun DallimNavHost(navController: NavHostController) {
@@ -33,7 +35,79 @@ fun DallimNavHost(navController: NavHostController) {
         startDestination = DallimDestinations.SPLASH,
     ) {
         composable(DallimDestinations.SPLASH) {
-            ScaffoldPlaceholder(label = "S-00 스플래시 (android-dev 구현 예정)")
+            SplashRoute(
+                onNavigateHome = {
+                    navController.navigate(DallimDestinations.HOME) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+                onNavigateCarousel = {
+                    navController.navigate(DallimDestinations.ONBOARDING_CAROUSEL) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(DallimDestinations.ONBOARDING_CAROUSEL) {
+            OnboardingCarouselScreen(
+                onFinished = { navController.navigate(DallimDestinations.LOGIN) },
+            )
+        }
+
+        composable(DallimDestinations.LOGIN) {
+            LoginRoute(
+                onNavigateTerms = { navController.navigate(DallimDestinations.TERMS) },
+                onNavigateHome = {
+                    navController.navigate(DallimDestinations.HOME) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+                onNavigateSignup = { navController.navigate(DallimDestinations.SIGNUP) },
+            )
+        }
+
+        composable(DallimDestinations.SIGNUP) {
+            SignupRoute(
+                onNavigateTerms = { navController.navigate(DallimDestinations.TERMS) },
+                onNavigateHome = {
+                    navController.navigate(DallimDestinations.HOME) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(DallimDestinations.TERMS) {
+            TermsRoute(
+                onAgreed = { navController.navigate(DallimDestinations.PROFILE_SETUP) },
+            )
+        }
+
+        composable(DallimDestinations.PROFILE_SETUP) {
+            ProfileSetupRoute(
+                onNavigatePermission = { navController.navigate(DallimDestinations.PERMISSION) },
+            )
+        }
+
+        composable(DallimDestinations.PERMISSION) {
+            PermissionRoute(
+                onContinue = { navController.navigate(DallimDestinations.FIRST_ROUTE_SUGGESTION) },
+            )
+        }
+
+        composable(DallimDestinations.FIRST_ROUTE_SUGGESTION) {
+            FirstRouteSuggestionRoute(
+                // S-20(러닝 준비)은 아직 NavHost에 등록되지 않았다 — android-dev가 S-20을
+                // 구현할 때 이 콜백을 `navController.navigate(DallimDestinations.runPrepare(routeId))`로
+                // 교체한다 (S-16의 onStartRunClick과 동일한 패턴).
+                onStartRunClick = { },
+                onLaterClick = {
+                    navController.navigate(DallimDestinations.HOME) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+            )
         }
 
         composable(DallimDestinations.HOME) {
@@ -72,12 +146,5 @@ fun DallimNavHost(navController: NavHostController) {
                 onExploreClick = { navController.navigate(DallimDestinations.EXPLORE) },
             )
         }
-    }
-}
-
-@Composable
-private fun ScaffoldPlaceholder(label: String) {
-    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Text(text = label, style = MaterialTheme.typography.bodyLarge)
     }
 }
