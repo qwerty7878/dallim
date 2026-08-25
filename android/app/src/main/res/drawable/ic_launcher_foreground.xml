@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground layer — the signature GPS trail (docs/03-design-system.md:
+  "GPS 선이 브랜드의 본체"). A single smooth curve running start(보라)->end(코랄), kept
+  inside the adaptive-icon safe zone (center 66dp of the 108dp canvas, i.e. 21..87 on
+  both axes) so it isn't clipped by circle/squircle/rounded-square launcher masks.
+
+  The curve is drawn twice: a wider solid-white pass underneath as a halo/outline, then
+  the actual gradient stroke on top. Without the white halo, the purple->coral line would
+  blend into the identically-colored gradient background layer at matching coordinates and
+  become nearly invisible — the halo is what makes the mark read cleanly on top of the
+  brand gradient (matching the "배민/토스처럼 깔끔한 아이콘" ask).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- White halo/outline pass -->
+    <path
+        android:pathData="M28,80 C40,80 38,54 54,54 C70,54 68,28 80,28"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="13"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- Gradient trail pass (start 보라 -> end 코랄) -->
+    <path
+        android:pathData="M28,80 C40,80 38,54 54,54 C70,54 68,28 80,28"
+        android:strokeWidth="7.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="28"
+                android:startY="80"
+                android:endX="80"
+                android:endY="28"
+                android:startColor="#FF4A3AFF"
+                android:endColor="#FFFF6B4A" />
+        </aapt:attr>
+    </path>
+</vector>
