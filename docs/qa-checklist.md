@@ -14,7 +14,7 @@
 
 | 파일 | 유형 | 개수 | 결과 |
 |---|---|---|---|
-| `backend/src/test/kotlin/com/dallim/run/RunJudgementServiceTest.kt` | 단위 | 20 | 통과 |
+| `backend/src/test/kotlin/com/dallim/run/RunJudgementServiceTest.kt` | 단위 | 21 | 통과 |
 | `backend/src/test/kotlin/com/dallim/common/GeoMathTest.kt` | 단위 | 7 | 통과 |
 | `backend/src/test/kotlin/com/dallim/common/FrechetDistanceTest.kt` | 단위 | 4 | 통과 |
 | `backend/src/test/kotlin/com/dallim/common/DouglasPeuckerTest.kt` | 단위 | 4 | 통과 |
