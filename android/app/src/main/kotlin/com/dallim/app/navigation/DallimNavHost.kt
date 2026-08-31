@@ -18,15 +18,23 @@ import com.dallim.app.onboarding.splash.SplashRoute
 import com.dallim.app.onboarding.terms.TermsRoute
 import com.dallim.app.route.detail.RouteDetailRoute
 import com.dallim.app.route.saved.SavedRoutesRoute
+import com.dallim.app.running.navigation.RunNavigationRoute
+import com.dallim.app.running.prepare.RunPrepareRoute
+import com.dallim.app.running.result.RunResultRoute
+import com.dallim.app.running.share.ShareCardRoute
 
 /**
- * Root NavHost. S-00~S-06 온보딩과 S-10/S-11/S-16/S-17 홈&탐색 screens are wired up here.
- * S-00(SPLASH)는 back stack의 최하단에서 한 번만 지나가는 목적지이므로, 온보딩/로그인 어디서
- * 진입했든 "-> 홈" 전이는 전부 `popUpTo(DallimDestinations.SPLASH) { inclusive = true }`로
- * 스플래시까지 통째로 걷어내 온보딩 스택으로 뒤로가기가 되지 않게 한다. 러닝/달림북
- * (S-20~S-41)은 아직 화면 구현체가 없어 이번 라운드에도 배선하지 않는다 — android-dev가 해당
- * 화면을 구현할 때 `composable(DallimDestinations.X) { ... }`를 추가한다
- * (docs/01-feature-spec.md 1장).
+ * Root NavHost. S-00~S-06 온보딩, S-10/S-11/S-16/S-17 홈&탐색, S-20~S-26 러닝
+ * (destinations 문서 주석대로 S-22/23/24는 S-21 화면 내부 상태이지 별도 route가 아니다)이
+ * 여기 배선돼 있다. S-00(SPLASH)는 back stack의 최하단에서 한 번만 지나가는 목적지이므로,
+ * 온보딩/로그인 어디서 진입했든 "-> 홈" 전이는 전부
+ * `popUpTo(DallimDestinations.SPLASH) { inclusive = true }`로 스플래시까지 통째로 걷어내
+ * 온보딩 스택으로 뒤로가기가 되지 않게 한다.
+ *
+ * S-21(러닝 중) -> S-25(결과) 전이는 `popUpTo(RUN_PREPARE) { inclusive = true }`로 준비/러닝
+ * 화면 전체를 백스택에서 걷어낸다 — 결과 화면에서 뒤로가기를 누르면 다시 러닝 중 화면으로
+ * 돌아가는 사고를 막기 위함(러닝은 이미 서버에 종료 처리됐다). 달림북(S-40/S-41)은 다음
+ * 라운드 범위라 아직 배선하지 않는다.
  */
 @Composable
 fun DallimNavHost(navController: NavHostController) {
@@ -98,10 +106,7 @@ fun DallimNavHost(navController: NavHostController) {
 
         composable(DallimDestinations.FIRST_ROUTE_SUGGESTION) {
             FirstRouteSuggestionRoute(
-                // S-20(러닝 준비)은 아직 NavHost에 등록되지 않았다 — android-dev가 S-20을
-                // 구현할 때 이 콜백을 `navController.navigate(DallimDestinations.runPrepare(routeId))`로
-                // 교체한다 (S-16의 onStartRunClick과 동일한 패턴).
-                onStartRunClick = { },
+                onStartRunClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
                 onLaterClick = {
                     navController.navigate(DallimDestinations.HOME) {
                         popUpTo(DallimDestinations.SPLASH) { inclusive = true }
@@ -131,11 +136,7 @@ fun DallimNavHost(navController: NavHostController) {
         ) {
             RouteDetailRoute(
                 onBackClick = { navController.popBackStack() },
-                // S-20(러닝 준비)은 다음 라운드 범위라 아직 NavHost에 등록되지 않았다 — 지금
-                // 연결하면 미등록 목적지로 내비게이션이 실패한다. android-dev가 S-20을 구현할 때
-                // 이 콜백을 `navController.navigate(DallimDestinations.runPrepare(routeId))`로
-                // 교체한다.
-                onStartRunClick = { },
+                onStartRunClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
             )
         }
 
@@ -145,6 +146,60 @@ fun DallimNavHost(navController: NavHostController) {
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onExploreClick = { navController.navigate(DallimDestinations.EXPLORE) },
             )
+        }
+
+        composable(
+            route = DallimDestinations.RUN_PREPARE,
+            arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
+        ) {
+            RunPrepareRoute(
+                onStarted = { runId, routeId ->
+                    navController.navigate(DallimDestinations.runNavigation(runId, routeId)) {
+                        popUpTo(DallimDestinations.RUN_PREPARE) { inclusive = true }
+                    }
+                },
+                onBackClick = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.RUN_NAVIGATION,
+            arguments = listOf(
+                navArgument(DallimDestinations.ARG_RUN_ID) { type = NavType.StringType },
+                navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType },
+            ),
+        ) {
+            RunNavigationRoute(
+                onFinished = { runId ->
+                    navController.navigate(DallimDestinations.runResult(runId)) {
+                        // 러닝은 이미 서버에 종료 처리됐다 — 결과 화면에서 뒤로가기를 눌러도 다시
+                        // 준비/러닝 화면으로 돌아가지 않도록 그 두 화면을 백스택에서 걷어낸다.
+                        popUpTo(DallimDestinations.RUN_PREPARE) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.RUN_RESULT,
+            arguments = listOf(navArgument(DallimDestinations.ARG_RUN_ID) { type = NavType.StringType }),
+        ) {
+            RunResultRoute(
+                onShareClick = { runId -> navController.navigate(DallimDestinations.shareCard(runId)) },
+                onDoneClick = {
+                    // S-40 달림북은 다음 라운드 범위라 아직 배선하지 않았다 — 지금은 홈으로 복귀한다.
+                    navController.navigate(DallimDestinations.HOME) {
+                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.SHARE_CARD,
+            arguments = listOf(navArgument(DallimDestinations.ARG_RUN_ID) { type = NavType.StringType }),
+        ) {
+            ShareCardRoute(onBackClick = { navController.popBackStack() })
         }
     }
 }
