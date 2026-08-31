@@ -25,4 +25,7 @@ data class GeoJsonLineString(
          */
         fun fromJson(raw: String): GeoJsonLineString = json.decodeFromString(raw)
     }
+
+    /** Converts back to [LatLng] (note the coordinate-order flip: GeoJSON is [lng, lat]). */
+    fun toLatLngList(): List<LatLng> = coordinates.map { LatLng(lat = it[1], lng = it[0]) }
 }
