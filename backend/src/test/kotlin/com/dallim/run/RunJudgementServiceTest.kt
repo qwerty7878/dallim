@@ -49,10 +49,11 @@ class RunJudgementServiceTest {
         assertTrue(result.routeCompletionPercent >= 90, "expected >=90% coverage, was ${result.routeCompletionPercent}")
         assertFalse(result.hasAbnormalSpeed)
         assertTrue(result.distanceMeters > 0)
-        // sketchMatchPercent is deliberately NOT asserted to be high here -- see
-        // `sketchMatchPercent - BUG` below: with a realistically sparse planned route (5
-        // vertices, as curated routes are seeded) it currently scores near 0 even for this
-        // dead-on-course trace, so asserting a "high" score here would be asserting a bug.
+        assertTrue(
+            result.sketchMatchPercent >= 90,
+            "dead-on-course trace should score high once planned/actual density is matched (see " +
+                "sketchMatchPercent tests below), was ${result.sketchMatchPercent}",
+        )
     }
 
     @Test
@@ -318,47 +319,36 @@ class RunJudgementServiceTest {
     }
 
     // ---------------------------------------------------------------------
-    // 5. sketchMatchPercent -- KNOWN BUG, documented so it can't silently regress further
+    // 5. sketchMatchPercent -- density-mismatch fix (docs/qa-checklist.md round 1, bug #1)
     // ---------------------------------------------------------------------
 
     /**
-     * BUG (report filed against RunJudgementService.sketchMatchPercent -- see
-     * docs/qa-checklist.md): discrete Fréchet distance is a *vertex-correspondence* metric, not
-     * a point-to-segment one. `sketchMatchPercent` feeds it the planned route's raw vertices
-     * as-is (only resampling if `planned.size > FRECHET_MAX_POINTS`) alongside a much denser
-     * actual GPS trace. Every curated route in V2__seed_curated_routes.sql has only 5 vertices
-     * spanning 300-400m segments, while a real run's GPS trace has one point every few seconds
-     * (hundreds of points). When one curve is far sparser than the other, the DP is forced to
-     * hold a "leash" from a fixed sparse vertex across many dense-curve points advancing past
-     * it, inflating the distance to roughly half the sparse curve's longest segment length --
-     * regardless of how closely the runner actually retraced the route.
-     *
-     * Concretely (see the `completed_run` fixture, a trace built to hug rt_001's planned path
-     * within ~0m at every point): planned-as-is vs. actual gives a Fréchet distance of ~192m
-     * (over SKETCH_MATCH_ZERO_METERS=150m, i.e. sketchMatchPercent floors at 0) purely because
-     * planned only has 5 vertices ~350m apart -- a textbook "the run was a perfect retrace" case
-     * scores identically to "the runner never went near this route".
-     *
-     * Suggested fix for backend-dev: resample whichever of {planned, actual} is sparser up to
-     * roughly the other's point density (e.g. via GeoMath.resample keyed off arc length) before
-     * calling FrechetDistance.discreteMeters, not just cap the larger one at FRECHET_MAX_POINTS.
-     * This test intentionally asserts *today's* (buggy) output so it fails loudly -- forcing an
-     * update -- the moment someone fixes the underlying algorithm.
+     * Regression test for a fixed bug (docs/qa-checklist.md round 1, bug #1): discrete Fréchet
+     * distance is a *vertex-correspondence* metric, not a point-to-segment one, so feeding it a
+     * sparse planned route (curated routes have only 5 vertices, 300-400m apart) directly
+     * against a dense actual GPS trace (hundreds of points) used to inflate the distance to
+     * ~192m purely from the density mismatch -- even for the `completed_run` fixture, a trace
+     * built to hug rt_001's planned path within ~0m at every point. `sketchMatchPercent` now
+     * resamples whichever of {planned, actual} is sparser up to the other's point count (linear
+     * interpolation along arc length, via [GeoMath.resample]) before calling
+     * [com.dallim.common.FrechetDistance.discreteMeters], which brings that same fixture's
+     * distance down to ~3.6m and its score up to 98.
      */
     @Test
-    fun `sketchMatchPercent - BUG - scores near 0 for a dead-on-course trace when planned route is sparse`() {
+    fun `sketchMatchPercent - a dead-on-course trace scores near 100 despite a sparse planned route`() {
         val fixture = GpsFixtures.load("completed_run")
 
         val score = service.sketchMatchPercent(fixture.plannedLatLngs(), fixture.actualTimedPoints().map { it.toLatLng() })
 
-        assertEquals(0, score, "if this now fails, sketchMatchPercent's density-mismatch bug was fixed -- update/remove this test and re-enable a real assertion in the COMPLETED fixture test above")
+        assertTrue(score >= 90, "expected a near-perfect similarity score for a dead-on-course trace, was $score")
     }
 
     @Test
-    fun `sketchMatchPercent - resampling the planned route to match actual's density confirms the true similarity is high`() {
-        // Companion to the BUG test above: proves the trace genuinely is a near-perfect retrace
-        // (Frechet ~single-digit meters) once both curves are sampled at comparable density --
-        // i.e. the bug is in the metric's input preparation, not in the GPS fixture data.
+    fun `sketchMatchPercent - pre-resampling the planned route to actual's density gives the same high score`() {
+        // Companion to the test above: pre-resampling planned to actual's point count before
+        // calling sketchMatchPercent should land on essentially the same score as letting
+        // sketchMatchPercent do that resampling internally -- confirming the fix resamples
+        // rather than relying on some other, narrower special-casing.
         val fixture = GpsFixtures.load("completed_run")
         val actual = fixture.actualTimedPoints().map { it.toLatLng() }
         val plannedResampled = GeoMath.resample(fixture.plannedLatLngs(), actual.size)

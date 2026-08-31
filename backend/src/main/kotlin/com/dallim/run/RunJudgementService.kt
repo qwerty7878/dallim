@@ -186,8 +186,23 @@ class RunJudgementService {
     fun sketchMatchPercent(planned: List<LatLng>, actual: List<LatLng>): Int {
         if (actual.isEmpty()) return 0
 
-        val sampledPlanned = if (planned.size > FRECHET_MAX_POINTS) GeoMath.resample(planned, FRECHET_MAX_POINTS) else planned
-        val sampledActual = if (actual.size > FRECHET_MAX_POINTS) GeoMath.resample(actual, FRECHET_MAX_POINTS) else actual
+        // First cap each side independently so the O(n*m) Fréchet cost stays bounded even when a
+        // run has thousands of raw fixes.
+        val cappedPlanned = if (planned.size > FRECHET_MAX_POINTS) GeoMath.resample(planned, FRECHET_MAX_POINTS) else planned
+        val cappedActual = if (actual.size > FRECHET_MAX_POINTS) GeoMath.resample(actual, FRECHET_MAX_POINTS) else actual
+
+        // Discrete Fréchet distance is a vertex-to-vertex "leash length" metric: it has no notion
+        // of a point lying *on a segment* between two vertices of the other curve. A sparse
+        // planned route (e.g. 5 waypoints ~300-400m apart, as curated routes are seeded) compared
+        // directly against a dense actual GPS trace (hundreds of points) forces the leash to
+        // stretch across however far the dense curve travels while "stuck" between two sparse
+        // vertices -- inflating the distance regardless of how closely the runner actually
+        // retraced the route. Resample the sparser side up to the denser side's point count (via
+        // linear interpolation along arc length) so both curves are compared at a matching
+        // density before computing Fréchet distance.
+        val targetCount = maxOf(cappedPlanned.size, cappedActual.size)
+        val sampledPlanned = if (cappedPlanned.size < targetCount) GeoMath.resample(cappedPlanned, targetCount) else cappedPlanned
+        val sampledActual = if (cappedActual.size < targetCount) GeoMath.resample(cappedActual, targetCount) else cappedActual
 
         val frechetMeters = FrechetDistance.discreteMeters(sampledPlanned, sampledActual)
         val score = 100.0 * (1.0 - (frechetMeters / SKETCH_MATCH_ZERO_METERS)).coerceIn(0.0, 1.0)

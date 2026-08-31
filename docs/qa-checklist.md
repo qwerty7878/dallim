@@ -39,7 +39,7 @@
 
 ### 발견된 버그 / 이슈
 
-1. **[버그] `sketchMatchPercent`가 실제 커브 완성도와 무관하게 0점에 가깝게 나옴 (영향도 높음)**
+1. **[수정 완료] `sketchMatchPercent`가 실제 커브 완성도와 무관하게 0점에 가깝게 나옴 (영향도 높음)**
    `RunJudgementServiceTest.kt`의 `sketchMatchPercent - BUG - ...` 테스트로 재현/고정해둠.
    원인: discrete Fréchet distance는 "정점 대 정점" 대응 지표인데, `sketchMatchPercent`는
    `planned`(계획 경로, 시드 데이터 기준 정점 5개, 정점 간 300~400m)와 `actual`(실제 GPS
@@ -54,6 +54,20 @@
    `GeoMath.resample`로 다른 쪽과 비슷한 밀도까지 올려서 넣을 것 (현재는 더 긴 쪽을
    `FRECHET_MAX_POINTS`로 자르기만 함). `POST /runs/{id}/finish`, `GET /runs/{id}` 응답의
    `sketchMatchPercent` 필드가 실사용자에게 그대로 노출되므로 우선순위 높음.
+
+   **수정 완료 (2026-08-31, backend-dev)**: `RunJudgementService.sketchMatchPercent`에서
+   `FRECHET_MAX_POINTS`로 각 변을 독립적으로 캡한 뒤, 두 변 중 점 개수가 적은 쪽을
+   `GeoMath.resample`로 많은 쪽의 점 개수까지 선형보간 리샘플링하도록 수정
+   (`backend/src/main/kotlin/com/dallim/run/RunJudgementService.kt`). 새 유틸 파일은
+   추가하지 않음 — `GeoMath.resample`이 이미 호(arc-length) 기준 선형보간 리샘플링을
+   임의의 점 개수(업샘플링 포함)로 지원하는 순수 함수라 그대로 재사용. `completed_run`
+   fixture로 실측 확인: Fréchet 거리가 리샘플링 전 192.04m → 리샘플링 후 3.61m로 감소,
+   `sketchMatchPercent`는 0점 → 98점으로 정상화됨(qa-engineer가 보고한 ~192m → ~3.6m와
+   일치). `RunJudgementServiceTest.kt`의 "BUG" 문서화 테스트 2개를 실제 수정 후 동작을
+   검증하는 테스트로 갱신함(`sketchMatchPercent - a dead-on-course trace scores near 100
+   despite a sparse planned route`, `sketchMatchPercent - pre-resampling the planned route to
+   actual's density gives the same high score`). `SKETCH_MATCH_ZERO_METERS`(150m) 재보정은
+   여전히 별도 항목(아래 "SPEC에 명시 안 돼 있어..." 섹션)으로 남겨둠 — 이번 수정 범위 아님.
 
 2. **[정밀도 이슈] `abnormalSpeedRatio`가 1초 미만 간격의 GPS 쌍을 통째로 무시함**
    `Duration.between(prev.timestamp, curr.timestamp).seconds`는 정수 초만 반환(나노초
