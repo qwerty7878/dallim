@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -60,6 +61,7 @@ fun HomeRoute(
     onRouteClick: (routeId: String) -> Unit,
     onExploreClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
+    onDallimbookClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -70,6 +72,7 @@ fun HomeRoute(
         onRouteClick = onRouteClick,
         onExploreClick = onExploreClick,
         onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
+        onDallimbookClick = onDallimbookClick,
         onRetryClick = viewModel::load,
         modifier = modifier,
     )
@@ -81,6 +84,7 @@ private fun HomeScreen(
     onRouteClick: (routeId: String) -> Unit,
     onExploreClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
+    onDallimbookClick: () -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -97,8 +101,17 @@ private fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = "달림", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            IconButton(onClick = onExploreClick) {
-                Icon(imageVector = Icons.Filled.Search, contentDescription = "코스 탐색", tint = DallimColors.TextPrimary)
+            Row {
+                IconButton(onClick = onDallimbookClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoStories,
+                        contentDescription = "달림북",
+                        tint = DallimColors.TextPrimary,
+                    )
+                }
+                IconButton(onClick = onExploreClick) {
+                    Icon(imageVector = Icons.Filled.Search, contentDescription = "코스 탐색", tint = DallimColors.TextPrimary)
+                }
             }
         }
 
@@ -311,6 +324,7 @@ private fun HomeScreenPreview() {
             onRouteClick = {},
             onExploreClick = {},
             onSeeAllSavedRoutesClick = {},
+            onDallimbookClick = {},
             onRetryClick = {},
         )
     }

@@ -6,6 +6,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.dallim.app.dallimbook.detail.DallimbookDetailRoute
+import com.dallim.app.dallimbook.grid.DallimbookGridRoute
 import com.dallim.app.discover.DiscoverRoute
 import com.dallim.app.home.HomeRoute
 import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
@@ -33,8 +35,7 @@ import com.dallim.app.running.share.ShareCardRoute
  *
  * S-21(러닝 중) -> S-25(결과) 전이는 `popUpTo(RUN_PREPARE) { inclusive = true }`로 준비/러닝
  * 화면 전체를 백스택에서 걷어낸다 — 결과 화면에서 뒤로가기를 누르면 다시 러닝 중 화면으로
- * 돌아가는 사고를 막기 위함(러닝은 이미 서버에 종료 처리됐다). 달림북(S-40/S-41)은 다음
- * 라운드 범위라 아직 배선하지 않는다.
+ * 돌아가는 사고를 막기 위함(러닝은 이미 서버에 종료 처리됐다).
  */
 @Composable
 fun DallimNavHost(navController: NavHostController) {
@@ -120,6 +121,24 @@ fun DallimNavHost(navController: NavHostController) {
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onExploreClick = { navController.navigate(DallimDestinations.EXPLORE) },
                 onSeeAllSavedRoutesClick = { navController.navigate(DallimDestinations.SAVED_ROUTES) },
+                onDallimbookClick = { navController.navigate(DallimDestinations.DALLIMBOOK_GRID) },
+            )
+        }
+
+        composable(DallimDestinations.DALLIMBOOK_GRID) {
+            DallimbookGridRoute(
+                onBackClick = { navController.popBackStack() },
+                onArtworkClick = { runId -> navController.navigate(DallimDestinations.dallimbookDetail(runId)) },
+                onEmptySlotClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.DALLIMBOOK_DETAIL,
+            arguments = listOf(navArgument(DallimDestinations.ARG_RUN_ID) { type = NavType.StringType }),
+        ) {
+            DallimbookDetailRoute(
+                onBackClick = { navController.popBackStack() },
             )
         }
 
@@ -187,9 +206,11 @@ fun DallimNavHost(navController: NavHostController) {
             RunResultRoute(
                 onShareClick = { runId -> navController.navigate(DallimDestinations.shareCard(runId)) },
                 onDoneClick = {
-                    // S-40 달림북은 다음 라운드 범위라 아직 배선하지 않았다 — 지금은 홈으로 복귀한다.
-                    navController.navigate(DallimDestinations.HOME) {
-                        popUpTo(DallimDestinations.SPLASH) { inclusive = true }
+                    // "달림북에 저장하고 닫기" — 방금 완성한 작품이 바로 보이는 달림북 그리드로
+                    // 이동한다. HOME까지는 백스택에 남기고(뒤로가기 시 홈으로) 그 위의
+                    // 코스상세/러닝/결과 화면들만 걷어낸다.
+                    navController.navigate(DallimDestinations.DALLIMBOOK_GRID) {
+                        popUpTo(DallimDestinations.HOME)
                     }
                 },
             )
