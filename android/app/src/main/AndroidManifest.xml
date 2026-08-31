@@ -30,6 +30,37 @@
             </intent-filter>
         </activity>
 
+        <!-- S-21 GPS 트래킹 파이프라인 (docs/01-feature-spec.md §1.3) — 화면 OFF/백그라운드에서도
+             위치 수집을 유지하는 ForegroundService. -->
+        <service
+            android:name=".location.LocationTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- S-26 공유 카드: Canvas로 합성한 Bitmap을 ShareSheet로 넘길 때 파일 URI를 제공. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Hilt가 WorkManager를 직접 초기화(HiltWorkerFactory)하므로 기본 WorkManagerInitializer는
+             끈다 — DallimApplication의 Configuration.Provider 구현 참고. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
     </application>
 
 </manifest>

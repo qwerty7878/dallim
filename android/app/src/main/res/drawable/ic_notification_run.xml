@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ForegroundService(러닝 트래킹) 상태바 알림 아이콘. 상태바 아이콘 가이드에 맞춰 흰색 실루엣
+  단색만 사용한다(그라디언트/브랜드 컬러 금지 — 시스템이 알아서 틴트한다). 앱 시그니처인 GPS
+  궤적 곡선을 그대로 축소한 실루엣.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+    <path
+        android:pathData="M5,17 C8,17 7.5,12 11,12 C14.5,12 14,7 17,7"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
