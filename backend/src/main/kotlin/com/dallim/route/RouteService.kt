@@ -2,12 +2,16 @@ package com.dallim.route
 
 import com.dallim.common.ErrorCodes
 import com.dallim.common.NotFoundException
+import com.dallim.run.RunRepository
 
 /**
  * Route domain business logic — docs/02-api-spec.md 4장, docs/01-feature-spec.md 2.2.C.
  * Route handlers (RouteRoutes.kt) stay thin HTTP adapters; all validation/mapping lives here.
  */
-class RouteService(private val routeRepository: RouteRepository) {
+class RouteService(
+    private val routeRepository: RouteRepository,
+    private val runRepository: RunRepository,
+) {
 
     fun listRoutes(
         lat: Double?,
@@ -80,18 +84,15 @@ class RouteService(private val routeRepository: RouteRepository) {
         )
     }
 
-    /**
-     * GET /routes/{routeId}/finishers — docs/02-api-spec.md 4장.
-     * TODO(backend-dev, run domain round): once RunRecord + finish-judgement lands, populate
-     * this from COMPLETED runs against this route (recent N, with userNickname + a simplified
-     * thumbnailGeoJson). Until then there is no run data to source from at all, so this always
-     * returns an empty list after validating the route itself exists.
-     */
+    /** GET /routes/{routeId}/finishers — recent COMPLETED runs against this route (docs/02-api-spec.md 4장). */
     fun getFinishers(routeId: String): RouteFinishersResponse {
         if (!routeRepository.exists(routeId)) {
             throw NotFoundException(ErrorCodes.ROUTE_NOT_FOUND, "코스를 찾을 수 없습니다.")
         }
-        return RouteFinishersResponse(items = emptyList())
+        val items = runRepository.findFinishers(routeId).map {
+            RouteFinisherItem(runId = it.runId, userNickname = it.userNickname, thumbnailGeoJson = it.thumbnailGeoJson)
+        }
+        return RouteFinishersResponse(items = items)
     }
 
     /** Used by GET /home todaySketch (see HomeService) — POPULAR-preferred pick, else random. */
