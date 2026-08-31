@@ -157,6 +157,13 @@ class RunJudgementService {
      * Abnormal-speed ratio (docs/01-feature-spec.md 2.2.D step 3): fraction of consecutive-point
      * segments whose implied speed exceeds [ABNORMAL_SPEED_KMH]. Pairs with a non-positive time
      * delta (duplicate/out-of-order timestamps) are skipped rather than treated as infinite speed.
+     *
+     * Elapsed time is computed via [Duration.toMillis] (millisecond precision), not
+     * [Duration.getSeconds] -- the latter truncates to whole seconds, which would silently drop
+     * any pair of points less than 1 second apart from both the abnormal count and the total-
+     * sample denominator (a high-frequency GPS batch, e.g. sub-1Hz upload intervals, would have
+     * those pairs excluded from anomaly detection entirely instead of contributing a correctly
+     * fractional speed sample).
      */
     fun abnormalSpeedRatio(points: List<TimedPoint>): Double {
         if (points.size < 2) return 0.0
@@ -166,8 +173,8 @@ class RunJudgementService {
         for (i in 1 until points.size) {
             val prev = points[i - 1]
             val curr = points[i]
-            val seconds = Duration.between(prev.timestamp, curr.timestamp).seconds
-            if (seconds <= 0) continue
+            val seconds = Duration.between(prev.timestamp, curr.timestamp).toMillis() / 1000.0
+            if (seconds <= 0.0) continue
 
             val meters = GeoMath.haversineMeters(prev.toLatLng(), curr.toLatLng())
             val kmh = (meters / seconds) * 3.6

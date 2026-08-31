@@ -270,6 +270,34 @@ class RunJudgementServiceTest {
         assertTrue(result.routeCompletionPercent >= 90, "coverage should remain high -- speed alone must drive the override")
     }
 
+    @Test
+    fun `abnormalSpeedRatio - millisecond precision counts sub-1-second GPS pairs instead of dropping them`() {
+        // Regression test for docs/qa-checklist.md round 1, bug #2: `Duration.between(...).seconds`
+        // truncates to whole seconds, so a pair of points less than 1 second apart used to compute
+        // `seconds == 0` and get silently skipped by `if (seconds <= 0) continue` -- vanishing from
+        // both the abnormal-speed numerator AND the total-sample denominator instead of
+        // contributing a correctly fractional speed sample.
+        val base = Instant.parse("2026-08-30T00:00:00Z")
+        val metersPerDegLng = 111_320.0 * cos(Math.toRadians(37.40))
+
+        // Leg 1: 5m in 0.3s -> 60km/h (abnormal). Pre-fix, Duration.between(...).seconds == 0 for
+        // this leg, so it used to be dropped from both numerator and denominator entirely.
+        val p0 = TimedPoint(37.40, 127.0000, base)
+        val p1 = TimedPoint(37.40, 127.0000 + 5.0 / metersPerDegLng, base.plusMillis(300))
+        // Leg 2: 5m in 1.0s -> 18km/h (normal) -- counted identically before and after the fix.
+        val p2 = TimedPoint(37.40, 127.0000 + 10.0 / metersPerDegLng, p1.timestamp.plusMillis(1000))
+
+        val ratio = service.abnormalSpeedRatio(listOf(p0, p1, p2))
+
+        // With millisecond precision: 1 abnormal leg out of 2 total legs -> ratio == 0.5. Before
+        // the fix this evaluated to 0.0 (0 abnormal out of 1 total sample -- leg 1 vanished).
+        assertEquals(0.5, ratio, 1e-9)
+
+        val planned = straightLinePlanned(lengthMeters = 15.0)
+        val result = service.judge(planned, listOf(p0, p1, p2))
+        assertTrue(result.hasAbnormalSpeed, "the sub-1-second abnormal leg must now flip hasAbnormalSpeed")
+    }
+
     // ---------------------------------------------------------------------
     // 4. Insufficient GPS data
     // ---------------------------------------------------------------------

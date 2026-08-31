@@ -69,7 +69,7 @@
    actual's density gives the same high score`). `SKETCH_MATCH_ZERO_METERS`(150m) 재보정은
    여전히 별도 항목(아래 "SPEC에 명시 안 돼 있어..." 섹션)으로 남겨둠 — 이번 수정 범위 아님.
 
-2. **[정밀도 이슈] `abnormalSpeedRatio`가 1초 미만 간격의 GPS 쌍을 통째로 무시함**
+2. **[수정 완료] `abnormalSpeedRatio`가 1초 미만 간격의 GPS 쌍을 통째로 무시함**
    `Duration.between(prev.timestamp, curr.timestamp).seconds`는 정수 초만 반환(나노초
    버림)한다. 두 점의 간격이 1초 미만이면 `seconds == 0`이 되어 `if (seconds <= 0) continue`
    에 걸려 분자(이상속도 카운트)와 분모(전체 샘플 수) 모두에서 완전히 제외된다. 현재 시드
@@ -78,6 +78,19 @@
    반영되지 않는다. `Duration.between(...).toMillis() / 1000.0` 등 소수 초 단위로 바꾸는
    것을 권장. (`RunJudgementServiceTest`의 "exactly at the 5pct threshold" 테스트 주석에
    재현 상황을 남겨둠.)
+
+   **수정 완료 (2026-08-31, backend-dev)**: `RunJudgementService.abnormalSpeedRatio`에서
+   `Duration.between(prev.timestamp, curr.timestamp).seconds`(정수 초, 나노초 버림) 대신
+   `.toMillis() / 1000.0`(밀리초 정밀도의 Double 초)로 변경
+   (`backend/src/main/kotlin/com/dallim/run/RunJudgementService.kt`). 기존 "exactly at the
+   5pct threshold" 테스트는 애초에 15m/leg로 각 구간의 raw duration이 1초 이상이 되도록
+   설계돼 있어 이 버그를 우회했던 것이라 수정 전/후 동일하게 통과함(갱신 불필요). 대신
+   `RunJudgementServiceTest.kt`에 1초 미만 간격 쌍을 직접 재현하는 새 테스트
+   (`abnormalSpeedRatio - millisecond precision counts sub-1-second GPS pairs instead of
+   dropping them`)를 추가함 — 수정 전 코드로 되돌려 이 테스트가 실제로 실패하는 것까지
+   확인한 뒤 수정 코드로 복원함(0.3초 간격 60km/h 이상속도 구간이 수정 전엔 분자/분모에서
+   완전히 누락돼 ratio=0.0으로 나오던 것이, 수정 후엔 ratio=0.5로 정상 반영되고
+   `hasAbnormalSpeed`가 true로 뒤집힘).
 
 3. **[리소스 누수] `Application.module()`이 시작한 `HikariDataSource`/Redis 연결에
    종료 훅이 없음** — 이번 통합 테스트를 작성하며 발견. `module()`은 `Databases.dataSource()`로
