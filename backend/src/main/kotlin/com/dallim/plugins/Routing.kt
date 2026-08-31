@@ -2,6 +2,7 @@ package com.dallim.plugins
 
 import com.dallim.auth.authRoutes
 import com.dallim.common.ApiResponse
+import com.dallim.dallimbook.dallimbookRoutes
 import com.dallim.route.homeRoutes
 import com.dallim.route.routeRoutes
 import com.dallim.run.runRoutes
@@ -12,9 +13,9 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 
 /**
- * Root routing tree. auth/route/saved-routes/home/run are mounted; the rest of the user domain
- * (profile/nickname-check) and dallimbook are still backend-dev's job for later rounds and should
- * be mounted as `Route.xxxRoutes()` extension functions the same way.
+ * Root routing tree. auth/route/saved-routes/home/run/dallimbook are mounted; the rest of the
+ * user domain (profile/nickname-check) is still backend-dev's job for a later round and should be
+ * mounted as a `Route.xxxRoutes()` extension function the same way.
  */
 fun Application.configureRouting() {
     routing {
@@ -26,5 +27,6 @@ fun Application.configureRouting() {
         savedRouteRoutes()
         homeRoutes()
         runRoutes()
+        dallimbookRoutes()
     }
 }
