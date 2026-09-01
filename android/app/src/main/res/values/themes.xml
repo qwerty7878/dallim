@@ -1,0 +1,5 @@
+<resources>
+    <!-- Manifest/splash-time-only theme. All actual screen styling happens in Compose via
+         com.dallim.ui.theme.DallimTheme (core-ui) — do not add colors/dimens here. -->
+    <style name="Theme.Dallim" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

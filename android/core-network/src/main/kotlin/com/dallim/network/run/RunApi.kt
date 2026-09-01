@@ -1,0 +1,104 @@
+package com.dallim.network.run
+
+import com.dallim.network.common.ApiResponse
+import com.dallim.network.common.GeoJsonLineString
+import kotlinx.serialization.Serializable
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.Path
+
+/**
+ * docs/02-api-spec.md 5장 — 러닝 모듈, 가장 중요한 API 그룹.
+ * GPS는 실시간 스트리밍하지 않는다: [uploadGpsBatch]는 러닝 종료 시 Room에 쌓인 포인트를
+ * WorkManager가 배치로(여러 번 나눠) 호출한다 (CLAUDE.md rule 4, GpsBatchUploadWorker).
+ */
+interface RunApi {
+    @POST("runs")
+    suspend fun startRun(@Body request: StartRunRequest): Response<ApiResponse<StartRunResponseBody>>
+
+    @PATCH("runs/{runId}/status")
+    suspend fun updateStatus(
+        @Path("runId") runId: String,
+        @Body request: RunStatusRequest,
+    ): Response<ApiResponse<RunStatusResponseBody>>
+
+    @POST("runs/{runId}/gps-batch")
+    suspend fun uploadGpsBatch(
+        @Path("runId") runId: String,
+        @Body request: GpsBatchRequest,
+    ): Response<ApiResponse<GpsBatchResponseBody>>
+
+    @POST("runs/{runId}/finish")
+    suspend fun finishRun(
+        @Path("runId") runId: String,
+        @Body request: FinishRunRequest,
+    ): Response<ApiResponse<FinishRunResponseBody>>
+
+    @GET("runs/{runId}")
+    suspend fun getRun(@Path("runId") runId: String): Response<ApiResponse<RunDetailResponseBody>>
+}
+
+@Serializable
+data class ClientDeviceInfo(val gpsAccuracyM: Int)
+
+@Serializable
+data class StartRunRequest(
+    val routeId: String,
+    val mode: String = "SOLO",
+    val startedAt: String,
+    val clientDeviceInfo: ClientDeviceInfo,
+)
+
+@Serializable
+data class StartRunResponseBody(val runId: String, val status: String)
+
+@Serializable
+data class RunStatusRequest(val status: String)
+
+@Serializable
+data class RunStatusResponseBody(val runId: String, val status: String)
+
+@Serializable
+data class GpsPointDto(val lat: Double, val lng: Double, val timestamp: String, val accuracyM: Float)
+
+@Serializable
+data class GpsBatchRequest(val points: List<GpsPointDto>)
+
+@Serializable
+data class GpsBatchResponseBody(val receivedCount: Int)
+
+@Serializable
+data class FinishRunRequest(val finishedAt: String, val clientPrecheckStatus: String)
+
+@Serializable
+data class FinishRunResponseBody(
+    val runId: String,
+    val status: String,
+    val distanceKm: Double,
+    val durationSeconds: Int,
+    val averagePaceSecPerKm: Int,
+    val sketchMatchPercent: Int,
+    val routeCompletionPercent: Int,
+    val isFirstDiscoverer: Boolean,
+    val earnedInk: Int,
+    val earnedBadges: List<String> = emptyList(),
+)
+
+@Serializable
+data class RunDetailResponseBody(
+    val runId: String,
+    val routeId: String,
+    val routeName: String,
+    val status: String,
+    val actualGeoJson: GeoJsonLineString,
+    val plannedGeoJson: GeoJsonLineString,
+    val distanceKm: Double,
+    val durationSeconds: Int,
+    val averagePaceSecPerKm: Int,
+    val sketchMatchPercent: Int,
+    val routeCompletionPercent: Int,
+    val completedAt: String,
+)
