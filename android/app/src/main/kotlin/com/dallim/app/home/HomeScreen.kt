@@ -9,20 +9,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,10 +32,12 @@ import com.dallim.network.home.HomeResponseBody
 import com.dallim.network.home.RecentRun
 import com.dallim.network.home.TodaySketch
 import com.dallim.network.user.SavedRouteItem
+import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
@@ -57,13 +53,15 @@ import java.time.format.DateTimeFormatter
  * S-10 홈. Hero 카드(오늘의 달림) / 최근 달림 3개 / 저장 코스 리스트 3개 섹션으로 구성한다
  * (docs/01-feature-spec.md §1.2). `GET /home`의 `continueRoutes`는 이 화면 스펙(§1.2)이
  * 명시한 3개 섹션에 없어 이번 라운드에서는 렌더링하지 않는다 — 임의 확장 방지.
+ *
+ * 하단 탭바 도입(01-feature-spec.md §1.0)으로 상단의 책(달림북)/돋보기(탐색) 아이콘은
+ * 탭바와 기능이 중복되어 제거했다 — 그 경로는 이제 [onTabSelected]로만 이동한다.
  */
 @Composable
 fun HomeRoute(
     onRouteClick: (routeId: String) -> Unit,
-    onExploreClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
-    onDallimbookClick: () -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -72,9 +70,8 @@ fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         onRouteClick = onRouteClick,
-        onExploreClick = onExploreClick,
         onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
-        onDallimbookClick = onDallimbookClick,
+        onTabSelected = onTabSelected,
         onRetryClick = viewModel::load,
         modifier = modifier,
     )
@@ -84,73 +81,64 @@ fun HomeRoute(
 private fun HomeScreen(
     uiState: HomeUiState,
     onRouteClick: (routeId: String) -> Unit,
-    onExploreClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
-    onDallimbookClick: () -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DallimColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
-    ) {
-        Row(
+    Scaffold(
+        modifier = modifier,
+        containerColor = DallimColors.Background,
+        bottomBar = {
+            DallimBottomNavigation(selectedTab = DallimTab.HOME, onTabSelected = onTabSelected)
+        },
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .background(DallimColors.Background)
+                .padding(innerPadding),
         ) {
-            Text(text = "달림", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            Row {
-                IconButton(onClick = onDallimbookClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.AutoStories,
-                        contentDescription = "달림북",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                IconButton(onClick = onExploreClick) {
-                    Icon(imageVector = Icons.Filled.Search, contentDescription = "코스 탐색", tint = DallimColors.TextPrimary)
-                }
-            }
-        }
-
-        when (uiState) {
-            is HomeUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
-            is HomeUiState.Error -> DallimErrorState(
-                title = "홈 정보를 불러오지 못했어요",
-                description = uiState.message,
-                onRetry = onRetryClick,
-                modifier = Modifier.weight(1f),
+            Text(
+                text = "달림",
+                style = DallimTypography.Title1,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
             )
-            is HomeUiState.Success -> Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.ScreenHorizontal),
-            ) {
-                HeroSection(todaySketch = uiState.home.todaySketch, onRouteClick = onRouteClick)
 
-                SectionHeader(title = "최근 달림", modifier = Modifier.padding(top = Spacing.xl))
-                RecentRunsSection(recentRuns = uiState.home.recentRuns.take(3))
-
-                Row(
+            when (uiState) {
+                is HomeUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
+                is HomeUiState.Error -> DallimErrorState(
+                    title = "홈 정보를 불러오지 못했어요",
+                    description = uiState.message,
+                    onRetry = onRetryClick,
+                    modifier = Modifier.weight(1f),
+                )
+                is HomeUiState.Success -> Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.xl),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.ScreenHorizontal),
                 ) {
-                    SectionHeader(title = "저장한 코스", modifier = Modifier.padding(bottom = 0.dp))
-                    DallimTextButton(text = "더보기", onClick = onSeeAllSavedRoutesClick)
-                }
-                SavedRoutesPreviewSection(savedRoutes = uiState.savedRoutesPreview, onRouteClick = onRouteClick)
+                    HeroSection(todaySketch = uiState.home.todaySketch, onRouteClick = onRouteClick)
 
-                Box(modifier = Modifier.padding(bottom = Spacing.xxl))
+                    SectionHeader(title = "최근 달림", modifier = Modifier.padding(top = Spacing.xl))
+                    RecentRunsSection(recentRuns = uiState.home.recentRuns.take(3))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.xl),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SectionHeader(title = "저장한 코스", modifier = Modifier.padding(bottom = 0.dp))
+                        DallimTextButton(text = "더보기", onClick = onSeeAllSavedRoutesClick)
+                    }
+                    SavedRoutesPreviewSection(savedRoutes = uiState.savedRoutesPreview, onRouteClick = onRouteClick)
+
+                    Box(modifier = Modifier.padding(bottom = Spacing.xxl))
+                }
             }
         }
     }
@@ -326,9 +314,8 @@ private fun HomeScreenPreview() {
                 ),
             ),
             onRouteClick = {},
-            onExploreClick = {},
             onSeeAllSavedRoutesClick = {},
-            onDallimbookClick = {},
+            onTabSelected = {},
             onRetryClick = {},
         )
     }

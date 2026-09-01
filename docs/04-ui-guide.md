@@ -211,7 +211,56 @@ fun SectionHeader(title: String) {
         modifier = Modifier.padding(bottom = Spacing.md)
     )
 }
+
+/**
+ * 홈(S-10)/탐색(S-11)/달림북(S-40) 3개 최상위 화면 전용 하단 탭바 (01-feature-spec.md §1.0).
+ * 그 외 화면(Route 상세, 러닝 플로우, 온보딩)에는 쓰지 않는다.
+ */
+@Composable
+fun DallimBottomNavigation(
+    selectedTab: DallimTab,
+    onTabSelected: (DallimTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(DallimColors.Surface)
+            .navigationBarsPadding()
+            .height(56.dp),                       // 탭 타깃 최소 56dp
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DallimTab.entries.forEach { tab ->
+            val selected = tab == selectedTab
+            // 활성/비활성 모두 단일 Primary 색만 사용 — 그라디언트 금지
+            // (03-design-system.md "적용 X — 탭바").
+            val tint = if (selected) DallimColors.Primary else DallimColors.TextSecondary
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onTabSelected(tab) }
+            ) {
+                Icon(
+                    imageVector = if (selected) tab.filledIcon else tab.outlinedIcon,
+                    contentDescription = tab.label,
+                    tint = tint,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(text = tab.label, fontSize = 11.sp, color = tint,
+                    modifier = Modifier.padding(top = Spacing.xs))
+            }
+        }
+    }
+}
 ```
+
+**탭바 사용 규칙**
+- 상단바에 같은 이동 경로를 중복 배치하지 않는다 (예: 홈 상단의 책/돋보기 아이콘은 탭바 도입 후 제거).
+- 탭 전환 시 각 탭의 back stack/스크롤 위치를 보존한다(`saveState`/`restoreState`) — 탭을 눌러
+  갔다 오면 리스트가 맨 위로 리셋되는 것은 나쁜 예.
+- 탭바가 있는 화면은 `Scaffold(bottomBar = { DallimBottomNavigation(...) })`로 감싸고, 본문에는
+  `Scaffold`가 주는 `innerPadding`을 그대로 적용한다(이 화면들만 예외적으로 Scaffold 사용 — 나머지
+  화면은 지금처럼 루트 `Column` + 수동 inset 패턴 유지).
 
 ---
 

@@ -24,6 +24,7 @@ import com.dallim.app.running.navigation.RunNavigationRoute
 import com.dallim.app.running.prepare.RunPrepareRoute
 import com.dallim.app.running.result.RunResultRoute
 import com.dallim.app.running.share.ShareCardRoute
+import com.dallim.ui.components.DallimTab
 
 /**
  * Root NavHost. S-00~S-06 온보딩, S-10/S-11/S-16/S-17 홈&탐색, S-20~S-26 러닝
@@ -36,6 +37,9 @@ import com.dallim.app.running.share.ShareCardRoute
  * S-21(러닝 중) -> S-25(결과) 전이는 `popUpTo(RUN_PREPARE) { inclusive = true }`로 준비/러닝
  * 화면 전체를 백스택에서 걷어낸다 — 결과 화면에서 뒤로가기를 누르면 다시 러닝 중 화면으로
  * 돌아가는 사고를 막기 위함(러닝은 이미 서버에 종료 처리됐다).
+ *
+ * 홈(S-10)/탐색(S-11)/달림북 그리드(S-40) 3개 최상위 화면은 하단 탭바로 서로 전환된다
+ * (01-feature-spec.md §1.0) — [navigateToTab] 참고.
  */
 @Composable
 fun DallimNavHost(navController: NavHostController) {
@@ -119,9 +123,8 @@ fun DallimNavHost(navController: NavHostController) {
         composable(DallimDestinations.HOME) {
             HomeRoute(
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
-                onExploreClick = { navController.navigate(DallimDestinations.EXPLORE) },
                 onSeeAllSavedRoutesClick = { navController.navigate(DallimDestinations.SAVED_ROUTES) },
-                onDallimbookClick = { navController.navigate(DallimDestinations.DALLIMBOOK_GRID) },
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
             )
         }
 
@@ -130,6 +133,7 @@ fun DallimNavHost(navController: NavHostController) {
                 onBackClick = { navController.popBackStack() },
                 onArtworkClick = { runId -> navController.navigate(DallimDestinations.dallimbookDetail(runId)) },
                 onEmptySlotClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
             )
         }
 
@@ -146,6 +150,7 @@ fun DallimNavHost(navController: NavHostController) {
             DiscoverRoute(
                 onBackClick = { navController.popBackStack() },
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
             )
         }
 
@@ -222,5 +227,32 @@ fun DallimNavHost(navController: NavHostController) {
         ) {
             ShareCardRoute(onBackClick = { navController.popBackStack() })
         }
+    }
+}
+
+/**
+ * 하단 탭바(01-feature-spec.md §1.0)의 표준 전환 패턴 — `popUpTo`+`launchSingleTop`+
+ * `restoreState`로 탭을 오가도 백스택이 계속 쌓이지 않고 각 탭의 상태(스크롤 위치 등)를
+ * 보존한다.
+ *
+ * 문서(§1.0)가 예시로 든 `navController.graph.findStartDestination().id`를 그대로 anchor로
+ * 쓰지 않는다: 이 NavHost의 실제 `startDestination`은 SPLASH이고, 로그인 완료 시점에
+ * `popUpTo(SPLASH) { inclusive = true }`로 이미 백스택에서 걷어낸 상태라 SPLASH는 로그인
+ * 이후 백스택에 존재하지 않는다. `popUpTo`의 대상이 현재 백스택에 없으면 아무것도 pop되지
+ * 않아(anchor를 못 찾음) 탭을 오갈 때마다 백스택이 무한히 쌓이는 버그가 난다. 대신 탭
+ * 플로우의 실제 루트인 HOME을 anchor로 써서 back stack이 항상
+ * "HOME (+ 현재 탭이 HOME이 아니면 그 탭 1개)"로 유지되게 한다 — RunResultRoute의
+ * `onDoneClick`이 이미 같은 이유로 HOME을 anchor로 쓰고 있다(위 참고).
+ */
+private fun NavHostController.navigateToTab(tab: DallimTab) {
+    val route = when (tab) {
+        DallimTab.HOME -> DallimDestinations.HOME
+        DallimTab.EXPLORE -> DallimDestinations.EXPLORE
+        DallimTab.DALLIMBOOK -> DallimDestinations.DALLIMBOOK_GRID
+    }
+    navigate(route) {
+        popUpTo(DallimDestinations.HOME) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }

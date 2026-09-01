@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,6 +24,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,9 +41,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.dallimbook.DallimbookRunItem
 import com.dallim.network.user.SavedRouteItem
+import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
@@ -59,12 +60,15 @@ import java.time.format.DateTimeFormatter
  * S-40 달림북 그리드 (docs/01-feature-spec.md §1.4) — 완주 GPS 그림 2열 그리드 + 빈 슬롯
  * ("저장했지만 미완주 코스"). 각 칸의 GPS 그림은 [RouteThumbnailView]로만 렌더링한다
  * (docs/03-design-system.md §3.2 — 제네릭 아이콘·클립아트 절대 금지).
+ * 하단 탭바 도입(§1.0) 후에도 결과 화면(S-25)에서 push로 진입할 수 있어 상단 뒤로가기 버튼은
+ * 유지한다 — 탭 클릭으로 들어왔을 때는 눌러도 홈으로 돌아갈 뿐이라 무해하다.
  */
 @Composable
 fun DallimbookGridRoute(
     onBackClick: () -> Unit,
     onArtworkClick: (runId: String) -> Unit,
     onEmptySlotClick: (routeId: String) -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DallimbookGridViewModel = hiltViewModel(),
 ) {
@@ -75,6 +79,7 @@ fun DallimbookGridRoute(
         onBackClick = onBackClick,
         onArtworkClick = onArtworkClick,
         onEmptySlotClick = onEmptySlotClick,
+        onTabSelected = onTabSelected,
         onRetryClick = viewModel::retry,
         onLoadNextPage = viewModel::loadNextPage,
         modifier = modifier,
@@ -87,6 +92,7 @@ private fun DallimbookGridScreen(
     onBackClick: () -> Unit,
     onArtworkClick: (String) -> Unit,
     onEmptySlotClick: (String) -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     onRetryClick: () -> Unit,
     onLoadNextPage: () -> Unit,
     modifier: Modifier = Modifier,
@@ -103,82 +109,89 @@ private fun DallimbookGridScreen(
             .collect { nearEnd -> if (nearEnd) onLoadNextPage() }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DallimColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
-    ) {
-        Row(
+    Scaffold(
+        modifier = modifier,
+        containerColor = DallimColors.Background,
+        bottomBar = {
+            DallimBottomNavigation(selectedTab = DallimTab.DALLIMBOOK, onTabSelected = onTabSelected)
+        },
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .background(DallimColors.Background)
+                .padding(innerPadding),
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = DallimColors.TextPrimary,
+                    )
+                }
+                Text(text = "달림북", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
             }
-            Text(text = "달림북", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
 
-        when {
-            uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
-            uiState.errorMessage != null && uiState.slots.isEmpty() -> DallimErrorState(
-                title = "달림북을 불러오지 못했어요",
-                description = uiState.errorMessage,
-                onRetry = onRetryClick,
-                modifier = Modifier.weight(1f),
-            )
-            uiState.slots.isEmpty() -> DallimEmptyState(
-                title = "아직 달림북이 비어있어요",
-                description = "코스를 저장하고 완주하면 여기에 GPS 그림이 쌓여요.",
-                modifier = Modifier.weight(1f),
-            )
-            else -> Column(modifier = Modifier.weight(1f)) {
-                SummaryRow(totalCount = uiState.totalCount, totalDistanceKm = uiState.totalDistanceKm)
-
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Fixed(2),
+            when {
+                uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
+                uiState.errorMessage != null && uiState.slots.isEmpty() -> DallimErrorState(
+                    title = "달림북을 불러오지 못했어요",
+                    description = uiState.errorMessage,
+                    onRetry = onRetryClick,
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(
-                        start = Spacing.ScreenHorizontal,
-                        end = Spacing.ScreenHorizontal,
-                        top = Spacing.sm,
-                        bottom = Spacing.xxl,
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    items(
-                        items = uiState.slots,
-                        key = { slot ->
+                )
+                uiState.slots.isEmpty() -> DallimEmptyState(
+                    title = "아직 달림북이 비어있어요",
+                    description = "코스를 저장하고 완주하면 여기에 GPS 그림이 쌓여요.",
+                    modifier = Modifier.weight(1f),
+                )
+                else -> Column(modifier = Modifier.weight(1f)) {
+                    SummaryRow(totalCount = uiState.totalCount, totalDistanceKm = uiState.totalDistanceKm)
+
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(
+                            start = Spacing.ScreenHorizontal,
+                            end = Spacing.ScreenHorizontal,
+                            top = Spacing.sm,
+                            bottom = Spacing.xxl,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        items(
+                            items = uiState.slots,
+                            key = { slot ->
+                                when (slot) {
+                                    is DallimbookSlot.Artwork -> slot.run.runId
+                                    is DallimbookSlot.Empty -> "empty_${slot.savedRoute.routeId}"
+                                }
+                            },
+                        ) { slot ->
                             when (slot) {
-                                is DallimbookSlot.Artwork -> slot.run.runId
-                                is DallimbookSlot.Empty -> "empty_${slot.savedRoute.routeId}"
+                                is DallimbookSlot.Artwork -> ArtworkCell(
+                                    run = slot.run,
+                                    onClick = { onArtworkClick(slot.run.runId) },
+                                )
+                                is DallimbookSlot.Empty -> EmptySlotCell(
+                                    savedRoute = slot.savedRoute,
+                                    onClick = { onEmptySlotClick(slot.savedRoute.routeId) },
+                                )
                             }
-                        },
-                    ) { slot ->
-                        when (slot) {
-                            is DallimbookSlot.Artwork -> ArtworkCell(
-                                run = slot.run,
-                                onClick = { onArtworkClick(slot.run.runId) },
-                            )
-                            is DallimbookSlot.Empty -> EmptySlotCell(
-                                savedRoute = slot.savedRoute,
-                                onClick = { onEmptySlotClick(slot.savedRoute.routeId) },
-                            )
                         }
-                    }
-                    if (uiState.isLoadingMore) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = DallimColors.Primary)
+                        if (uiState.isLoadingMore) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = DallimColors.Primary)
+                                }
                             }
                         }
                     }
@@ -305,6 +318,7 @@ private fun DallimbookGridScreenPreview() {
             onBackClick = {},
             onArtworkClick = {},
             onEmptySlotClick = {},
+            onTabSelected = {},
             onRetryClick = {},
             onLoadNextPage = {},
         )

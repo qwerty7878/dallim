@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,6 +23,7 @@ import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,10 +38,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.RouteListItem
+import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteStatusBadge
 import com.dallim.ui.components.RouteThumbnailView
@@ -55,11 +56,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * S-11 탐색(코스 리스트) — 필터 + 무한스크롤 (docs/01-feature-spec.md §1.2).
+ * 하단 탭바 도입(§1.0) 후에도 다른 화면(저장한 코스 등)에서 push로 진입할 수 있어
+ * 상단 뒤로가기 버튼은 유지한다 — 탭 클릭으로 들어왔을 때는 눌러도 홈으로 돌아갈 뿐이라 무해하다.
  */
 @Composable
 fun DiscoverRoute(
     onBackClick: () -> Unit,
     onRouteClick: (routeId: String) -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
@@ -69,6 +73,7 @@ fun DiscoverRoute(
         uiState = uiState,
         onBackClick = onBackClick,
         onRouteClick = onRouteClick,
+        onTabSelected = onTabSelected,
         onDistanceFilterChange = viewModel::onDistanceFilterChange,
         onStatusFilterChange = viewModel::onStatusFilterChange,
         onSortChange = viewModel::onSortChange,
@@ -84,6 +89,7 @@ private fun DiscoverScreen(
     uiState: DiscoverUiState,
     onBackClick: () -> Unit,
     onRouteClick: (String) -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     onDistanceFilterChange: (DistanceFilter) -> Unit,
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
@@ -104,74 +110,81 @@ private fun DiscoverScreen(
             .collect { nearEnd -> if (nearEnd) onLoadNextPage() }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DallimColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
-    ) {
-        Row(
+    Scaffold(
+        modifier = modifier,
+        containerColor = DallimColors.Background,
+        bottomBar = {
+            DallimBottomNavigation(selectedTab = DallimTab.EXPLORE, onTabSelected = onTabSelected)
+        },
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .background(DallimColors.Background)
+                .padding(innerPadding),
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
-
-        FilterSection(
-            distanceFilter = uiState.distanceFilter,
-            statusFilter = uiState.statusFilter,
-            sort = uiState.sort,
-            onDistanceFilterChange = onDistanceFilterChange,
-            onStatusFilterChange = onStatusFilterChange,
-            onSortChange = onSortChange,
-        )
-
-        when {
-            uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
-            uiState.errorMessage != null && uiState.items.isEmpty() -> DallimErrorState(
-                title = "코스를 불러오지 못했어요",
-                description = uiState.errorMessage,
-                onRetry = onRetryClick,
-                modifier = Modifier.weight(1f),
-            )
-            uiState.items.isEmpty() -> DallimEmptyState(
-                title = "조건에 맞는 코스가 없어요",
-                description = "필터를 바꿔서 다시 찾아보세요.",
-                modifier = Modifier.weight(1f),
-            )
-            else -> LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(
-                    start = Spacing.ScreenHorizontal,
-                    end = Spacing.ScreenHorizontal,
-                    top = Spacing.sm,
-                    bottom = Spacing.xxl,
-                ),
-                verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(uiState.items, key = { it.routeId }) { route ->
-                    RouteRow(
-                        route = route,
-                        isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
-                        onClick = { onRouteClick(route.routeId) },
-                        onToggleSaveClick = { onToggleSaveClick(route.routeId) },
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = DallimColors.TextPrimary,
                     )
                 }
-                if (uiState.isLoadingMore) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = DallimColors.Primary)
+                Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+            }
+
+            FilterSection(
+                distanceFilter = uiState.distanceFilter,
+                statusFilter = uiState.statusFilter,
+                sort = uiState.sort,
+                onDistanceFilterChange = onDistanceFilterChange,
+                onStatusFilterChange = onStatusFilterChange,
+                onSortChange = onSortChange,
+            )
+
+            when {
+                uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
+                uiState.errorMessage != null && uiState.items.isEmpty() -> DallimErrorState(
+                    title = "코스를 불러오지 못했어요",
+                    description = uiState.errorMessage,
+                    onRetry = onRetryClick,
+                    modifier = Modifier.weight(1f),
+                )
+                uiState.items.isEmpty() -> DallimEmptyState(
+                    title = "조건에 맞는 코스가 없어요",
+                    description = "필터를 바꿔서 다시 찾아보세요.",
+                    modifier = Modifier.weight(1f),
+                )
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(
+                        start = Spacing.ScreenHorizontal,
+                        end = Spacing.ScreenHorizontal,
+                        top = Spacing.sm,
+                        bottom = Spacing.xxl,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+                ) {
+                    items(uiState.items, key = { it.routeId }) { route ->
+                        RouteRow(
+                            route = route,
+                            isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
+                            onClick = { onRouteClick(route.routeId) },
+                            onToggleSaveClick = { onToggleSaveClick(route.routeId) },
+                        )
+                    }
+                    if (uiState.isLoadingMore) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = DallimColors.Primary)
+                            }
                         }
                     }
                 }
@@ -342,6 +355,7 @@ private fun DiscoverScreenPreview() {
             ),
             onBackClick = {},
             onRouteClick = {},
+            onTabSelected = {},
             onDistanceFilterChange = {},
             onStatusFilterChange = {},
             onSortChange = {},
