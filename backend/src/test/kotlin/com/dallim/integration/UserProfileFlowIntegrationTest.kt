@@ -65,7 +65,7 @@ class UserProfileFlowIntegrationTest {
         val nickname = uniqueNickname()
 
         // GET /users/nickname-check works with no auth at all.
-        val checkResponse = client.get("/users/nickname-check?value=$nickname")
+        val checkResponse = client.get("/v1/users/nickname-check?value=$nickname")
         assertEquals(HttpStatusCode.OK, checkResponse.status)
         val checkBody: NicknameCheckEnvelope = checkResponse.body()
         assertTrue(checkBody.data!!.available, "a freshly-generated random nickname must be available")
@@ -80,7 +80,7 @@ class UserProfileFlowIntegrationTest {
               "gender": "FEMALE"
             }
         """.trimIndent()
-        val registerResponse = client.post("/users/me/profile") {
+        val registerResponse = client.post("/v1/users/me/profile") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(profileRequestJson)
@@ -92,12 +92,12 @@ class UserProfileFlowIntegrationTest {
         assertEquals(nickname, registerBody.data.nickname)
 
         // The nickname is now taken.
-        val recheckResponse = client.get("/users/nickname-check?value=$nickname")
+        val recheckResponse = client.get("/v1/users/nickname-check?value=$nickname")
         val recheckBody: NicknameCheckEnvelope = recheckResponse.body()
         assertFalse(recheckBody.data!!.available, "nickname must no longer be available after registration")
 
         // GET /users/me reflects the registered profile and never leaks gender.
-        val meResponse = client.authGet("/users/me", token)
+        val meResponse = client.authGet("/v1/users/me", token)
         assertEquals(HttpStatusCode.OK, meResponse.status)
         assertFalse(meResponse.bodyAsText().contains("gender"), "GET /users/me response must never contain a gender field")
         val meBody: MeEnvelope = meResponse.body()
@@ -118,7 +118,7 @@ class UserProfileFlowIntegrationTest {
         val firstRequest = """
             {"nickname":"$nickname","avatarId":"avatar_01","runningExperience":"UNDER_3_MONTHS","comfortablePace":"PACE_6_7","gender":"MALE"}
         """.trimIndent()
-        val firstResponse = client.post("/users/me/profile") {
+        val firstResponse = client.post("/v1/users/me/profile") {
             header("Authorization", "Bearer $firstToken")
             contentType(ContentType.Application.Json)
             setBody(firstRequest)
@@ -126,7 +126,7 @@ class UserProfileFlowIntegrationTest {
         assertEquals(HttpStatusCode.Created, firstResponse.status)
 
         val (_, secondToken) = client.signupNewUser()
-        val secondResponse = client.post("/users/me/profile") {
+        val secondResponse = client.post("/v1/users/me/profile") {
             header("Authorization", "Bearer $secondToken")
             contentType(ContentType.Application.Json)
             setBody(firstRequest)
@@ -140,10 +140,10 @@ class UserProfileFlowIntegrationTest {
     fun `GET users me and POST users me profile return 401 without a bearer token`() = testApplication {
         val client = jsonClient()
 
-        val meResponse = client.get("/users/me")
+        val meResponse = client.get("/v1/users/me")
         assertEquals(HttpStatusCode.Unauthorized, meResponse.status)
 
-        val profileResponse = client.post("/users/me/profile") {
+        val profileResponse = client.post("/v1/users/me/profile") {
             contentType(ContentType.Application.Json)
             setBody("""{"nickname":"x","avatarId":"avatar_01","runningExperience":"UNDER_3_MONTHS","comfortablePace":"PACE_6_7","gender":"MALE"}""")
         }

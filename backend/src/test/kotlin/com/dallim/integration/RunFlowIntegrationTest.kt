@@ -92,14 +92,14 @@ class RunFlowIntegrationTest {
         val (_, token) = client.signupNewUser()
 
         // GET /routes (list) works with a fresh token and never leaks gender.
-        val routesResponse = client.authGet("/routes", token)
+        val routesResponse = client.authGet("/v1/routes", token)
         assertEquals(HttpStatusCode.OK, routesResponse.status)
         assertFalse(routesResponse.bodyAsText().contains("gender"), "GET /routes response must never contain a gender field")
         val routes: RouteListEnvelope = routesResponse.body()
         assertTrue(routes.data!!.items.any { it.routeId == routeId }, "expected seeded route $routeId in GET /routes")
 
         // POST /runs
-        val startResponse = client.post("/runs") {
+        val startResponse = client.post("/v1/runs") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody("""{"routeId":"$routeId","mode":"SOLO","startedAt":"2026-08-30T00:00:00Z"}""")
@@ -114,7 +114,7 @@ class RunFlowIntegrationTest {
         val firstHalf = fixture.actual.subList(0, fixture.actual.size / 2)
         val secondHalf = fixture.actual.subList(fixture.actual.size / 2, fixture.actual.size)
 
-        val batch1 = client.post("/runs/$runId/gps-batch") {
+        val batch1 = client.post("/v1/runs/$runId/gps-batch") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(toGpsBatchRequest(firstHalf))
@@ -123,7 +123,7 @@ class RunFlowIntegrationTest {
         val batch1Body: GpsBatchEnvelope = batch1.body()
         assertEquals(firstHalf.size, batch1Body.data!!.receivedCount)
 
-        val batch2 = client.post("/runs/$runId/gps-batch") {
+        val batch2 = client.post("/v1/runs/$runId/gps-batch") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(toGpsBatchRequest(secondHalf))
@@ -135,7 +135,7 @@ class RunFlowIntegrationTest {
 
         // POST /runs/{id}/finish -- send a deliberately WRONG clientPrecheckStatus to prove the
         // server recomputes and never trusts it (CLAUDE.md rule 3 -- the key regression guard).
-        val finishResponse = client.post("/runs/$runId/finish") {
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z", clientPrecheckStatus = "ABORTED"))
@@ -150,7 +150,7 @@ class RunFlowIntegrationTest {
         assertTrue(finishBody.data.routeCompletionPercent >= 90)
 
         // GET /runs/{id}
-        val detailResponse = client.authGet("/runs/$runId", token)
+        val detailResponse = client.authGet("/v1/runs/$runId", token)
         assertEquals(HttpStatusCode.OK, detailResponse.status)
         assertFalse(detailResponse.bodyAsText().contains("gender"))
         val detailBody: RunDetailEnvelope = detailResponse.body()
@@ -169,7 +169,7 @@ class RunFlowIntegrationTest {
         val fixture = GpsFixtures.load("aborted_run")
         uploadAll(client, token, runId, fixture)
 
-        val finishResponse = client.post("/runs/$runId/finish") {
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z", clientPrecheckStatus = "COMPLETED"))
@@ -191,7 +191,7 @@ class RunFlowIntegrationTest {
         val fixture = GpsFixtures.load("under_review_run")
         uploadAll(client, token, runId, fixture)
 
-        val finishResponse = client.post("/runs/$runId/finish") {
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z"))
@@ -210,20 +210,20 @@ class RunFlowIntegrationTest {
 
         val noAuthCases = listOf(
             suspend {
-                client.post("/runs") {
+                client.post("/v1/runs") {
                     contentType(ContentType.Application.Json)
                     setBody("""{"routeId":"$routeId","startedAt":"2026-08-30T00:00:00Z"}""")
                 }
             },
-            suspend { client.get("/runs/run_doesnotexist") },
+            suspend { client.get("/v1/runs/run_doesnotexist") },
             suspend {
-                client.post("/runs/run_doesnotexist/gps-batch") {
+                client.post("/v1/runs/run_doesnotexist/gps-batch") {
                     contentType(ContentType.Application.Json)
                     setBody(GpsBatchRequest(emptyList()))
                 }
             },
             suspend {
-                client.post("/runs/run_doesnotexist/finish") {
+                client.post("/v1/runs/run_doesnotexist/finish") {
                     contentType(ContentType.Application.Json)
                     setBody(FinishRunRequest(finishedAt = "2026-08-30T00:00:00Z"))
                 }
@@ -239,7 +239,7 @@ class RunFlowIntegrationTest {
     @Test
     fun `GET routes works anonymously (optional auth) and still hides gender`() = testApplication {
         val client = jsonClient()
-        val response = client.get("/routes")
+        val response = client.get("/v1/routes")
         assertEquals(HttpStatusCode.OK, response.status)
         assertFalse(response.bodyAsText().contains("gender"))
     }
@@ -256,7 +256,7 @@ class RunFlowIntegrationTest {
         uploadAll(client, token, runId, GpsFixtures.load("completed_run"))
         finish(client, token, runId)
 
-        val secondBatch = client.post("/runs/$runId/gps-batch") {
+        val secondBatch = client.post("/v1/runs/$runId/gps-batch") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(GpsBatchRequest(listOf(GpsPointRequest(37.0, 127.0, "2026-08-30T02:00:00Z"))))
@@ -274,7 +274,7 @@ class RunFlowIntegrationTest {
         uploadAll(client, token, runId, GpsFixtures.load("completed_run"))
         finish(client, token, runId)
 
-        val secondFinish = client.post("/runs/$runId/finish") {
+        val secondFinish = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T02:00:00Z"))
@@ -290,14 +290,14 @@ class RunFlowIntegrationTest {
         val (_, token) = client.signupNewUser()
         val runId = startRun(client, token, routeId)
 
-        val batch = client.post("/runs/$runId/gps-batch") {
+        val batch = client.post("/v1/runs/$runId/gps-batch") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(GpsBatchRequest(listOf(GpsPointRequest(37.3905, 126.9235, "2026-08-30T00:00:00Z"))))
         }
         assertEquals(HttpStatusCode.Accepted, batch.status)
 
-        val finishResponse = client.post("/runs/$runId/finish") {
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T00:05:00Z"))
@@ -312,7 +312,7 @@ class RunFlowIntegrationTest {
         val client = jsonClient()
         val (_, token) = client.signupNewUser()
 
-        val response = client.post("/runs") {
+        val response = client.post("/v1/runs") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody("""{"routeId":"rt_does_not_exist","startedAt":"2026-08-30T00:00:00Z"}""")
@@ -327,7 +327,7 @@ class RunFlowIntegrationTest {
         val client = jsonClient()
         val (_, token) = client.signupNewUser()
 
-        val response = client.authGet("/runs/run_totally_bogus", token)
+        val response = client.authGet("/v1/runs/run_totally_bogus", token)
         assertEquals(HttpStatusCode.NotFound, response.status)
         val error: SimpleApiResponse = response.body()
         assertEquals("RUN_NOT_FOUND", error.error?.code)
@@ -340,7 +340,7 @@ class RunFlowIntegrationTest {
         val runId = startRun(client, ownerToken, routeId)
 
         val (_, otherToken) = client.signupNewUser()
-        val response = client.authGet("/runs/$runId", otherToken)
+        val response = client.authGet("/v1/runs/$runId", otherToken)
         assertEquals(HttpStatusCode.NotFound, response.status)
         val error: SimpleApiResponse = response.body()
         assertEquals("RUN_NOT_FOUND", error.error?.code)
@@ -355,7 +355,7 @@ class RunFlowIntegrationTest {
         val email = uniqueEmail()
         client.signupNewUser(email = email)
 
-        val response = client.post("/auth/signup") {
+        val response = client.post("/v1/auth/signup") {
             contentType(ContentType.Application.Json)
             setBody(SignupBody(email, "qa-Passw0rd"))
         }
@@ -392,7 +392,7 @@ class RunFlowIntegrationTest {
         val otherFinish = finish(client, token, otherRunId)
         assertTrue(otherFinish.data!!.status != RunStatus.COMPLETED, "the second trace must not also complete, or this test can't distinguish the two")
 
-        val finishersResponse = client.get("/routes/$finisherRouteId/finishers")
+        val finishersResponse = client.get("/v1/routes/$finisherRouteId/finishers")
         assertEquals(HttpStatusCode.OK, finishersResponse.status)
         val finishers: FinishersEnvelope = finishersResponse.body()
         val finisherRunIds = finishers.data!!.items.map { it.runId }.toSet()
@@ -408,7 +408,7 @@ class RunFlowIntegrationTest {
     // -----------------------------------------------------------------
 
     private suspend fun startRun(client: HttpClient, token: String, routeId: String): String {
-        val response = client.post("/runs") {
+        val response = client.post("/v1/runs") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody("""{"routeId":"$routeId","mode":"SOLO","startedAt":"2026-08-30T00:00:00Z"}""")
@@ -418,7 +418,7 @@ class RunFlowIntegrationTest {
     }
 
     private suspend fun uploadAll(client: HttpClient, token: String, runId: String, fixture: GpsFixture) {
-        val response = client.post("/runs/$runId/gps-batch") {
+        val response = client.post("/v1/runs/$runId/gps-batch") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(toGpsBatchRequest(fixture.actual))
@@ -427,7 +427,7 @@ class RunFlowIntegrationTest {
     }
 
     private suspend fun finish(client: HttpClient, token: String, runId: String): RunFinishEnvelope {
-        val response = client.post("/runs/$runId/finish") {
+        val response = client.post("/v1/runs/$runId/finish") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z"))

@@ -48,7 +48,7 @@ object ApiTestSupport {
 
     /** Signs up a brand-new EMAIL-provider user and returns (userId, accessToken). */
     suspend fun HttpClient.signupNewUser(email: String = uniqueEmail(), password: String = "qa-Passw0rd"): Pair<String, String> {
-        val response = post("/auth/signup") {
+        val response = post("/v1/auth/signup") {
             contentType(ContentType.Application.Json)
             setBody(SignupBody(email, password))
         }
