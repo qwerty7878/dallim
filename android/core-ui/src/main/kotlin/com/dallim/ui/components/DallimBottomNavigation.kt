@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,7 +34,7 @@ import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.Spacing
 
 /**
- * 홈(S-10)/탐색(S-11)/달림북(S-40) 3개 최상위 화면의 탭 (docs/01-feature-spec.md §1.0 표).
+ * 홈(S-10)/탐색(S-11)/달림북(S-40)/마이(S-42) 4개 최상위 화면의 탭 (docs/01-feature-spec.md §1.0 표).
  * 비활성 상태는 outlined, 선택 상태는 filled 아이콘으로 표시한다.
  */
 enum class DallimTab(
@@ -43,12 +45,13 @@ enum class DallimTab(
     HOME("홈", Icons.Outlined.Home, Icons.Filled.Home),
     EXPLORE("탐색", Icons.Outlined.Search, Icons.Filled.Search),
     DALLIMBOOK("달림북", Icons.Outlined.MenuBook, Icons.Filled.MenuBook),
+    MY("마이", Icons.Outlined.Person, Icons.Filled.Person),
 }
 
 /**
- * 홈(S-10)/탐색(S-11)/달림북(S-40) 3개 최상위 화면 전용 하단 탭바 (docs/01-feature-spec.md §1.0,
- * docs/04-ui-guide.md §6). 그 외 화면(Route 상세, 저장한 코스, 러닝 플로우, 온보딩, 달림북 상세)에는
- * 쓰지 않는다 — 그 화면들은 지금처럼 push 이동만 한다.
+ * 홈(S-10)/탐색(S-11)/달림북(S-40)/마이(S-42) 4개 최상위 화면 전용 하단 탭바
+ * (docs/01-feature-spec.md §1.0, docs/04-ui-guide.md §6). 그 외 화면(Route 상세, 저장한 코스,
+ * 러닝 플로우, 온보딩, 달림북 상세)에는 쓰지 않는다 — 그 화면들은 지금처럼 push 이동만 한다.
  */
 @Composable
 fun DallimBottomNavigation(

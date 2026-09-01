@@ -10,6 +10,7 @@ import com.dallim.app.dallimbook.detail.DallimbookDetailRoute
 import com.dallim.app.dallimbook.grid.DallimbookGridRoute
 import com.dallim.app.discover.DiscoverRoute
 import com.dallim.app.home.HomeRoute
+import com.dallim.app.my.MyRoute
 import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
 import com.dallim.app.onboarding.firstroute.FirstRouteSuggestionRoute
 import com.dallim.app.onboarding.login.LoginRoute
@@ -27,7 +28,7 @@ import com.dallim.app.running.share.ShareCardRoute
 import com.dallim.ui.components.DallimTab
 
 /**
- * Root NavHost. S-00~S-06 온보딩, S-10/S-11/S-16/S-17 홈&탐색, S-20~S-26 러닝
+ * Root NavHost. S-00~S-06 온보딩, S-10/S-11/S-16/S-17 홈&탐색, S-20~S-26 러닝, S-42 마이
  * (destinations 문서 주석대로 S-22/23/24는 S-21 화면 내부 상태이지 별도 route가 아니다)이
  * 여기 배선돼 있다. S-00(SPLASH)는 back stack의 최하단에서 한 번만 지나가는 목적지이므로,
  * 온보딩/로그인 어디서 진입했든 "-> 홈" 전이는 전부
@@ -38,8 +39,12 @@ import com.dallim.ui.components.DallimTab
  * 화면 전체를 백스택에서 걷어낸다 — 결과 화면에서 뒤로가기를 누르면 다시 러닝 중 화면으로
  * 돌아가는 사고를 막기 위함(러닝은 이미 서버에 종료 처리됐다).
  *
- * 홈(S-10)/탐색(S-11)/달림북 그리드(S-40) 3개 최상위 화면은 하단 탭바로 서로 전환된다
- * (01-feature-spec.md §1.0) — [navigateToTab] 참고.
+ * S-42(마이) -> S-02(로그인) 로그아웃 전이는 반대로 `popUpTo(navController.graph.id)
+ * { inclusive = true }`로 그래프 전체(홈/탭 포함)를 비운다 — 로그인 화면에서 뒤로가기를 눌러도
+ * 다시 홈으로 돌아가지 않게 하기 위함.
+ *
+ * 홈(S-10)/탐색(S-11)/달림북 그리드(S-40)/마이(S-42) 4개 최상위 화면은 하단 탭바로 서로
+ * 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고.
  */
 @Composable
 fun DallimNavHost(navController: NavHostController) {
@@ -154,6 +159,20 @@ fun DallimNavHost(navController: NavHostController) {
             )
         }
 
+        composable(DallimDestinations.MY) {
+            MyRoute(
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
+                onLoggedOut = {
+                    // 로그아웃 — S-02(로그인) 아래 전체 백스택(홈/탭 포함)을 비운다
+                    // (docs/01-feature-spec.md §1.5). SplashViewModel의 로그인 성공 시
+                    // popUpTo(SPLASH){inclusive=true}와 반대 방향: 여기서는 그래프 전체를 비운다.
+                    navController.navigate(DallimDestinations.LOGIN) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(
             route = DallimDestinations.ROUTE_DETAIL,
             arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
@@ -249,6 +268,7 @@ private fun NavHostController.navigateToTab(tab: DallimTab) {
         DallimTab.HOME -> DallimDestinations.HOME
         DallimTab.EXPLORE -> DallimDestinations.EXPLORE
         DallimTab.DALLIMBOOK -> DallimDestinations.DALLIMBOOK_GRID
+        DallimTab.MY -> DallimDestinations.MY
     }
     navigate(route) {
         popUpTo(DallimDestinations.HOME) { saveState = true }

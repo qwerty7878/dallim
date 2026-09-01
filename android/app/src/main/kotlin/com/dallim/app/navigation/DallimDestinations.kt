@@ -2,7 +2,7 @@ package com.dallim.app.navigation
 
 /**
  * Navigation route constants, named after the screen IDs in docs/01-feature-spec.md 1장
- * (S-00 ~ S-41) so it's easy to cross-reference the spec while wiring screens.
+ * (S-00 ~ S-42) so it's easy to cross-reference the spec while wiring screens.
  *
  * S-22(일시정지/종료), S-23(코스이탈안내), S-24(완주판정처리) are NOT separate destinations —
  * per spec they're a Service-internal state machine / a banner / a processing overlay that all
@@ -51,4 +51,6 @@ object DallimDestinations {
     private const val DALLIMBOOK_DETAIL_BASE = "s41_dallimbook_detail" // S-41
     const val DALLIMBOOK_DETAIL = "$DALLIMBOOK_DETAIL_BASE/{$ARG_RUN_ID}"
     fun dallimbookDetail(runId: String) = "$DALLIMBOOK_DETAIL_BASE/$runId"
+
+    const val MY = "s42_my" // S-42
 }
