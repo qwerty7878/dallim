@@ -23,6 +23,11 @@ sealed interface HomeUiState {
     data class Success(
         val home: HomeResponseBody,
         val savedRoutesPreview: List<SavedRouteItem>,
+        /**
+         * 인사말용 닉네임. `GET /users/me` 조회 실패 또는 빈 닉네임(온보딩 프로필 설정 미완료)이면
+         * null — 이 경우 화면은 인사말 없이 기존 "달림" 타이틀만 보여준다.
+         */
+        val nickname: String? = null,
     ) : HomeUiState
 
     data class Error(val message: String) : HomeUiState
@@ -39,6 +44,11 @@ sealed interface HomeUiState {
  * "저장 코스 리스트"는 `GET /home` 응답에 포함되지 않으므로(그 응답엔 todaySketch/continueRoutes/
  * recentRuns만 있음), `GET /users/me/saved-routes`를 별도로 병렬 호출해 미리보기 몇 개만 붙인다.
  * 저장 코스 조회가 실패해도 홈 화면 자체는 깨지지 않도록 빈 리스트로 흡수한다.
+ *
+ * 상단 인사말(닉네임)을 위해 `GET /users/me`도 같은 방식으로 세 번째 병렬 요청으로 붙인다 — 이
+ * 조회가 실패하거나 닉네임이 빈 문자열이어도(온보딩 프로필 설정 미완료) 홈 화면 전체는 깨지지
+ * 않고 [HomeUiState.Success.nickname]이 null로 흡수되어 인사말만 생략된다(저장 코스와 동일한
+ * 원칙). `UserMeResponseBody`에는 gender가 없으므로(CLAUDE.md 규칙 2) 별도 처리는 필요 없다.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -63,13 +73,16 @@ class HomeViewModel @Inject constructor(
             val savedDeferred = async {
                 safeApiCall { userApi.getSavedRoutes(page = 0, size = SAVED_PREVIEW_SIZE) }
             }
+            val meDeferred = async { safeApiCall { userApi.getMe() } }
             val homeResult = homeDeferred.await()
             val savedResult = savedDeferred.await()
+            val meResult = meDeferred.await()
 
             _uiState.value = when (homeResult) {
                 is UiResult.Success -> HomeUiState.Success(
                     home = homeResult.data,
                     savedRoutesPreview = (savedResult as? UiResult.Success)?.data?.items ?: emptyList(),
+                    nickname = (meResult as? UiResult.Success)?.data?.nickname?.takeIf { it.isNotBlank() },
                 )
                 is UiResult.Error -> HomeUiState.Error(homeResult.message)
                 UiResult.Loading -> HomeUiState.Loading

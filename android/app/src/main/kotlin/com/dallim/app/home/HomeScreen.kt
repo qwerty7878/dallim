@@ -56,6 +56,9 @@ import java.time.format.DateTimeFormatter
  *
  * 하단 탭바 도입(01-feature-spec.md §1.0)으로 상단의 책(달림북)/돋보기(탐색) 아이콘은
  * 탭바와 기능이 중복되어 제거했다 — 그 경로는 이제 [onTabSelected]로만 이동한다.
+ *
+ * 타이틀 아래에는 [HomeUiState.Success.nickname]이 있을 때만 짧은 인사말을 덧붙인다 —
+ * 닉네임이 없으면(조회 실패/온보딩 미완료) 기존처럼 "달림" 타이틀만 보인다.
  */
 @Composable
 fun HomeRoute(
@@ -99,12 +102,32 @@ private fun HomeScreen(
                 .background(DallimColors.Background)
                 .padding(innerPadding),
         ) {
+            // 프로필 설정을 마친 사용자만 닉네임을 받아온다 — 실패/미설정 시 null로 흡수돼
+            // 인사말 없이 기존 "달림" 타이틀만 보인다 (HomeViewModel KDoc 참고).
+            val nickname = (uiState as? HomeUiState.Success)?.nickname
             Text(
                 text = "달림",
                 style = DallimTypography.Title1,
                 color = DallimColors.TextPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
+                modifier = Modifier.padding(
+                    start = Spacing.ScreenHorizontal,
+                    end = Spacing.ScreenHorizontal,
+                    top = Spacing.md,
+                    bottom = if (nickname != null) Spacing.xs else Spacing.md,
+                ),
             )
+            if (nickname != null) {
+                Text(
+                    text = "${nickname}님, 오늘도 달려볼까요?",
+                    style = DallimTypography.Body,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(
+                        start = Spacing.ScreenHorizontal,
+                        end = Spacing.ScreenHorizontal,
+                        bottom = Spacing.md,
+                    ),
+                )
+            }
 
             when (uiState) {
                 is HomeUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -312,6 +335,7 @@ private fun HomeScreenPreview() {
                 savedRoutesPreview = listOf(
                     SavedRouteItem(routeId = "rt_002", name = "물고기", emoji = "🐟", distanceKm = 4.2, hasRun = false),
                 ),
+                nickname = "달리는고래",
             ),
             onRouteClick = {},
             onSeeAllSavedRoutesClick = {},

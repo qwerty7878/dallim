@@ -23,6 +23,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.onboarding.profile.ComfortablePace
+import com.dallim.app.onboarding.profile.RunningExperience
 import com.dallim.app.onboarding.profile.avatarOptions
 import com.dallim.network.user.UserMeResponseBody
 import com.dallim.ui.components.DallimBottomNavigation
@@ -37,7 +39,10 @@ import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
 
 /**
- * S-42 마이 (docs/01-feature-spec.md §1.5) — 아바타/닉네임/총 러닝 횟수/총 거리 조회 + 로그아웃.
+ * S-42 마이 (docs/01-feature-spec.md §1.5) — 아바타/닉네임/총 러닝 횟수/총 거리/러닝 경력/편안한
+ * 페이스 조회 + 로그아웃. 러닝 경력·페이스는 `GET /users/me` 응답에 자유형식 문자열로 오는 값을
+ * 온보딩(S-04, [RunningExperience]/[ComfortablePace])의 한글 라벨 매핑으로 표시한다 — 값이
+ * 비어있으면(온보딩 프로필 설정 미완료 계정) 해당 행을 "미설정"으로 대체한다.
  * 홈(S-10)과 마찬가지로 오직 하단 탭바로만 진입하는 최상위 화면이라 상단 뒤로가기 버튼은 두지
  * 않는다. 닉네임/아바타 수정 기능은 없다(스코프 밖 — `PATCH /users/me`가 SPEC에 없음).
  */
@@ -141,8 +146,32 @@ private fun ProfileCard(user: UserMeResponseBody) {
             StatItem(label = "총 러닝 횟수", value = "${user.totalRuns}회", modifier = Modifier.weight(1f))
             StatItem(label = "총 거리", value = "%.1fkm".format(user.totalDistanceKm), modifier = Modifier.weight(1f))
         }
+
+        val experienceLabel = user.runningExperience.toRunningExperienceLabel()
+        val paceLabel = user.comfortablePace.toComfortablePaceLabel()
+        if (experienceLabel != null || paceLabel != null) {
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = Spacing.md),
+                color = DallimColors.Border,
+            )
+            Row(modifier = Modifier.fillMaxWidth()) {
+                StatItem(label = "러닝 경력", value = experienceLabel ?: "미설정", modifier = Modifier.weight(1f))
+                StatItem(label = "편안한 페이스", value = paceLabel ?: "미설정", modifier = Modifier.weight(1f))
+            }
+        }
     }
 }
+
+/**
+ * 온보딩(S-04)의 [RunningExperience]/[ComfortablePace] 한글 라벨 매핑을 재사용한다 — 새 매핑을
+ * 중복 생성하지 않는다. 값이 빈 문자열이거나(온보딩 프로필 설정 미완료 계정) 알 수 없는 값이면
+ * null을 반환해 호출부가 행을 숨기거나 대체 텍스트를 넣도록 한다.
+ */
+private fun String.toRunningExperienceLabel(): String? =
+    takeIf { it.isNotBlank() }?.let { value -> RunningExperience.entries.firstOrNull { it.apiValue == value }?.label }
+
+private fun String.toComfortablePaceLabel(): String? =
+    takeIf { it.isNotBlank() }?.let { value -> ComfortablePace.entries.firstOrNull { it.apiValue == value }?.label }
 
 /**
  * 아바타는 문자열 ID([UserMeResponseBody.avatarId])라 실물 이미지 에셋이 없다 — S-04(프로필
