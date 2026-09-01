@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -151,7 +153,7 @@ private fun TrackingContent(
     onResumeClick: () -> Unit,
     onFinishClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         Box(modifier = Modifier.weight(1f)) {
             DualRouteMapView(
                 plannedRoute = plannedRoute,
@@ -159,7 +161,12 @@ private fun TrackingContent(
                 modifier = Modifier.fillMaxSize(),
             )
             if (snapshot.isOffRoute) {
-                OffRouteBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.md))
+                OffRouteBanner(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = Spacing.md),
+                )
             }
         }
 
@@ -262,7 +269,7 @@ private fun OffRouteBanner(modifier: Modifier = Modifier) {
 @Composable
 private fun DarkCenteredMessage(text: String) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -285,7 +292,11 @@ private fun ProcessingOverlay(text: String) {
 @Composable
 private fun FinishFailedOverlay(message: String, onRetryClick: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -104,7 +106,9 @@ private fun DallimbookGridScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DallimColors.Background),
+            .background(DallimColors.Background)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
     ) {
         Row(
             modifier = Modifier

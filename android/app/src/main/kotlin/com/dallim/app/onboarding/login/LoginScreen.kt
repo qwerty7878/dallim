@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +78,8 @@ private fun LoginScreen(
         modifier = modifier
             .fillMaxSize()
             .background(DallimColors.Background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(horizontal = Spacing.ScreenHorizontal),
     ) {
         Column(
