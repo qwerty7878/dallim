@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Debug-variant-only manifest merge: points the app at network_security_config_debug.xml
+         so the local dev backend (http://10.0.2.2:8080) is reachable. See that file's comment.
+         Release builds use the main AndroidManifest.xml only (HTTPS-only, no cleartext). -->
+    <application android:networkSecurityConfig="@xml/network_security_config_debug" />
+
+</manifest>

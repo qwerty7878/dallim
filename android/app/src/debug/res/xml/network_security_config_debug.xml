@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only: allows plaintext HTTP to the Android emulator's host-loopback alias (10.0.2.2),
+  which is where core-network's debug BASE_URL points (see core-network/build.gradle.kts) to
+  reach the local dev backend (./gradlew run on the host machine, plain http, no TLS).
+  This file lives under src/debug so it is never packaged into a release build.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
