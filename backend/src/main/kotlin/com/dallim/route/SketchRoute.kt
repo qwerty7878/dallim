@@ -1,0 +1,90 @@
+package com.dallim.route
+
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.timestamp
+import java.time.Instant
+
+/**
+ * Route lifecycle — fully enumerated in docs/01-feature-spec.md 2.2.C:
+ * DISCOVERY -> (1+ finisher) -> VERIFIED -> (N+ finishers, threshold TBD) -> POPULAR
+ * Transition is driven by the daily RouteStatusUpdateJob batch, not by request handlers.
+ */
+enum class RouteStatus {
+    DISCOVERY,
+    VERIFIED,
+    POPULAR,
+}
+
+/**
+ * SketchRoute — an operator-curated running route shaped like a drawing when traced by GPS.
+ *
+ * The route geometry itself (`path`, a PostGIS `geography(LineString, 4326)`) is NOT declared
+ * as an Exposed column here — see com.dallim.common.PostGis doc comment for why, and read/write
+ * it through raw SQL (ST_AsGeoJSON / ST_GeomFromGeoJSON) instead of Exposed's DSL.
+ */
+object SketchRouteTable : Table("sketch_routes") {
+    val id = varchar("id", 32)
+    val name = varchar("name", 50)
+    val emoji = varchar("emoji", 8)
+    // path: geography(LineString, 4326) — created in Flyway migration, accessed via PostGis util.
+
+    val distanceKm = double("distance_km")
+    val estimatedMinutes = integer("estimated_minutes")
+    // Free-form per docs/02-api-spec.md example ("EASY") — not fully enumerated in SPEC yet.
+    val difficulty = varchar("difficulty", 16).nullable()
+    val status = enumerationByName("status", 16, RouteStatus::class).default(RouteStatus.DISCOVERY)
+
+    val finisherCount = integer("finisher_count").default(0)
+    val trafficLightCount = integer("traffic_light_count").default(0)
+    val elevationGainM = integer("elevation_gain_m").default(0)
+    val repeatSegmentPercent = integer("repeat_segment_percent").default(0)
+    val runability = double("runability").default(0.0)
+
+    val createdAt = timestamp("created_at").clientDefault { Instant.now() }
+    val updatedAt = timestamp("updated_at").clientDefault { Instant.now() }
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+data class SketchRoute(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val distanceKm: Double,
+    val estimatedMinutes: Int,
+    val difficulty: String?,
+    val status: RouteStatus,
+    val finisherCount: Int,
+    val trafficLightCount: Int,
+    val elevationGainM: Int,
+    val repeatSegmentPercent: Int,
+    val runability: Double,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    // Populated by a raw-SQL join against `path` (ST_AsGeoJSON) when a single route is loaded;
+    // left null on list-style queries that only need summary fields.
+    // See com.dallim.common.GeoJsonLineString.
+)
+
+/**
+ * User <-> SketchRoute saved bookmark (docs/02-api-spec.md 2장 saved-routes).
+ */
+object SavedRouteTable : Table("saved_routes") {
+    val id = varchar("id", 32)
+    val userId = varchar("user_id", 32).references(com.dallim.user.UserTable.id)
+    val routeId = varchar("route_id", 32).references(SketchRouteTable.id)
+    val createdAt = timestamp("created_at").clientDefault { Instant.now() }
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex("uq_saved_routes_user_route", userId, routeId)
+    }
+}
+
+data class SavedRoute(
+    val id: String,
+    val userId: String,
+    val routeId: String,
+    val createdAt: Instant,
+)
