@@ -11,22 +11,30 @@ import com.dallim.user.userRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 
 /**
  * Root routing tree — every domain in docs/02-api-spec.md is mounted.
+ *
+ * All API domains are nested under /v1 to match the Base URL declared in docs/02-api-spec.md
+ * ("https://api.dallim.app/v1") and android/core-network's BASE_URL build config, which already
+ * calls every endpoint with a /v1/ prefix. /health is intentionally left outside /v1 — it's an
+ * ops/liveness endpoint, not part of the versioned API surface.
  */
 fun Application.configureRouting() {
     routing {
         get("/health") {
             call.respond(ApiResponse.success(mapOf("status" to "ok")))
         }
-        authRoutes()
-        userRoutes()
-        routeRoutes()
-        savedRouteRoutes()
-        homeRoutes()
-        runRoutes()
-        dallimbookRoutes()
+        route("/v1") {
+            authRoutes()
+            userRoutes()
+            routeRoutes()
+            savedRouteRoutes()
+            homeRoutes()
+            runRoutes()
+            dallimbookRoutes()
+        }
     }
 }
