@@ -1,6 +1,8 @@
 package com.dallim.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -43,11 +45,30 @@ import com.dallim.ui.components.DallimTab
  * { inclusive = true }`로 그래프 전체(홈/탭 포함)를 비운다 — 로그인 화면에서 뒤로가기를 눌러도
  * 다시 홈으로 돌아가지 않게 하기 위함.
  *
+ * 세션 만료(리프레시 토큰까지 무효) -> S-02(로그인) 전이도 동일한 popUpTo 패턴을 쓴다:
+ * `TokenAuthenticator`(core-network, OkHttp 백그라운드 스레드)가 `SessionEventBus`로 쏘는
+ * 이벤트를 [SessionEventViewModel]을 통해 여기서 구독해, 사용자가 어느 화면에 있든 그래프
+ * 전체를 비우고 로그인으로 보낸다.
+ *
  * 홈(S-10)/탐색(S-11)/달림북 그리드(S-40)/마이(S-42) 4개 최상위 화면은 하단 탭바로 서로
  * 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고.
  */
 @Composable
-fun DallimNavHost(navController: NavHostController) {
+fun DallimNavHost(
+    navController: NavHostController,
+    sessionEventViewModel: SessionEventViewModel = hiltViewModel(),
+) {
+    LaunchedEffect(Unit) {
+        sessionEventViewModel.sessionExpired.collect {
+            // 리프레시 토큰까지 무효 — 사용자가 어느 화면에 있든 그래프 전체(홈/탭 포함)를
+            // 비우고 로그인으로 보낸다. MyViewModel의 로그아웃 전이와 동일한 popUpTo 패턴
+            // (위 클래스 주석 참고).
+            navController.navigate(DallimDestinations.LOGIN) {
+                popUpTo(navController.graph.id) { inclusive = true }
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = DallimDestinations.SPLASH,

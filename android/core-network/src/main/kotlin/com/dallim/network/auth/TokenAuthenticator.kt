@@ -23,11 +23,17 @@ import javax.inject.Singleton
  *
  * OkHttp calls Authenticator.authenticate() synchronously off a background dispatcher thread,
  * so a blocking runBlocking call here is intended (not on the main thread).
+ *
+ * `sessionEventBus` is how the "refresh token is also dead, force re-login" branch below reaches
+ * the UI: this class runs on an OkHttp background thread and has no NavController, so it can only
+ * publish the fact — `DallimNavHost` (app module's `com.dallim.app.navigation.DallimNavHost`) is
+ * the one that actually navigates to the login screen.
  */
 @Singleton
 class TokenAuthenticator @Inject constructor(
     private val tokenProvider: TokenProvider,
     private val refreshApiProvider: Provider<RefreshApi>,
+    private val sessionEventBus: SessionEventBus,
 ) : Authenticator {
 
     private val lock = Any()
@@ -57,7 +63,11 @@ class TokenAuthenticator @Inject constructor(
             val body = newTokens?.body()
             if (newTokens?.isSuccessful != true || body?.success != true || body.data == null) {
                 // REFRESH_TOKEN_EXPIRED_OR_INVALID (docs/02-api-spec.md 1장) — force re-login.
+                // notifySessionExpired() only fires here, not on the early `refreshToken == null`
+                // return above: that early return means there was never a logged-in session to
+                // begin with (no refresh token saved), so there's no session to bounce out of.
                 tokenProvider.clearTokens()
+                sessionEventBus.notifySessionExpired()
                 return null
             }
 

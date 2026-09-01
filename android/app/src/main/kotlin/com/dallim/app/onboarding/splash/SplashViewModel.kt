@@ -27,7 +27,10 @@ sealed interface SplashDestination {
  * this off of, so a lightweight local check is what's in scope for S-00. If the saved access
  * token has actually expired, the very first authenticated call after landing on Home will 401
  * and TokenAuthenticator (core-network) will transparently refresh or, if the refresh token is
- * also dead, clear the stored tokens and the user will be bounced back through login then.
+ * also dead, clear the stored tokens *and* publish to `SessionEventBus`
+ * ([com.dallim.network.auth.SessionEventBus]) — `DallimNavHost` subscribes to that bus (via
+ * `SessionEventViewModel`) and actually bounces the user back to S-02(로그인) from wherever they
+ * are, popping the whole nav graph the same way `MyViewModel`'s logout does.
  */
 @HiltViewModel
 class SplashViewModel @Inject constructor(
