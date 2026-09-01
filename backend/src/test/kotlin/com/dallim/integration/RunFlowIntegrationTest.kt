@@ -45,10 +45,9 @@ import kotlin.test.assertTrue
  *   POST /auth/signup -> GET /routes -> POST /runs -> POST /runs/{id}/gps-batch (x N)
  *   -> POST /runs/{id}/finish -> GET /runs/{id} -> GET /routes/{id}/finishers
  *
- * NOTE: POST /users/me/profile and GET /users/me/runs (docs/02-api-spec.md 2/6장) are not
- * implemented yet (not mounted in plugins/Routing.kt as of this round) -- this flow uses
- * /auth/signup in their place to obtain a token, and does not exercise those two endpoints.
- * See docs/qa-checklist.md.
+ * NOTE: this flow uses /auth/signup to obtain a token rather than also exercising
+ * POST /users/me/profile (see UserProfileFlowIntegrationTest for that endpoint's own coverage) --
+ * a run doesn't require a registered nickname/profile to start.
  *
  * Uses the seeded curated route rt_001 (see V2__seed_curated_routes.sql) as the planned route,
  * and the same GPS fixtures used by RunJudgementServiceTest (built to mirror rt_001's exact
@@ -349,10 +348,9 @@ class RunFlowIntegrationTest {
 
     @Test
     fun `signup with a duplicate email returns 409 EMAIL_ALREADY_EXISTS`() = testApplication {
-        // Substitutes for the "duplicate nickname" case from the task brief: POST
-        // /users/me/profile and the nickname-check endpoint are not implemented yet (see
-        // docs/qa-checklist.md), so /auth/signup's duplicate-email conflict is the closest
-        // already-implemented analogue of a uniqueness-constraint 409.
+        // The analogous duplicate-nickname 409 (NICKNAME_TAKEN) is covered separately in
+        // UserProfileFlowIntegrationTest; this test is about /auth/signup's own uniqueness
+        // constraint on email.
         val client = jsonClient()
         val email = uniqueEmail()
         client.signupNewUser(email = email)
