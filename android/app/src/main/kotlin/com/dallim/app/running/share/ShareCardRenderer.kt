@@ -141,7 +141,7 @@ object ShareCardRenderer {
         y += width * 0.09f
 
         val values = buildList {
-            if (options.showDistance) add("${RunFormat.distanceKm(distanceKm * 1000)}km")
+            if (options.showDistance) add("${RunFormat.km(distanceKm)}km")
             if (options.showDuration) add(RunFormat.duration(durationSeconds.toLong()))
             if (options.showPace) add("${RunFormat.pace(paceSecPerKm)}/km")
         }

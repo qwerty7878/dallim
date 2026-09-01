@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.RouteDetailResponseBody
 import com.dallim.ui.components.DallimErrorState
@@ -250,7 +251,7 @@ private fun ReadyContent(
         Row(modifier = Modifier.padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
             Text(text = uiState.route.emoji, fontSize = 20.sp)
             Text(
-                text = "${uiState.route.name} · ${uiState.route.distanceKm}km",
+                text = "${uiState.route.name} · ${RunFormat.km(uiState.route.distanceKm)}km",
                 style = DallimTypography.Body,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(start = Spacing.xs),

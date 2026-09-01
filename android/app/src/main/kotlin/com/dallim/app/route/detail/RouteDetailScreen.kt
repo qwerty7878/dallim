@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.FinisherThumbnail
 import com.dallim.network.route.RouteDetailResponseBody
@@ -211,7 +212,7 @@ private fun RouteDetailScreen(
 @Composable
 private fun SpecGrid(route: RouteDetailResponseBody, modifier: Modifier = Modifier) {
     val specs = listOf(
-        "거리" to "${route.distanceKm}km",
+        "거리" to "${RunFormat.km(route.distanceKm)}km",
         "예상 시간" to "약 ${route.estimatedMinutes}분",
         "난이도" to route.difficulty.toDifficultyLabel(),
         "신호등" to "${route.trafficLightCount}개",

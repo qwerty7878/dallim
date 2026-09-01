@@ -249,7 +249,7 @@ private fun SharePreviewCard(run: RunDetailResponseBody, options: ShareCardOptio
         Column(modifier = Modifier.align(Alignment.BottomStart)) {
             Text(text = "🐳 ${run.routeName}", style = DallimTypography.Title1, color = contentColor, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                if (options.showDistance) Text(text = "${run.distanceKm}km", style = DallimTypography.Title1, color = contentColor)
+                if (options.showDistance) Text(text = "${RunFormat.km(run.distanceKm)}km", style = DallimTypography.Title1, color = contentColor)
                 if (options.showDuration) Text(text = RunFormat.duration(run.durationSeconds.toLong()), style = DallimTypography.Title1, color = contentColor)
                 if (options.showPace) Text(text = "${RunFormat.pace(run.averagePaceSecPerKm)}/km", style = DallimTypography.Title1, color = contentColor)
             }

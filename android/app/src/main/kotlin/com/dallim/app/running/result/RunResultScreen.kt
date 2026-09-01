@@ -117,7 +117,7 @@ private fun ResultContent(run: RunDetailResponseBody, modifier: Modifier = Modif
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "${run.distanceKm}km",
+                text = "${RunFormat.km(run.distanceKm)}km",
                 style = DallimTypography.Display,
                 color = DallimColors.TextPrimary,
                 textAlign = TextAlign.Center,

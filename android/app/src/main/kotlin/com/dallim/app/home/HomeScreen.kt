@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.home.HomeResponseBody
 import com.dallim.network.home.RecentRun
@@ -201,7 +202,7 @@ private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Uni
             )
         }
         Text(
-            text = "${todaySketch.distanceKm}km · 약 ${todaySketch.estimatedMinutes}분",
+            text = "${RunFormat.km(todaySketch.distanceKm)}km · 약 ${todaySketch.estimatedMinutes}분",
             style = DallimTypography.Caption,
             color = DallimColors.TextSecondary,
             modifier = Modifier.padding(top = Spacing.xs),
@@ -241,7 +242,7 @@ private fun RecentRunCard(run: RecentRun) {
             .background(DallimColors.Surface)
             .padding(Spacing.md),
     ) {
-        Text(text = "${run.distanceKm}km", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+        Text(text = "${RunFormat.km(run.distanceKm)}km", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
         Text(
             text = run.completedAt.toShortDateLabel(),
             style = DallimTypography.Caption,
@@ -289,7 +290,7 @@ private fun SavedRoutePreviewCard(route: SavedRouteItem, onClick: () -> Unit) {
             )
         }
         Text(
-            text = "${route.distanceKm}km",
+            text = "${RunFormat.km(route.distanceKm)}km",
             style = DallimTypography.Caption,
             color = DallimColors.TextSecondary,
             modifier = Modifier.padding(top = Spacing.xs),

@@ -35,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.running.RunFormat
 import com.dallim.network.user.SavedRouteItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
@@ -194,7 +195,7 @@ private fun SavedRouteRow(
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {
             Text(text = route.name, style = DallimTypography.Body, color = DallimColors.TextPrimary)
             Text(
-                text = "${route.distanceKm}km · ${if (route.hasRun) "완주함" else "미완주"}",
+                text = "${RunFormat.km(route.distanceKm)}km · ${if (route.hasRun) "완주함" else "미완주"}",
                 style = DallimTypography.Caption,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),

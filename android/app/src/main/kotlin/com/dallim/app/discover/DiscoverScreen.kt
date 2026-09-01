@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.RouteListItem
 import com.dallim.ui.components.DallimBottomNavigation
@@ -279,7 +280,7 @@ private fun RouteRow(
                 )
             }
             Text(
-                text = "${route.distanceKm}km · 약 ${route.estimatedMinutes}분",
+                text = "${RunFormat.km(route.distanceKm)}km · 약 ${route.estimatedMinutes}분",
                 style = DallimTypography.Caption,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
