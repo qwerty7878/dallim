@@ -1,5 +1,6 @@
 package com.dallim.app.location
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -7,11 +8,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.dallim.app.MainActivity
@@ -87,8 +91,17 @@ class LocationTrackingService : LifecycleService() {
         return START_STICKY
     }
 
-    @SuppressLint("MissingPermission") // S-20에서 포그라운드+백그라운드 위치 권한을 이미 확인/요청함
+    @SuppressLint("MissingPermission") // 아래 hasForegroundLocationPermission()로 직접 확인 후 진행
     private fun handleStart(intent: Intent) {
+        if (!hasForegroundLocationPermission()) {
+            // RunPrepareRoute(S-20)가 "달리기 시작" 탭 시점에 이미 이 권한을 확인/요청하지만,
+            // FOREGROUND_SERVICE_TYPE_LOCATION은 플랫폼이 강제하는 하드 요구사항이라 여기서도
+            // 방어적으로 재확인한다 — 없이 startForeground를 호출하면 SecurityException으로
+            // 프로세스 전체가 크래시하기 때문(과거 실제로 재현됨).
+            Log.w(TAG, "handleStart: 위치 권한 없이 호출됨 — 포그라운드 서비스 시작을 건너뜀")
+            stopSelf()
+            return
+        }
         val startRunId = intent.getStringExtra(EXTRA_RUN_ID) ?: return
         val routeJson = intent.getStringExtra(EXTRA_PLANNED_ROUTE_JSON)
         runId = startRunId
@@ -250,7 +263,15 @@ class LocationTrackingService : LifecycleService() {
         }.getOrDefault(emptyList())
     }
 
+    private fun hasForegroundLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
+    }
+
     companion object {
+        private const val TAG = "LocationTrackingService"
+
         const val ACTION_START = "com.dallim.app.location.action.START"
         const val ACTION_PAUSE = "com.dallim.app.location.action.PAUSE"
         const val ACTION_RESUME = "com.dallim.app.location.action.RESUME"

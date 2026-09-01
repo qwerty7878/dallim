@@ -50,9 +50,13 @@ sealed interface RunPrepareUiState {
  * GPS 신호 강도 체크 -> 배터리 최적화 안내 -> **백그라운드 위치 권한 최초 요청**(온보딩 S-05가
  * 아니라 여기서) -> 3초 카운트다운 -> [RunApi.startRun].
  *
- * 권한/배터리 최적화는 S-05와 같은 원칙으로 "허용/거부 무관 진행" — 체크리스트로 상태만 보여주고
- * 달리기 시작 자체를 막지 않는다(포그라운드 서비스가 실행되는 동안은 위치 접근이 가능해 완전히
- * 막힌 상태는 아니며, 과도한 마찰로 이탈률을 높이지 않기 위함).
+ * 배터리 최적화 제외/백그라운드 위치 권한은 S-05와 같은 원칙으로 "허용/거부 무관 진행" —
+ * 체크리스트로 상태만 보여주고 달리기 시작 자체를 막지 않는다. **단, 포그라운드 위치 권한은
+ * 예외다**: `FOREGROUND_SERVICE_TYPE_LOCATION`으로 [com.dallim.app.location.LocationTrackingService]를
+ * 띄우려면 플랫폼이 `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` 중 하나가 이미 허용돼 있을
+ * 것을 강제한다(없으면 `SecurityException`으로 서비스가 즉시 크래시). 그래서 "달리기 시작" 탭
+ * 핸들러(`RunPrepareRoute`)는 포그라운드 위치 권한이 없으면 이 메서드를 호출하는 대신 권한
+ * 요청을 먼저 띄우고, 사용자가 다시 탭했을 때만 여기로 들어온다.
  */
 @HiltViewModel
 class RunPrepareViewModel @Inject constructor(

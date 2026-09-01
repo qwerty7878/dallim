@@ -117,7 +117,19 @@ fun RunPrepareRoute(
             }
             runCatching { batteryOptimizationLauncher.launch(intent) }
         },
-        onStartRunClick = viewModel::onStartRunClick,
+        // FOREGROUND_SERVICE_TYPE_LOCATION은 포그라운드 위치 권한이 이미 허용돼 있을 것을
+        // 플랫폼이 강제한다 — 없는 채로 진행하면 LocationTrackingService가 SecurityException으로
+        // 크래시한다. 그래서 이 권한만은 배터리 최적화/백그라운드 권한과 달리 "허용/거부 무관
+        // 진행"을 적용하지 않고, 없으면 달리기를 시작하는 대신 권한 요청부터 띄운다.
+        onStartRunClick = {
+            if (hasForegroundLocationPermission(context)) {
+                viewModel.onStartRunClick()
+            } else {
+                foregroundLocationLauncher.launch(
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                )
+            }
+        },
         onCancelCountdown = viewModel::onCancelCountdown,
         modifier = modifier,
     )
