@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.BuildConfig
 import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.FinisherThumbnail
@@ -43,6 +44,7 @@ import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.GeoPoint
+import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteStatusBadge
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.toRouteStatus
@@ -54,9 +56,14 @@ import com.dallim.ui.theme.Spacing
 /**
  * S-16 Route 상세 — 코스 지도/스펙/러너 GPS 썸네일 (docs/01-feature-spec.md §1.2).
  *
- * "코스 지도" 영역: 네이버맵/카카오맵 SDK 실연동은 API 키·Gradle 의존성이 아직 설정되지 않아
- * 이번 라운드 범위 밖이다. 대신 [RouteThumbnailView]로 서버 GeoJSON을 정적 렌더링해 대체하며,
- * 인터랙티브 지도 연동은 후속 작업으로 보류한다 — SPEC 축소가 아니라 환경 제약이다.
+ * "코스 지도" 영역: 네이버맵 SDK가 연동되어 있다 ([NaverRouteMapView], 계획 경로만 표시하고
+ * `actualRoute`는 비워둔다 — 아직 달리지 않은 코스이므로). 단, NCP Client ID는 발급 전이라
+ * `local.properties`의 `NAVER_MAP_CLIENT_ID`가 비어있는 로컬 빌드에서는
+ * `BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED == false`가 되어 자동으로 [RouteThumbnailView]
+ * Canvas 폴백을 쓴다 — 크래시 없이 항상 빌드/실행 가능하다.
+ *
+ * 하단 [FinishersRow]의 88dp 완주자 GPS 그림 아바타는 지도가 아니라 스타일라이즈드 썸네일이므로
+ * 이 폴백 정책과 무관하게 항상 [RouteThumbnailView]를 쓴다 — "제네릭 아이콘 금지" 원칙 유지.
  *
  * MVP1은 소셜/대회를 범위에서 제외하므로(CLAUDE.md) 하단 CTA는 "혼자 달리기" 하나만 둔다.
  */
@@ -130,12 +137,20 @@ private fun RouteDetailScreen(
             )
             is RouteDetailUiState.Success -> {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    RouteThumbnailView(
-                        coordinates = uiState.route.geoJson.toGeoPoints(),
-                        useGradient = true,
-                        cornerRadius = 0.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
+                        NaverRouteMapView(
+                            plannedRoute = uiState.route.geoJson.toGeoPoints(),
+                            actualRoute = emptyList(),
+                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                        )
+                    } else {
+                        RouteThumbnailView(
+                            coordinates = uiState.route.geoJson.toGeoPoints(),
+                            useGradient = true,
+                            cornerRadius = 0.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
 
                     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal)) {
                         Row(
