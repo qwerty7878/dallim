@@ -4,11 +4,16 @@ import com.dallim.network.common.ApiResponse
 import com.dallim.network.common.GeoJsonLineString
 import kotlinx.serialization.Serializable
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-/** docs/02-api-spec.md 4장 — S-11 탐색 / S-16 Route 상세. */
+/**
+ * docs/02-api-spec.md 4장 — S-11 탐색 / S-16 Route 상세.
+ * docs/02-api-spec.md 8장 — S-43~S-45 코스 생성(직접 그리기/AI 자동 생성).
+ */
 interface RouteApi {
     @GET("routes")
     suspend fun getRoutes(
@@ -28,6 +33,14 @@ interface RouteApi {
 
     @GET("routes/{routeId}/finishers")
     suspend fun getFinishers(@Path("routeId") routeId: String): Response<ApiResponse<FinishersResponseBody>>
+
+    /** S-44 직접 그리기 — 손그림 궤적을 OSRM Map Matching으로 실도로에 스냅한다 (docs/02-api-spec.md 8.1). */
+    @POST("routes/draw-convert")
+    suspend fun convertDrawnPath(@Body request: RouteDrawConvertRequest): Response<ApiResponse<RouteDrawConvertResponseBody>>
+
+    /** S-45 AI 자동 생성 — 시작 위치 + 목표 거리로 순환 코스를 생성한다 (docs/02-api-spec.md 8.2). */
+    @POST("routes/discovery")
+    suspend fun discoverRoute(@Body request: RouteDiscoveryRequest): Response<ApiResponse<RouteDiscoveryResponseBody>>
 }
 
 @Serializable
@@ -80,3 +93,32 @@ data class FinisherThumbnail(
 
 @Serializable
 data class FinishersResponseBody(val items: List<FinisherThumbnail>)
+
+// --- 8.1 POST /routes/draw-convert ---
+
+@Serializable
+data class RouteDrawConvertRequest(val drawnPath: GeoJsonLineString)
+
+@Serializable
+data class RouteDrawConvertResponseBody(
+    val geoJson: GeoJsonLineString,
+    val distanceKm: Double,
+)
+
+// --- 8.2 POST /routes/discovery ---
+
+@Serializable
+data class RouteDiscoveryRequest(
+    val startLng: Double,
+    val startLat: Double,
+    val targetDistanceKm: Double,
+    /** docs/01-feature-spec.md ComfortablePace의 apiValue 중 하나(예: "PACE_6_7"). optional. */
+    val pace: String? = null,
+)
+
+@Serializable
+data class RouteDiscoveryResponseBody(
+    val geoJson: GeoJsonLineString,
+    val distanceKm: Double,
+    val estimatedMinutes: Int,
+)
