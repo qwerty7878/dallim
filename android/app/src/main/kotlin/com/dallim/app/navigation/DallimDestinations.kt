@@ -30,6 +30,15 @@ object DallimDestinations {
 
     const val SAVED_ROUTES = "s17_saved_routes" // S-17
 
+    /**
+     * S-43/44/45 코스 만들기(직접 그리기/AI 자동 생성) — docs/01-feature-spec.md에는 없던 화면.
+     * docs/02-api-spec.md 8장(2026-09-03 조기 착수) API에 맞춰 신설, 오케스트레이터 지시로
+     * 기존 S-42(마이) 다음 번호를 잇지 않고 코스 관련 화면군(S-1x/4x)과 구분되는 새 접두로 부여.
+     */
+    const val COURSE_CREATE_ENTRY = "s43_course_create_entry" // S-43
+    const val COURSE_DRAW = "s44_course_draw" // S-44
+    const val COURSE_AI_GENERATE = "s45_course_ai_generate" // S-45
+
     private const val RUN_PREPARE_BASE = "s20_run_prepare" // S-20
     const val RUN_PREPARE = "$RUN_PREPARE_BASE/{$ARG_ROUTE_ID}"
     fun runPrepare(routeId: String) = "$RUN_PREPARE_BASE/$routeId"

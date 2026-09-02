@@ -18,9 +18,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -65,6 +67,7 @@ fun DiscoverRoute(
     onBackClick: () -> Unit,
     onRouteClick: (routeId: String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
+    onCreateCourseClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
@@ -75,6 +78,7 @@ fun DiscoverRoute(
         onBackClick = onBackClick,
         onRouteClick = onRouteClick,
         onTabSelected = onTabSelected,
+        onCreateCourseClick = onCreateCourseClick,
         onDistanceFilterChange = viewModel::onDistanceFilterChange,
         onStatusFilterChange = viewModel::onStatusFilterChange,
         onSortChange = viewModel::onSortChange,
@@ -91,6 +95,7 @@ private fun DiscoverScreen(
     onBackClick: () -> Unit,
     onRouteClick: (String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
+    onCreateCourseClick: () -> Unit,
     onDistanceFilterChange: (DistanceFilter) -> Unit,
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
@@ -116,6 +121,17 @@ private fun DiscoverScreen(
         containerColor = DallimColors.Background,
         bottomBar = {
             DallimBottomNavigation(selectedTab = DallimTab.EXPLORE, onTabSelected = onTabSelected)
+        },
+        floatingActionButton = {
+            // S-43 코스 만들기 진입점 (오케스트레이터 지시로 신설 — docs/01-feature-spec.md에는
+            // 없던 화면, docs/02-api-spec.md 8장 API에 맞춰 조기 구현).
+            ExtendedFloatingActionButton(
+                onClick = onCreateCourseClick,
+                containerColor = DallimColors.Primary,
+                contentColor = DallimColors.Surface,
+                icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
+                text = { Text(text = "코스 만들기") },
+            )
         },
     ) { innerPadding ->
         Column(
@@ -357,6 +373,7 @@ private fun DiscoverScreenPreview() {
             onBackClick = {},
             onRouteClick = {},
             onTabSelected = {},
+            onCreateCourseClick = {},
             onDistanceFilterChange = {},
             onStatusFilterChange = {},
             onSortChange = {},

@@ -21,6 +21,9 @@ import com.dallim.app.onboarding.profile.ProfileSetupRoute
 import com.dallim.app.onboarding.signup.SignupRoute
 import com.dallim.app.onboarding.splash.SplashRoute
 import com.dallim.app.onboarding.terms.TermsRoute
+import com.dallim.app.route.create.CourseCreateEntryRoute
+import com.dallim.app.route.create.ai.AiRouteRoute
+import com.dallim.app.route.create.draw.DrawRouteRoute
 import com.dallim.app.route.detail.RouteDetailRoute
 import com.dallim.app.route.saved.SavedRoutesRoute
 import com.dallim.app.running.navigation.RunNavigationRoute
@@ -177,7 +180,24 @@ fun DallimNavHost(
                 onBackClick = { navController.popBackStack() },
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
+                onCreateCourseClick = { navController.navigate(DallimDestinations.COURSE_CREATE_ENTRY) },
             )
+        }
+
+        composable(DallimDestinations.COURSE_CREATE_ENTRY) {
+            CourseCreateEntryRoute(
+                onBackClick = { navController.popBackStack() },
+                onDrawClick = { navController.navigate(DallimDestinations.COURSE_DRAW) },
+                onAiGenerateClick = { navController.navigate(DallimDestinations.COURSE_AI_GENERATE) },
+            )
+        }
+
+        composable(DallimDestinations.COURSE_DRAW) {
+            DrawRouteRoute(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(DallimDestinations.COURSE_AI_GENERATE) {
+            AiRouteRoute(onBackClick = { navController.popBackStack() })
         }
 
         composable(DallimDestinations.MY) {
