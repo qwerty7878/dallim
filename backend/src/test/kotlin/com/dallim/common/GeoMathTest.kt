@@ -63,4 +63,41 @@ class GeoMathTest {
         assertEquals(100, 150.0.toPercentInt())
         assertEquals(0, (-5.0).toPercentInt())
     }
+
+    @Test
+    fun `destination - travelling north increases latitude by the expected amount, longitude unchanged`() {
+        val origin = LatLng(37.0, 127.0)
+        val dest = GeoMath.destination(origin, bearingDegrees = 0.0, distanceMeters = 1000.0)
+
+        // 1km north on a spherical earth (R=6,371,000m) is ~0.008993 degrees of latitude.
+        assertEquals(37.008993, dest.lat, 1e-4)
+        assertEquals(origin.lng, dest.lng, 1e-6)
+    }
+
+    @Test
+    fun `destination - travelling east increases longitude, latitude unchanged`() {
+        val origin = LatLng(37.0, 127.0)
+        val dest = GeoMath.destination(origin, bearingDegrees = 90.0, distanceMeters = 1000.0)
+
+        assertTrue(dest.lng > origin.lng)
+        assertEquals(origin.lat, dest.lat, 1e-4)
+    }
+
+    @Test
+    fun `destination - zero distance returns (approximately) the same point`() {
+        val origin = LatLng(37.3905, 126.9235)
+        val dest = GeoMath.destination(origin, bearingDegrees = 123.0, distanceMeters = 0.0)
+
+        assertEquals(origin.lat, dest.lat, 1e-9)
+        assertEquals(origin.lng, dest.lng, 1e-9)
+    }
+
+    @Test
+    fun `destination - haversineMeters of the result roughly matches the requested distance`() {
+        val origin = LatLng(37.3905, 126.9235)
+        val distance = 2500.0
+        val dest = GeoMath.destination(origin, bearingDegrees = 47.0, distanceMeters = distance)
+
+        assertEquals(distance, GeoMath.haversineMeters(origin, dest), 1.0)
+    }
 }

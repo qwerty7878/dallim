@@ -1,6 +1,7 @@
 package com.dallim.common
 
 import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -82,4 +83,33 @@ object GeoMath {
 
     /** Rounds a 0.0..100.0 percent value to a 0..100 Int, clamping defensively. */
     fun Double.toPercentInt(): Int = roundToInt().coerceIn(0, 100)
+
+    /**
+     * Spherical "destination point given distance and bearing" formula — the point reached by
+     * travelling [distanceMeters] from [origin] along initial compass bearing
+     * [bearingDegrees] (0 = north, 90 = east, clockwise) over a spherical earth.
+     *
+     * Used by the discovery module (docs/02-api-spec.md 8.2) to place candidate loop waypoints
+     * around a start point before handing them to OSRM for actual road-network routing. Pure
+     * function — no I/O — so it is directly unit-testable.
+     */
+    fun destination(origin: LatLng, bearingDegrees: Double, distanceMeters: Double): LatLng {
+        val angularDistance = distanceMeters / EARTH_RADIUS_METERS
+        val bearing = Math.toRadians(bearingDegrees)
+        val lat1 = Math.toRadians(origin.lat)
+        val lng1 = Math.toRadians(origin.lng)
+
+        val lat2 = asin(
+            (sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(bearing))
+                .coerceIn(-1.0, 1.0),
+        )
+        val lng2 = lng1 + atan2(
+            sin(bearing) * sin(angularDistance) * cos(lat1),
+            cos(angularDistance) - sin(lat1) * sin(lat2),
+        )
+
+        // Normalize longitude to [-180, 180].
+        val normalizedLng = ((Math.toDegrees(lng2) + 540.0) % 360.0) - 180.0
+        return LatLng(lat = Math.toDegrees(lat2), lng = normalizedLng)
+    }
 }
