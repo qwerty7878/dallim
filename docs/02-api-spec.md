@@ -606,11 +606,72 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 
 ---
 
-## 8. MVP2 이후로 유보한 API (참고용, 이번 범위 아님)
+## 8. 코스 생성 API (2026-09-03 — MVP 구분 없이 조기 착수)
 
-- `POST /routes/discovery` — AI Sketch Discovery
-- `POST /routes/draw-convert` — 직접 그리기 → 실도로 변환
+> 사용자 요청으로 MVP2 예정이던 코스 생성(직접 그리기/AI 자동 생성)을 앞당겨 구현한다.
+> 네이버 Directions API(5/15)는 자동차 전용이라 도보 라우팅에 쓸 수 없어(2026-09-03 확인),
+> OSRM을 OSM 데이터 + foot 프로필로 자체 호스팅해 대체한다(`scripts/osrm-build.sh`,
+> `docker-compose.yml`의 `osrm` 서비스, `localhost:5001`). 생성된 코스는 그 자체로는
+> `sketch_routes`에 저장되지 않고(완주 통계가 없는 신규 코스라 DISCOVERY 상태로 등록만
+> 가능 — 저장 여부는 별도 액션), 프리뷰 응답만 우선 내려준다.
+
+### 8.1 `POST /routes/draw-convert` — 직접 그리기 → 실도로 변환
+
+사용자가 지도 위에 손가락으로 그린 궤적(느슨한 점들)을 OSRM Map Matching으로 실제 도로에 스냅한다.
+
+```json
+// Request
+{
+  "drawnPath": {
+    "type": "LineString",
+    "coordinates": [[126.9235, 37.3905], [126.9238, 37.3907], ...]  // [lng, lat], 화면 드래그 중 일정 간격(예: 5~10m)으로 샘플링한 점들
+  }
+}
+```
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "geoJson": { "type": "LineString", "coordinates": [[126.9235, 37.3905], ...] },
+    "distanceKm": 3.42
+  },
+  "error": null
+}
+```
+- 그린 점이 너무 성기거나(예: 2점뿐) 도로에서 너무 멀리 떨어져 OSRM이 매칭 실패(`code: "NoMatch"`)하면 `400 DRAW_MATCH_FAILED` — "그림이 도로와 너무 안 맞아요. 다시 그려보세요." 메시지로 응답한다.
+- 최소 점 개수(예: 10개 미만)면 OSRM 호출 전에 자체적으로 400 `DRAW_TOO_SHORT`로 막는다(불필요한 OSRM 왕복 방지).
+
+### 8.2 `POST /routes/discovery` — AI 자동 생성
+
+시작 위치 + 목표 거리(+선택적으로 페이스)를 주면, 그 위치를 기점으로 목표 거리에 가까운 순환(loop, 출발=도착) 코스를 도로망 기반으로 생성한다.
+
+```json
+// Request
+{
+  "startLng": 126.9235,
+  "startLat": 37.3905,
+  "targetDistanceKm": 5.0,
+  "pace": "PACE_6_7"   // optional, docs/01-feature-spec.md ComfortablePace apiValue 중 하나 — 현재는 로깅/향후 개인화용으로만 받고 라우팅 로직에는 아직 반영하지 않는다
+}
+```
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "geoJson": { "type": "LineString", "coordinates": [...] },
+    "distanceKm": 4.87,
+    "estimatedMinutes": 34
+  },
+  "error": null
+}
+```
+- 생성 알고리즘: 목표 거리 D로부터 반지름 r = D/(2π)인 원 둘레에 K(4~6)개 후보 지점을 각도 기준으로 배치(약간의 무작위 편차 포함) → `start → wp1 → ... → wpK → start` 순서로 OSRM 다중 경유지 라우팅 호출 → 실제 반환 거리가 목표 대비 허용 오차(±15%) 밖이면 반지름을 `r *= target/actual` 비율로 조정해 재시도(최대 5회) → 그래도 안 맞으면 마지막으로 얻은 가장 근접한 결과를 그대로 반환한다(반환 응답의 `distanceKm`이 목표와 다를 수 있음을 클라이언트가 그대로 보여주면 됨 — 별도 실패 플래그 없음).
+- 도로망이 희박한 위치(바다 한가운데 등)라 OSRM이 아예 경로를 못 찾으면 `422 DISCOVERY_NO_ROUTE`.
+- **알려진 한계**: 지금은 OSM 표준 `foot` 프로필 그대로 써서 차도/고속도로류는 이미 제외되지만, "좁은 골목·인도 없는 도로 회피" 같은 안전 기준(01-feature-spec.md 2.2.C)까지는 아직 라우팅 가중치에 반영하지 않았다 — 커스텀 OSRM Lua 프로필로 확장하는 건 후속 작업.
+
+### 8.3 이번에도 유보한 것
 - `POST /sessions` 이하 소셜 세션 전체
 - `GET /races` 이하 대회 캘린더 전체
-
-> 위 API들은 도메인 모듈(`discovery`, `session`, `race`)만 스텁으로 남겨두고, MVP2/3 착수 시점에 별도 API 명세서로 확장합니다.
+- 생성된 코스를 `sketch_routes`에 실제로 저장/공유하는 플로우(지금은 프리뷰 응답까지만)
