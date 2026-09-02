@@ -30,7 +30,10 @@ object UserTable : Table("users") {
 
     // IMPORTANT: gender is persisted server-side only. It must NEVER be mapped onto any
     // response DTO (see docs/02-api-spec.md 2장 GET /users/me note, CLAUDE.md rule 2).
-    val gender = varchar("gender", 16).nullable()
+    // 32 to match the other free-form profile columns above -- 16 was too tight and rejected
+    // the Android client's own "PREFER_NOT_TO_SAY" (17 chars) enum value in practice (found via
+    // live end-to-end signup testing 2026-09-03, see V3 migration).
+    val gender = varchar("gender", 32).nullable()
 
     val totalRuns = integer("total_runs").default(0)
     val totalDistanceKm = double("total_distance_km").default(0.0)
