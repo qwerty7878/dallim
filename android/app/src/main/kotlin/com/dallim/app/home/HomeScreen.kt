@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -37,6 +39,7 @@ import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimMark
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.DallimTextButton
@@ -106,17 +109,23 @@ private fun HomeScreen(
             // 프로필 설정을 마친 사용자만 닉네임을 받아온다 — 실패/미설정 시 null로 흡수돼
             // 인사말 없이 기존 "달림" 타이틀만 보인다 (HomeViewModel KDoc 참고).
             val nickname = (uiState as? HomeUiState.Success)?.nickname
-            Text(
-                text = "달림",
-                style = DallimTypography.Title1,
-                color = DallimColors.TextPrimary,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(
                     start = Spacing.ScreenHorizontal,
                     end = Spacing.ScreenHorizontal,
                     top = Spacing.md,
                     bottom = if (nickname != null) Spacing.xs else Spacing.md,
                 ),
-            )
+            ) {
+                DallimMark(modifier = Modifier.size(28.dp))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text(
+                    text = "달림",
+                    style = DallimTypography.Title1,
+                    color = DallimColors.TextPrimary,
+                )
+            }
             if (nickname != null) {
                 Text(
                     text = "${nickname}님, 오늘도 달려볼까요?",

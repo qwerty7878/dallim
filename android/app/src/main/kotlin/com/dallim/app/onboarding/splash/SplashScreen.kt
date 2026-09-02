@@ -19,8 +19,8 @@ import com.dallim.ui.theme.DallimTheme
 
 /**
  * S-00 스플래시 — docs/01-feature-spec.md 1.1. Pure side-effect screen: solid [DallimColors.Background]
- * behind the app's brand mark ([DallimMark], the same GPS-trail curve as the launcher icon), shown
- * briefly while [SplashViewModel] resolves where to go, then fires [onNavigateHome] /
+ * behind the app's brand mark ([DallimMark], the same "러닝화 + 위치 핀" silhouette as the launcher
+ * icon), shown briefly while [SplashViewModel] resolves where to go, then fires [onNavigateHome] /
  * [onNavigateCarousel] exactly once.
  *
  * 2026-08-25 결정 변경(docs/03-design-system.md 1.2 스플래시 항목): 화면 전체를 그라디언트로
