@@ -1,8 +1,5 @@
 package com.dallim.ui.components
 
-import android.graphics.Bitmap
-import android.graphics.Canvas as AndroidCanvas
-import android.graphics.Paint
 import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
@@ -32,7 +29,6 @@ import com.naver.maps.map.NaverMap
 import com.naver.maps.map.NaverMapOptions
 import com.naver.maps.map.overlay.CircleOverlay
 import com.naver.maps.map.overlay.MultipartPathOverlay
-import com.naver.maps.map.overlay.OverlayImage
 import com.naver.maps.map.overlay.PathOverlay
 
 /**
@@ -45,12 +41,14 @@ import com.naver.maps.map.overlay.PathOverlay
  *
  * [DualRouteMapView]와 동일한 파라미터 시그니처를 유지해 호출부에서 1:1로 교체 가능하다.
  *
- * 색맹 접근성 규칙(docs/04-ui-guide.md §9): 계획 경로와 실제 경로는 색상뿐 아니라 실선/점선으로도
- * 구분한다.
- * - 계획 경로(plannedRoute): 옅은 흰색 점선 — [PathOverlay.patternImage]로 dash 비트맵을 타일링.
- * - 실제 궤적(actualRoute): [DallimGradient]와 동일한 블루바이올렛→코랄 그라디언트 실선 —
- *   [PathOverlay]는 Compose Brush 그라디언트를 지원하지 않으므로, 구간을 잘게 나눠 색을 보간한
- *   [MultipartPathOverlay]로 근사한다.
+ * 색맹 접근성 규칙(docs/04-ui-guide.md §9): 계획 경로와 실제 경로는 색상뿐 아니라 스타일로도 구분한다.
+ * - 계획 경로(plannedRoute): 흰색 채움 + 남색(TextPrimary) 아웃라인의 옅은 실선. 원래는 점선으로
+ *   구분할 계획이었으나(흰색 반투명 + [PathOverlay.patternImage] dash 타일링), `color`를
+ *   `TRANSPARENT`로 두면 실기기에서 `PathOverlay`가 아예 아무것도 그리지 않는 것을 NCP 키 발급 후
+ *   실기기 검증(2026-09-03)에서 발견 — 아웃라인 있는 흰색 실선으로 대체했다.
+ * - 실제 궤적(actualRoute): [DallimGradient]와 동일한 블루바이올렛→코랄 그라디언트 실선(아웃라인
+ *   없음) — [PathOverlay]는 Compose Brush 그라디언트를 지원하지 않으므로, 구간을 잘게 나눠 색을
+ *   보간한 [MultipartPathOverlay]로 근사한다.
  *
  * Compose 생명주기 <-> Android View 생명주기 매핑: [MapView]는 자체 onCreate/onStart/onResume/
  * onPause/onStop/onDestroy 콜백을 요구하므로, 호스트 [LifecycleOwner]에 [LifecycleEventObserver]를
@@ -110,7 +108,6 @@ fun NaverRouteMapView(
 
     val density = LocalDensity.current
     val strokeWidthPx = with(density) { strokeWidth.roundToPx() }.coerceAtLeast(1)
-    val dashImage = remember(strokeWidthPx) { buildDashPatternImage(strokeWidthPx) }
 
     LaunchedEffect(naverMap, plannedRoute, actualRoute, strokeWidthPx) {
         val map = naverMap ?: return@LaunchedEffect
@@ -118,10 +115,16 @@ fun NaverRouteMapView(
         if (plannedRoute.size >= 2) {
             plannedOverlay.coords = plannedRoute.toLatLngList()
             plannedOverlay.width = strokeWidthPx
-            plannedOverlay.color = android.graphics.Color.TRANSPARENT
-            plannedOverlay.outlineWidth = 0
-            plannedOverlay.patternImage = dashImage
-            plannedOverlay.patternInterval = strokeWidthPx * 4
+            // 흰색 반투명 + patternImage로 "점선"을 흉내 낸 첫 시도는 color=TRANSPARENT일 때
+            // PathOverlay 자체가 아무것도 그리지 않는 실제 기기 버그(?)로 밝혀져(NCP 키 발급 후
+            // 실기기/에뮬레이터 검증에서 발견, 2026-09-03) 완전히 안 보였다. 실제 지도(밝은 배경)
+            // 위에서 항상 또렷이 보이도록 흰색 채움 + 남색 아웃라인의 불투명 실선으로 교체 —
+            // "점선 vs 그라디언트 실선"이 아니라 "옅은 흰색 실선(아웃라인 있음) vs 진한 그라디언트
+            // 실선(아웃라인 없음)"으로 색맹 접근성 구분을 유지한다.
+            plannedOverlay.color = android.graphics.Color.WHITE
+            plannedOverlay.outlineWidth = (strokeWidthPx / 3).coerceAtLeast(1)
+            plannedOverlay.outlineColor = DallimColors.TextPrimary.toArgb()
+            plannedOverlay.patternImage = null
             plannedOverlay.map = map
         } else {
             plannedOverlay.map = null
@@ -180,26 +183,6 @@ fun NaverRouteMapView(
 }
 
 private fun List<GeoPoint>.toLatLngList(): List<LatLng> = map { LatLng(it.lat, it.lng) }
-
-/**
- * 계획 경로를 점선으로 그리기 위한 반복 타일 비트맵. [PathOverlay]는 Compose의
- * [androidx.compose.ui.graphics.PathEffect.dashPathEffect]에 대응하는 API가 없어, 짧은 dash
- * 비트맵을 [PathOverlay.patternImage]로 타일링하는 방식으로 동일한 시각 효과를 낸다.
- */
-private fun buildDashPatternImage(strokeWidthPx: Int): OverlayImage {
-    val dashLength = strokeWidthPx * 3
-    val gapLength = strokeWidthPx * 2
-    val width = (dashLength + gapLength).coerceAtLeast(2)
-    val height = strokeWidthPx.coerceAtLeast(1)
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = AndroidCanvas(bitmap)
-    val paint = Paint().apply {
-        isAntiAlias = true
-        color = DallimColors.Surface.copy(alpha = 0.7f).toArgb()
-    }
-    canvas.drawRect(0f, 0f, dashLength.toFloat(), height.toFloat(), paint)
-    return OverlayImage.fromBitmap(bitmap)
-}
 
 /**
  * [DallimGradient](GradientStart -> GradientEnd)를 [MultipartPathOverlay]로 근사한다 — 경로를
