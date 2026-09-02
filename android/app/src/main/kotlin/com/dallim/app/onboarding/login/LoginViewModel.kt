@@ -1,11 +1,11 @@
 package com.dallim.app.onboarding.login
 
+import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dallim.network.auth.AuthApi
 import com.dallim.network.auth.AuthResponseBody
 import com.dallim.network.auth.GoogleLoginRequest
-import com.dallim.network.auth.KakaoLoginRequest
 import com.dallim.network.auth.TokenProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,21 +50,10 @@ class LoginViewModel @Inject constructor(
     private val _navigationEvents = MutableSharedFlow<LoginNavigationEvent>()
     val navigationEvents: SharedFlow<LoginNavigationEvent> = _navigationEvents.asSharedFlow()
 
-    fun onKakaoClick() {
+    fun onGoogleClick(activity: Activity) {
         viewModelScope.launch {
             _uiState.value = LoginUiState(isLoading = true)
-            socialLoginLauncher.launchKakaoSignIn()
-                .onSuccess { kakaoAccessToken ->
-                    handleAuthResponse { authApi.loginWithKakao(KakaoLoginRequest(kakaoAccessToken)) }
-                }
-                .onFailure { showError(it.message ?: "카카오 로그인에 실패했어요.") }
-        }
-    }
-
-    fun onGoogleClick() {
-        viewModelScope.launch {
-            _uiState.value = LoginUiState(isLoading = true)
-            socialLoginLauncher.launchGoogleSignIn()
+            socialLoginLauncher.launchGoogleSignIn(activity)
                 .onSuccess { idToken ->
                     handleAuthResponse { authApi.loginWithGoogle(GoogleLoginRequest(idToken)) }
                 }

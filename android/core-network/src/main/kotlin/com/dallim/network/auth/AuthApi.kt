@@ -7,16 +7,14 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 /**
- * docs/02-api-spec.md 1장 — Google/Kakao/이메일 로그인 3종 + 회원가입/로그아웃.
- * All three login paths return the same [AuthResponseBody] shape by design so S-03~S-06
+ * docs/02-api-spec.md 1장 — Google/이메일 로그인 2종 + 회원가입/로그아웃. (Kakao는 제외하기로
+ * 결정되어 이 클라이언트에는 연동하지 않는다.)
+ * All login paths return the same [AuthResponseBody] shape by design so S-03~S-06
  * onboarding can branch on `isNewUser` without caring which provider was used.
  */
 interface AuthApi {
     @POST("auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<ApiResponse<AuthResponseBody>>
-
-    @POST("auth/kakao")
-    suspend fun loginWithKakao(@Body request: KakaoLoginRequest): Response<ApiResponse<AuthResponseBody>>
 
     @POST("auth/signup")
     suspend fun signup(@Body request: EmailSignupRequest): Response<ApiResponse<AuthResponseBody>>
@@ -30,9 +28,6 @@ interface AuthApi {
 
 @Serializable
 data class GoogleLoginRequest(val idToken: String)
-
-@Serializable
-data class KakaoLoginRequest(val kakaoAccessToken: String)
 
 @Serializable
 data class EmailSignupRequest(val email: String, val password: String)

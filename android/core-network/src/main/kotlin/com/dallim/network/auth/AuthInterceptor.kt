@@ -10,7 +10,7 @@ import javax.inject.Inject
  * server-side, so this doesn't need to know which routes are 🔒 — it's harmless to attach
  * a token to a public GET /routes call, for example.
  *
- * auth/login, auth/signup, auth/google, auth/kakao and auth/refresh are called before any
+ * auth/login, auth/signup, auth/google and auth/refresh are called before any
  * token exists (or via the separate refresh-only client — see RefreshApi), so there's nothing
  * to attach for them; getAccessToken() simply returns null pre-login.
  */
