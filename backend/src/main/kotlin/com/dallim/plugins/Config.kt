@@ -13,6 +13,7 @@ data class DallimConfig(
     val database: DatabaseSettings,
     val redis: RedisSettings,
     val oauth: OAuthSettings,
+    val osrm: OsrmSettings,
 ) {
     data class JwtSettings(
         val secret: String,
@@ -38,6 +39,10 @@ data class DallimConfig(
         val googleClientId: String,
         val kakaoUserInfoUrl: String,
     )
+
+    data class OsrmSettings(
+        val baseUrl: String,
+    )
 }
 
 fun Application.loadDallimConfig(): DallimConfig {
@@ -50,6 +55,7 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
     val db = config("database")
     val redis = config("redis")
     val oauth = config("oauth")
+    val osrm = config("osrm")
 
     return DallimConfig(
         profile = property("profile").getString(),
@@ -73,6 +79,9 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
         oauth = DallimConfig.OAuthSettings(
             googleClientId = oauth.config("google").property("clientId").getString(),
             kakaoUserInfoUrl = oauth.config("kakao").property("userInfoUrl").getString(),
+        ),
+        osrm = DallimConfig.OsrmSettings(
+            baseUrl = osrm.property("baseUrl").getString(),
         ),
     )
 }

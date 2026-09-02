@@ -45,6 +45,11 @@ object ErrorCodes {
     const val GPS_DATA_INSUFFICIENT = "GPS_DATA_INSUFFICIENT"
     const val RUN_NOT_FOUND = "RUN_NOT_FOUND"
 
+    // discovery (docs/02-api-spec.md 8장)
+    const val DRAW_TOO_SHORT = "DRAW_TOO_SHORT"
+    const val DRAW_MATCH_FAILED = "DRAW_MATCH_FAILED"
+    const val DISCOVERY_NO_ROUTE = "DISCOVERY_NO_ROUTE"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"
@@ -62,3 +67,7 @@ class BadRequestException(code: String, message: String) :
 
 class UnauthorizedException(code: String = ErrorCodes.UNAUTHORIZED, message: String = "인증이 필요합니다.") :
     ApiException(HttpStatusCode.Unauthorized, code, message)
+
+/** 422 — request was well-formed but semantically impossible to fulfill (e.g. DISCOVERY_NO_ROUTE). */
+class UnprocessableEntityException(code: String, message: String) :
+    ApiException(HttpStatusCode.UnprocessableEntity, code, message)
