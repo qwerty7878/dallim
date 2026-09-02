@@ -675,3 +675,61 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 - `POST /sessions` 이하 소셜 세션 전체
 - `GET /races` 이하 대회 캘린더 전체
 - 생성된 코스를 `sketch_routes`에 실제로 저장/공유하는 플로우(지금은 프리뷰 응답까지만)
+
+---
+
+## 9. 알림 API (2026-09-03 추가 — 인앱 알림함, 1단계)
+
+> 사용자 요청. 종 모양 아이콘 + 알림 목록의 **인앱 알림함**만 먼저 구현한다. 폰 시스템 푸시(FCM)는
+> Firebase 프로젝트 키가 필요해 별도 후속 라운드로 미룬다 — 이번 라운드는 그 전 단계로, 알림을
+> DB에 쌓고 앱 안에서 조회/읽음 처리만 한다. 트리거는 **러닝 완주(`RunStatus.COMPLETED`) 1건만**
+> 우선 구현하고(가장 확실한 트리거), "근처에 새 코스 등록" 같은 위치 기반 트리거는 이번 범위 밖.
+
+### 9.1 `GET /notifications` 🔒
+내 알림 목록 (최신순)
+
+**Query**: `page`(기본 0), `size`(기본 20) — `GET /routes` 페이지네이션과 동일 관례
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "ntf_8f2a",
+        "type": "RUN_COMPLETED",
+        "title": "완주를 축하드려요! 🎉",
+        "body": "고래 코스 5.10km를 완주했어요.",
+        "relatedRunId": "run_1a2b",
+        "isRead": false,
+        "createdAt": "2026-09-03T05:12:00Z"
+      }
+    ],
+    "totalCount": 1,
+    "page": 0,
+    "size": 20
+  },
+  "error": null
+}
+```
+
+### 9.2 `GET /notifications/unread-count` 🔒
+종 아이콘 배지용 — 목록 전체를 안 받아도 되게 별도 경량 엔드포인트로 분리.
+```json
+{ "success": true, "data": { "unreadCount": 3 }, "error": null }
+```
+
+### 9.3 `POST /notifications/{id}/read` 🔒
+알림 하나를 읽음 처리. 이미 읽음이어도 200(멱등). 본인 알림이 아니면 404.
+```json
+{ "success": true, "data": null, "error": null }
+```
+
+### 9.4 서버 내부 트리거
+`POST /runs/{runId}/finish`에서 판정 결과가 `COMPLETED`로 확정되는 시점(`com.dallim.run.RunService.finishRun`, `finisherCountSync.recordFinisher` 호출 바로 옆)에 알림 1건을 생성한다. `type: "RUN_COMPLETED"`, `title`/`body`는 위 예시처럼 코스 이름 + 거리를 채워 넣는다. 클라이언트가 별도로 호출하는 API는 아니다.
+
+### 9.5 이번에도 유보한 것
+- 폰 시스템 푸시(FCM) — Firebase 프로젝트 키 발급 후 후속 라운드
+- 완주 외 다른 알림 트리거(근처 신규 코스, 마케팅성 알림 등)
+- 알림 설정(끄기/종류별 on-off) 화면
