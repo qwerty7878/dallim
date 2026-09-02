@@ -32,6 +32,11 @@ open class OsrmClient(
     private val httpClient: HttpClient,
     private val baseUrl: String,
 ) {
+    companion object {
+        /** Flat per-point search radius (meters) passed to OSRM `/match` — see [match] doc comment. */
+        private const val MATCH_RADIUS_METERS = 30
+    }
+
     @Serializable
     private data class OsrmGeometry(val coordinates: List<List<Double>>)
 
@@ -62,16 +67,40 @@ open class OsrmClient(
         return best.toResult()
     }
 
-    /** `GET /match/v1/foot/{lng1},{lat1};...` — snaps a loose trace to the road network. Returns null on `NoMatch` (not an exception). */
+    /**
+     * `GET /match/v1/foot/{lng1},{lat1};...` — snaps a loose trace to the road network.
+     * Returns null on `NoMatch` (not an exception).
+     *
+     * - `radiuses`: OSRM's default per-point search radius is too tight for our two input
+     *   sources (finger-drawn points sampled client-side at a screen-space 8dp minimum — whose
+     *   real-world spacing balloons at low zoom — and, later, raw GPS traces). We give every
+     *   point a generous flat [MATCH_RADIUS_METERS] radius rather than trying to guess per-point
+     *   accuracy.
+     * - `gaps=ignore`: without it, OSRM's default `gaps=split` behavior chops a trace with any
+     *   low-confidence jump into multiple independent `matchings`, and callers that only look at
+     *   the first one silently get a tiny fragment back (see git history for the draw-convert bug
+     *   this caused). For "snap a user's rough drawing onto roads," one forced-together path beats
+     *   several disconnected ones.
+     * - Even so, OSRM may still return multiple `matchings` (e.g. the trace crosses a ferry route
+     *   or another genuinely unmatchable gap). Rather than take just the first fragment, we
+     *   concatenate every fragment's coordinates in order and sum their distances so the result
+     *   reflects the whole trace.
+     */
     open suspend fun match(trace: List<LatLng>): OsrmRouteResult? {
         val body = httpClient.get("$baseUrl/match/v1/foot/${trace.toCoordsParam()}") {
             parameter("overview", "full")
             parameter("geometries", "geojson")
+            parameter("radiuses", trace.joinToString(";") { MATCH_RADIUS_METERS.toString() })
+            parameter("gaps", "ignore")
         }.body<OsrmMatchApiResponse>()
 
-        val best = body.matchings?.firstOrNull() ?: return null
-        if (body.code != "Ok") return null
-        return best.toResult()
+        val matchings = body.matchings
+        if (body.code != "Ok" || matchings.isNullOrEmpty()) return null
+
+        return OsrmRouteResult(
+            distanceMeters = matchings.sumOf { it.distance },
+            geometry = GeoJsonLineString(coordinates = matchings.flatMap { it.geometry.coordinates }),
+        )
     }
 
     private fun List<LatLng>.toCoordsParam(): String = joinToString(";") { "${it.lng},${it.lat}" }

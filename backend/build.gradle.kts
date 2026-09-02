@@ -67,6 +67,7 @@ dependencies {
 
     // --- Test ---
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktorVersion")
+    testImplementation("io.ktor:ktor-client-mock-jvm:$ktorVersion")
     testImplementation("io.insert-koin:koin-test:$koinVersion")
     testImplementation(kotlin("test"))
 }
