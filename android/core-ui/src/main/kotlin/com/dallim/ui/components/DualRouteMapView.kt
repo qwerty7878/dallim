@@ -21,12 +21,16 @@ import com.dallim.ui.theme.DallimGradient
 /**
  * S-21 Sketch Navigation의 실시간 지도 영역 (docs/01-feature-spec.md §1.3, docs/04-ui-guide.md §9).
  *
- * 실제 네이버맵/카카오맵 SDK 연동은 API 키가 아직 없어 이번 라운드 범위 밖이다(RouteDetailScreen과
- * 같은 환경 제약) — 대신 [RouteThumbnailView] 패턴을 계획경로+실제궤적 이중 표시로 확장한
- * 정적 Canvas 렌더링으로 "코스 지도" 영역을 대체한다.
+ * 네이버맵 SDK 연동판은 [NaverRouteMapView]다. 이 컴포넌트는 그 **폴백**이다 — NCP Client ID가
+ * 아직 발급 전이라 `local.properties`의 `NAVER_MAP_CLIENT_ID`가 비어있으면
+ * `BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED == false`가 되고, 호출부(RunNavigationScreen 등)가
+ * 자동으로 이쪽을 대신 그린다 — Client ID 없이도 크래시 없이 항상 동작해야 하므로 삭제하지 않고
+ * 유지한다. [RouteThumbnailView] 패턴을 계획경로+실제궤적 이중 표시로 확장한 정적 Canvas
+ * 렌더링으로 "코스 지도" 영역을 대체한다.
  *
  * 색맹 접근성 규칙(docs/04-ui-guide.md §9): 계획 경로와 실제 경로는 색상뿐 아니라 실선/점선으로도
- * 구분한다 — 계획 경로는 점선(연한 흰색), 실제 경로는 그라디언트 실선.
+ * 구분한다 — 계획 경로는 점선(연한 흰색), 실제 경로는 그라디언트 실선. [NaverRouteMapView]도
+ * 동일한 규칙을 지킨다.
  */
 @Composable
 fun DualRouteMapView(
