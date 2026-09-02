@@ -41,12 +41,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.BuildConfig
 import com.dallim.app.location.RunPhase
 import com.dallim.app.location.RunTrackingSnapshot
 import com.dallim.app.running.RunFormat
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DualRouteMapView
 import com.dallim.ui.components.GeoPoint
+import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RunProgressRing
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
@@ -155,11 +157,21 @@ private fun TrackingContent(
 ) {
     Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         Box(modifier = Modifier.weight(1f)) {
-            DualRouteMapView(
-                plannedRoute = plannedRoute,
-                actualRoute = snapshot.actualPath,
-                modifier = Modifier.fillMaxSize(),
-            )
+            // 네이버맵 NCP Client ID가 설정된 빌드에서만 실제 지도를 그린다 — 미설정 시(로컬 개발 등)
+            // 크래시 없이 기존 Canvas 폴백으로 자동 전환된다 (docs/01-feature-spec.md §1.2).
+            if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
+                NaverRouteMapView(
+                    plannedRoute = plannedRoute,
+                    actualRoute = snapshot.actualPath,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                DualRouteMapView(
+                    plannedRoute = plannedRoute,
+                    actualRoute = snapshot.actualPath,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             if (snapshot.isOffRoute) {
                 OffRouteBanner(
                     modifier = Modifier
