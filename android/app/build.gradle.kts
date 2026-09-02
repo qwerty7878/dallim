@@ -20,6 +20,10 @@ val localProperties = Properties().apply {
 }
 val naverMapClientId: String = localProperties.getProperty("NAVER_MAP_CLIENT_ID", "").trim()
 
+// Google 소셜 로그인 키 — 위 네이버맵과 동일한 패턴: local.properties에 없으면 빈 문자열로
+// fallback해 키가 아직 발급되지 않은 상태에서도 빌드/설치가 절대 실패하지 않도록 한다.
+val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "").trim()
+
 android {
     namespace = "com.dallim.app"
     compileSdk = 35
@@ -37,6 +41,10 @@ android {
         manifestPlaceholders["naverMapClientId"] = naverMapClientId
         // 지도 화면들이 실제 SDK 컴포넌트 / 기존 Canvas 폴백 중 무엇을 그릴지 런타임에 분기할 때 쓴다.
         buildConfigField("boolean", "NAVER_MAP_CLIENT_ID_CONFIGURED", naverMapClientId.isNotEmpty().toString())
+
+        // Google Sign-In(Credential Manager)의 serverClientId. RealSocialLoginLauncher가
+        // 비어있으면 즉시 Result.failure로 가드한다.
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     buildTypes {
@@ -85,6 +93,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)
+
+    // S-02 Google 소셜 로그인 (docs/01-feature-spec.md §1.1). 키 미설정 시에도 이 모듈은
+    // 문제없이 컴파일/링크되며, RealSocialLoginLauncher가 BuildConfig 플래그로 가드한다.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.google.id)
 
     // S-20~S-24 GPS pipeline: FusedLocationProviderClient -> ForegroundService -> Room -> WorkManager
     // (docs/01-feature-spec.md §1.3). Kept inside `app` (location package) rather than a new
