@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +9,16 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
 }
+
+// 네이버맵 SDK Client ID — local.properties(gitignore 대상)에서만 읽는다. 값이 없으면 빈 문자열로
+// fallback해 빌드가 절대 실패하지 않도록 한다(NCP 키가 아직 발급되지 않은 상태에서도 정상 빌드).
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        FileInputStream(localPropertiesFile).use { load(it) }
+    }
+}
+val naverMapClientId: String = localProperties.getProperty("NAVER_MAP_CLIENT_ID", "").trim()
 
 android {
     namespace = "com.dallim.app"
@@ -19,6 +32,11 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // AndroidManifest.xml의 com.naver.maps.map.NCP_KEY_ID meta-data에 연결된다.
+        manifestPlaceholders["naverMapClientId"] = naverMapClientId
+        // 지도 화면들이 실제 SDK 컴포넌트 / 기존 Canvas 폴백 중 무엇을 그릴지 런타임에 분기할 때 쓴다.
+        buildConfigField("boolean", "NAVER_MAP_CLIENT_ID_CONFIGURED", naverMapClientId.isNotEmpty().toString())
     }
 
     buildTypes {
@@ -37,6 +55,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

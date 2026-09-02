@@ -20,6 +20,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Dallim">
 
+        <!-- S-16/S-21 네이버맵 SDK Client ID. local.properties의 NAVER_MAP_CLIENT_ID를
+             app/build.gradle.kts가 manifestPlaceholders["naverMapClientId"]로 주입한다.
+             값이 비어있으면(NCP Client ID 미발급 상태) core-ui의 지도 컴포넌트는 애초에 생성되지
+             않고 BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED 분기로 기존 Canvas 폴백을 사용하므로
+             빈 문자열이어도 크래시하지 않는다. -->
+        <meta-data
+            android:name="com.naver.maps.map.NCP_KEY_ID"
+            android:value="${naverMapClientId}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
