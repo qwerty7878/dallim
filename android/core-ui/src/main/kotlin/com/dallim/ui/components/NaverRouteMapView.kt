@@ -101,13 +101,11 @@ fun NaverRouteMapView(
     val currentPositionHalo = remember { CircleOverlay() }
 
     LaunchedEffect(mapView) {
-        mapView.getMapAsync { map ->
-            plannedOverlay.map = map
-            actualOverlay.map = map
-            currentPositionHalo.map = map
-            currentPositionDot.map = map
-            naverMap = map
-        }
+        // Overlay는 attach(.map = map) 시점에 자기 데이터(coords 등)가 이미 유효해야 한다 —
+        // PathOverlay는 coords.size < 2인 채로 attach하면 즉시 IllegalStateException을 던진다.
+        // 그래서 여기서는 NaverMap 참조만 저장하고, 실제 attach는 좌표가 채워지는 아래
+        // LaunchedEffect(naverMap, plannedRoute, actualRoute, ...)에서 데이터 설정 "이후"에 한다.
+        mapView.getMapAsync { map -> naverMap = map }
     }
 
     val density = LocalDensity.current
@@ -124,8 +122,9 @@ fun NaverRouteMapView(
             plannedOverlay.outlineWidth = 0
             plannedOverlay.patternImage = dashImage
             plannedOverlay.patternInterval = strokeWidthPx * 4
+            plannedOverlay.map = map
         } else {
-            plannedOverlay.coords = emptyList()
+            plannedOverlay.map = null
         }
 
         if (actualRoute.size >= 2) {
@@ -134,21 +133,23 @@ fun NaverRouteMapView(
             actualOverlay.coordParts = coordParts
             actualOverlay.colorParts = colorParts
             actualOverlay.width = strokeWidthPx
+            actualOverlay.map = map
 
             val current = latLngs.last()
             currentPositionHalo.center = current
             currentPositionHalo.radius = 7.0
             currentPositionHalo.color = DallimColors.Surface.toArgb()
             currentPositionHalo.outlineWidth = 0
+            currentPositionHalo.map = map
             currentPositionDot.center = current
             currentPositionDot.radius = 4.0
             currentPositionDot.color = DallimColors.GradientEnd.toArgb()
             currentPositionDot.outlineWidth = 0
+            currentPositionDot.map = map
         } else {
-            actualOverlay.coordParts = emptyList()
-            actualOverlay.colorParts = emptyList()
-            currentPositionHalo.radius = 0.0
-            currentPositionDot.radius = 0.0
+            actualOverlay.map = null
+            currentPositionHalo.map = null
+            currentPositionDot.map = null
         }
 
         val boundsSource = (plannedRoute + actualRoute).toLatLngList()
@@ -160,6 +161,15 @@ fun NaverRouteMapView(
             boundsSource.size == 1 -> {
                 map.moveCamera(CameraUpdate.scrollAndZoomTo(boundsSource.first(), 16.0))
             }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            plannedOverlay.map = null
+            actualOverlay.map = null
+            currentPositionHalo.map = null
+            currentPositionDot.map = null
         }
     }
 
