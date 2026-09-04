@@ -137,7 +137,10 @@ POST /runs/{runId}/gps-batch
 
 - 탐색(S-11) 화면의 FloatingActionButton("코스 만들기")에서 진입.
 - "저장"은 UI만 존재 — 생성된 코스를 `sketch_routes`에 실제로 저장하는 API는 이번 범위 밖(`docs/02-api-spec.md` 8.3), 탭하면 "저장 기능은 준비 중이에요" 스낵바만 보여준다.
-- 상세 API 계약/생성 알고리즘은 `docs/02-api-spec.md` 8장 참고.
+- 2026-09-04 확장: S-44에 "출발점으로 돌아오기" 토글(체크 시에만 `closeLoop: true`로 전송 —
+  직선 코스로 뛰고 싶은 사람도 있어 기본값은 꺼짐), S-45에 "꼭 지나갈 장소" 선택(지도 롱프레스로
+  최대 1곳 지정, `requiredWaypoint`) 추가. 상세는 `docs/02-api-spec.md` 11장.
+- 상세 API 계약/생성 알고리즘은 `docs/02-api-spec.md` 8장, 11장 참고.
 
 ### 1.7 알림 모듈 (2026-09-03 신규 — 사용자 요청, 1단계: 인앱 알림함)
 
