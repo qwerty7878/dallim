@@ -967,3 +967,107 @@ GET /routes/places/search?query=안양역&lat=37.3905&lng=126.9235
   않도록 debounce하는 건 클라이언트 책임(서버는 매 요청을 독립적으로 처리)
 - 카카오가 못 찾는 장소(POI로 등록 안 된 곳)에 대한 대체 지오코딩 — 이런 경우는 계속 롱프레스로
   지정하면 된다
+
+---
+
+## 13. 모양 선택 AI 생성 (2026-09-04 추가 — `mode: "SHAPE"`)
+
+> 사용자 요청. 목표 거리만으로 순환/point-to-point 코스를 만드는 8.2/11.4에 이어, 하트·별처럼
+> 원하는 모양의 윤곽을 따라 달리는 코스를 만든다. 본격 스펙화 전에 로컬 OSRM(기존
+> `dallim-foot.lua` 프로필)에 하트/별 템플릿을 실제 안양 좌표로 돌려 프로토타입 검증을
+> 마쳤다 — 오목한 꼭짓점(별)은 도로가 못 따라가 왕복 스파이크가 생기고, 거리를 목표에 맞추려면
+> 스케일을 원안의 30~40% 수준까지 줄여야 하는 등 도로망이 실측 거리를 크게 부풀린다는 걸
+> 확인했다. 아래는 그 결과를 반영한 설계다.
+
+### 13.1 `POST /routes/discovery` — `mode: "SHAPE"` 추가
+
+```json
+// Request (추가 필드, mode가 SHAPE일 때만 의미 있음)
+{
+  "startLng": 126.9235,
+  "startLat": 37.3905,
+  "targetDistanceKm": 5.0,
+  "mode": "SHAPE",
+  "shapeType": "HEART",     // "HEART" | "CIRCLE" | "DROP" | "STAR" — 13.3
+  "priority": "DISTANCE"    // "DISTANCE"(기본값) | "SHAPE" — 아래 참고
+}
+```
+- `mode: "SHAPE"`면 `shapeType`이 필수(없거나 미등록 값이면 `400 VALIDATION_ERROR`).
+- 이번 라운드는 `requiredWaypoints`/`endLat`/`endLng`와 조합하지 않는다(SHAPE와 함께 오면
+  `400 VALIDATION_ERROR`) — 13.4에 유보 명시.
+- `priority`:
+  - `"DISTANCE"`(기본값, 미지정 시): 8.2/11.4와 같은 정책 — 결과 거리가 목표 대비 ±15% 안에
+    들 때까지 스케일을 줄여 재시도(최대 5회). 프로토타입에서 확인했듯 모양이 상당히 작아질 수
+    있다.
+  - `"SHAPE"`: 재시도를 최대 2회로 제한하고 스케일을 크게 유지 — 모양 인식성을 우선하는 대신
+    결과 `distanceKm`이 목표보다 많이 길어질 수 있음을 클라이언트가 그대로 보여준다(11.4의
+    "고정된 지점은 더 줄일 수 없다"와 같은 방침을 스케일 쪽에 적용한 것).
+- 요청하신 "도로보다 도보 위주의 대로변" 반영: SHAPE 모드는 8.2/11장이 쓰는 것과 **다른 전용
+  OSRM 인스턴스**(13.2)로 라우팅한다 — 기존 프로필은 인도 유무와 무관하게 공원길/보행로를
+  큰길보다 항상 우대해서, 그대로 쓰면 "대로변 우선"이 실현되지 않는다는 걸 프로토타입 중
+  확인했다(기존 프로필의 `SIDEWALK_YES_OVERRIDE_MULTIPLIER`가 큰길+인도를 "중립"까지만
+  올려주고 공원길의 우대 배율(1.2)에는 못 미침).
+
+### 13.2 전용 OSRM 인스턴스 — 대로변 인도 우선 프로필
+
+새 프로필 `scripts/osrm-profiles/dallim-foot-shape.lua`(`dallim-foot.lua`를 베이스로 배율만
+조정, 나머지 handler/access 설정은 그대로 재사용):
+
+| 도로 유형 | 기존(`dallim-foot.lua`) | 신규(`dallim-foot-shape.lua`) |
+|---|---|---|
+| `footway`/`pedestrian`/`path`/공원·하천변 산책로 | 1.2 (최우대) | 1.0 (중립으로 낮춤) |
+| `primary`/`secondary`/`tertiary` + `sidewalk=yes` | 1.0 (중립까지만) | **1.3 (신규 최우대)** |
+| `residential`/`unclassified`(이면도로) | 1.0 (중립) | 0.8 (약한 기피 — "도로보다 대로변") |
+| `primary`/`trunk`(인도 없음/불명) | 0.35 | 0.5 (여전히 기피하되 완화) |
+| `lit=no` | 0.85 추가 페널티 | 0.85 추가 페널티(그대로) |
+
+> 배율은 `dallim-foot.lua`가 처음 그랬듯 1단계 추정치다 — 이 문서의 프로토타입 방식대로 실제
+> 벨트 지역 좌표에 돌려보고 재조정하는 걸 구현 단계 첫 작업으로 포함한다.
+
+**데이터셋은 전국이 아니라 서비스 벨트(안양·군포·의왕·과천·성남 분당/판교)만 추출한다** —
+지금 Lightsail t3.micro급(RAM 1GB) 위에 전국 데이터셋(`south-korea.osrm`, 파일 총합 ~2.8GB,
+`--mmap` 미적용)을 이미 하나 돌리고 있어서, 같은 규모로 하나 더 얹으면 OOM 위험이 크다. 벨트
+지역만 추출하면 용량이 몇십 MB 수준으로 훨씬 작아지고, 애초에 서비스 지역 밖에서는 코스 생성
+자체가 의미 없으니 지역 한정이 자연스럽다.
+
+- **선행 작업**: 기존 `osrm` 서비스 커맨드에도 `--mmap` 플래그를 추가해 메모리 사용을
+  줄인다(새 인스턴스를 얹기 전에 먼저 적용).
+- 새 스크립트 `scripts/osrm-shape-build.sh`: 이미 받아둔 `south-korea.osm.pbf`를 다시
+  다운로드하지 않고 `osmium extract`(bbox: 벨트 지역)로 잘라낸 뒤, `dallim-foot-shape.lua`로
+  extract/partition/customize.
+- 새 `docker-compose.yml` 서비스 `osrm-shape` — 포트 `5002`,
+  `command: osrm-routed --algorithm mld --mmap /data/dallim-belt.osrm`.
+- 백엔드 설정에 `dallim.osrm.shapeBaseUrl`(env `OSRM_SHAPE_BASE_URL`) 추가. `DiscoveryService`는
+  SHAPE 모드 요청만 이 별도 `OsrmClient` 인스턴스로 보낸다 — LOOP/POINT_TO_POINT/필수 경유지는
+  기존 인스턴스 그대로.
+
+### 13.3 모양 템플릿
+
+- 좌표를 직접 하드코딩하지 않고 **SVG path 데이터**를 점 목록으로 변환해 등록한다 — JVM에서
+  성숙한 SVG path 파서인 Apache Batik의 `org.apache.batik.parser.PathParser`
+  (`org.apache.xmlgraphics:batik-parser`, Maven Central)로 표준 path 문법(M/L/C/Q/Z 등)을 그대로
+  해석한다. 파싱된 폴리라인은 기존 `GeoMath.resample`로 균등 아크렝스 N개 점(예: 40개)으로
+  재샘플링해 재사용한다.
+- 정규화(centroid 기준 unit scale) → `targetDistanceKm` 기준 최초 스케일 추정(8.2/11.4와 동일한
+  `target / templatePerimeter` 방식) → 매 요청 무작위 회전 → `start` 좌표로 평행이동(시작=끝
+  고정) → 13.2의 전용 인스턴스로 다중 waypoint 라우팅.
+- **v1 세트**: `HEART`, `CIRCLE`, `DROP`(물방울) — 프로토타입에서 완만한 곡선 위주라 결과가
+  비교적 안정적이었다. `STAR`도 포함하되, 오목한 꼭짓점 특성상 결과가 원본 모양과 상당히
+  달라질 수 있다는 걸 안드로이드 UI에서 안내한다(13.5).
+- **닫힌 윤곽선(한붓그리기) 전제** — 등록하는 SVG는 단일 서브패스만 허용한다. 여러 서브패스로
+  이루어진 도형(태극기의 분리된 4괘 등)은 API 요청이 아니라 서버에 새 모양을 등록하는 개발
+  단계에서 거부된다.
+
+### 13.4 이번에도 유보한 것
+- `requiredWaypoints`/point-to-point(11장/12장)와 SHAPE 모드의 조합
+- 태극기처럼 여러 개의 분리된 구성요소로 이루어진 도형 — "펜을 떼지 않는 닫힌 윤곽선" 전제를
+  벗어나며, 지원하려면 구간별 이동(pen-up)을 허용하는 별도 기능이 필요하다
+- 사용자가 SVG를 직접 업로드해서 커스텀 모양을 만드는 것 — v1은 서버에 미리 등록된 목록
+  중에서 고르는 것만 지원
+
+### 13.5 안드로이드 (S-45)
+- "코스 방식" 칩에 "모양 선택"을 세 번째 옵션으로 추가.
+- 모양 선택 시 등록된 모양(하트/원/물방울/별)을 아이콘 그리드로 노출하고, "거리 우선/모양 우선"
+  토글(기본값 거리 우선)을 함께 보여준다.
+- `STAR` 선택 시 "오목한 모서리가 있는 모양은 실제 도로에서 다소 달라질 수 있어요" 같은 보조
+  카피를 노출한다.
