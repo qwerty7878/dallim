@@ -30,6 +30,10 @@ class DiscoveryService(
         private const val TARGET_TOLERANCE = 0.15
         private const val BEARING_JITTER_DEGREES = 15.0
 
+        // docs/02-api-spec.md 11.2 — must stay below WAYPOINT_COUNT so at least a couple of free
+        // (radius-adjustable) slots always remain to hit the target distance.
+        private const val MAX_REQUIRED_WAYPOINTS = 3
+
         // docs/02-api-spec.md 11.1 — below this gap between a matched trace's first/last points,
         // closeLoop treats the loop as already closed and skips the extra OSRM round trip.
         private const val CLOSE_LOOP_GAP_THRESHOLD_METERS = 15.0
@@ -82,15 +86,22 @@ class DiscoveryService(
         )
     }
 
-    /** POST /routes/discovery (docs/02-api-spec.md 8.2, requiredWaypoint option per 11.2). */
+    /** POST /routes/discovery (docs/02-api-spec.md 8.2, requiredWaypoints option per 11.2). */
     suspend fun generateDiscoveryRoute(request: DiscoveryRequest): DiscoveryResponse {
+        if (request.requiredWaypoints.size > MAX_REQUIRED_WAYPOINTS) {
+            throw BadRequestException(
+                ErrorCodes.VALIDATION_ERROR,
+                "필수 경유지는 최대 ${MAX_REQUIRED_WAYPOINTS}개까지 지정할 수 있어요.",
+            )
+        }
+
         val start = LatLng(lat = request.startLat, lng = request.startLng)
         val targetDistanceMeters = request.targetDistanceKm * 1000.0
         var radius = targetDistanceMeters / (2 * PI)
 
         // Fixed vs radius-adjustable slots, decided once up front — 11.2: the retry loop below
-        // only ever moves the Free slots' distance from start, never the Fixed one.
-        val slots = buildWaypointSlots(start, request.requiredWaypoint?.toLatLng())
+        // only ever moves the Free slots' distance from start, never any Fixed one.
+        val slots = buildWaypointSlots(start, request.requiredWaypoints.map { it.toLatLng() })
 
         var lastResult: OsrmRouteResult? = null
 
@@ -141,25 +152,43 @@ class DiscoveryService(
      * 360/K degrees apart around [start], each jittered by up to +-[BEARING_JITTER_DEGREES] so the
      * loop isn't a perfect regular polygon.
      *
-     * When [requiredWaypoint] is given (11.2), whichever candidate's bearing from [start] is
-     * angularly closest to `requiredWaypoint`'s own bearing from [start] is replaced by a [Fixed]
-     * slot pinned to that exact point; every other slot stays [Free].
+     * When [requiredWaypoints] is given (11.2, 0-[MAX_REQUIRED_WAYPOINTS]), each one is pinned to
+     * whichever slot's bearing from [start] is angularly closest to its own — assigned greedily by
+     * smallest angular difference first, so two required points never contend for the same slot.
+     * Every unmatched slot stays [Free]. Because slot order already follows bearing order, the
+     * final loop visits the fixed points in roughly the same angular sequence around [start].
      */
-    private fun buildWaypointSlots(start: LatLng, requiredWaypoint: LatLng?): List<WaypointSlot> {
+    private fun buildWaypointSlots(start: LatLng, requiredWaypoints: List<LatLng>): List<WaypointSlot> {
         val step = 360.0 / WAYPOINT_COUNT
         val bearings = (0 until WAYPOINT_COUNT).map { i ->
             step * i + Random.nextDouble(-BEARING_JITTER_DEGREES, BEARING_JITTER_DEGREES)
         }
 
-        if (requiredWaypoint == null) {
+        if (requiredWaypoints.isEmpty()) {
             return bearings.map { WaypointSlot.Free(it) }
         }
 
-        val targetBearing = GeoMath.bearingDegrees(start, requiredWaypoint)
-        val fixedIndex = bearings.indices.minBy { angularDifferenceDegrees(bearings[it], targetBearing) }
+        val fixedBySlotIndex = mutableMapOf<Int, LatLng>()
+        val takenSlotIndices = mutableSetOf<Int>()
+        val assignedWaypointIndices = mutableSetOf<Int>()
+
+        val candidatePairs = requiredWaypoints.indices.flatMap { wpIndex ->
+            val targetBearing = GeoMath.bearingDegrees(start, requiredWaypoints[wpIndex])
+            bearings.indices.map { slotIndex ->
+                Triple(wpIndex, slotIndex, angularDifferenceDegrees(bearings[slotIndex], targetBearing))
+            }
+        }.sortedBy { it.third }
+
+        for ((wpIndex, slotIndex, _) in candidatePairs) {
+            if (wpIndex in assignedWaypointIndices || slotIndex in takenSlotIndices) continue
+            fixedBySlotIndex[slotIndex] = requiredWaypoints[wpIndex]
+            takenSlotIndices += slotIndex
+            assignedWaypointIndices += wpIndex
+            if (assignedWaypointIndices.size == requiredWaypoints.size) break
+        }
 
         return bearings.mapIndexed { i, bearing ->
-            if (i == fixedIndex) WaypointSlot.Fixed(requiredWaypoint) else WaypointSlot.Free(bearing)
+            fixedBySlotIndex[i]?.let { WaypointSlot.Fixed(it) } ?: WaypointSlot.Free(bearing)
         }
     }
 

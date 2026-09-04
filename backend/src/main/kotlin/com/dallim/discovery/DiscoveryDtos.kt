@@ -5,7 +5,7 @@ import com.dallim.common.LatLng
 import kotlinx.serialization.Serializable
 
 // Request/response DTOs — docs/02-api-spec.md 8장 (course generation: draw-convert, discovery)
-// and 11장 (draw-convert closeLoop / discovery requiredWaypoint option extensions).
+// and 11장 (draw-convert closeLoop / discovery requiredWaypoints option extensions).
 
 @Serializable
 data class DrawConvertRequest(
@@ -21,7 +21,7 @@ data class DrawConvertResponse(
     val distanceKm: Double,
 )
 
-/** Wire-format lat/lng pair, e.g. docs/02-api-spec.md 11.2's `requiredWaypoint`. */
+/** Wire-format lat/lng pair, e.g. docs/02-api-spec.md 11.2's `requiredWaypoints` entries. */
 @Serializable
 data class LatLngDto(val lat: Double, val lng: Double) {
     fun toLatLng() = LatLng(lat = lat, lng = lng)
@@ -35,9 +35,10 @@ data class DiscoveryRequest(
     // Optional — accepted for future personalization/logging per docs/02-api-spec.md 8.2, not
     // yet factored into the routing algorithm itself.
     val pace: String? = null,
-    // docs/02-api-spec.md 11.2 — at most one required waypoint the generated loop must pass
-    // through. Replaces whichever of the K candidate waypoints is angularly closest to it.
-    val requiredWaypoint: LatLngDto? = null,
+    // docs/02-api-spec.md 11.2 — 0-3 required waypoints the generated loop must pass through.
+    // Each replaces whichever of the K candidate waypoint slots is angularly closest to it
+    // (greedily matched so two required points never contend for the same slot).
+    val requiredWaypoints: List<LatLngDto> = emptyList(),
 )
 
 @Serializable

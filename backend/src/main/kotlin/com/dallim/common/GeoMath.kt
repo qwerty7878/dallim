@@ -118,8 +118,8 @@ object GeoMath {
      * path from [from] to [to]. The inverse of [destination]'s bearing parameter.
      *
      * Used by the discovery module (docs/02-api-spec.md 11.2) to figure out which candidate loop
-     * waypoint a client-supplied `requiredWaypoint` is closest to, angularly, around the start
-     * point. Pure function — no I/O — so it is directly unit-testable.
+     * waypoint each client-supplied `requiredWaypoints` entry is closest to, angularly, around the
+     * start point. Pure function — no I/O — so it is directly unit-testable.
      */
     fun bearingDegrees(from: LatLng, to: LatLng): Double {
         val lat1 = Math.toRadians(from.lat)

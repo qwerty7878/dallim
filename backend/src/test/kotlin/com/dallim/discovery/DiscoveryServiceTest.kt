@@ -257,7 +257,7 @@ class DiscoveryServiceTest {
 
         runBlocking {
             service.generateDiscoveryRoute(
-                DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, requiredWaypoint = required),
+                DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, requiredWaypoints = listOf(required)),
             )
         }
 
@@ -296,7 +296,7 @@ class DiscoveryServiceTest {
 
         runBlocking {
             service.generateDiscoveryRoute(
-                DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, requiredWaypoint = required),
+                DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, requiredWaypoints = listOf(required)),
             )
         }
 
@@ -324,12 +324,61 @@ class DiscoveryServiceTest {
                         startLng = 0.0,
                         startLat = 0.0,
                         targetDistanceKm = 5.0,
-                        requiredWaypoint = LatLngDto(lat = 0.01, lng = 0.01),
+                        requiredWaypoints = listOf(LatLngDto(lat = 0.01, lng = 0.01)),
                     ),
                 )
             }
         }
         assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
         assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - multiple requiredWaypoints each get their own distinct slot`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val service = DiscoveryService(fake)
+        // due north and due east of the start point -> angularly far apart, should never contend
+        // for the same candidate slot.
+        val north = LatLngDto(lat = 37.4200, lng = 126.9235)
+        val east = LatLngDto(lat = 37.3905, lng = 126.9500)
+
+        runBlocking {
+            service.generateDiscoveryRoute(
+                DiscoveryRequest(
+                    startLng = 126.9235,
+                    startLat = 37.3905,
+                    targetDistanceKm = 5.0,
+                    requiredWaypoints = listOf(north, east),
+                ),
+            )
+        }
+
+        val middle = fake.receivedWaypoints.single().let { it.subList(1, it.size - 1) }
+        assertEquals(5, middle.size)
+        assertEquals(1, middle.count { it.lat == north.lat && it.lng == north.lng })
+        assertEquals(1, middle.count { it.lat == east.lat && it.lng == east.lng })
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - more than 3 requiredWaypoints is a 400 VALIDATION_ERROR`() {
+        val fake = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(fake)
+        val tooMany = (0 until 4).map { LatLngDto(lat = 37.39 + it * 0.001, lng = 126.92 + it * 0.001) }
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(
+                    DiscoveryRequest(
+                        startLng = 126.9235,
+                        startLat = 37.3905,
+                        targetDistanceKm = 5.0,
+                        requiredWaypoints = tooMany,
+                    ),
+                )
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, fake.routeCallCount, "should reject before ever calling OSRM")
     }
 }
