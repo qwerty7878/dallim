@@ -141,8 +141,9 @@ POST /runs/{runId}/gps-batch
   직선 코스로 뛰고 싶은 사람도 있어 기본값은 꺼짐), S-45에 "꼭 지나갈 장소" 선택(지도 롱프레스로
   최대 3곳 지정 — 각각 마커 탭하면 개별 삭제, `requiredWaypoints`) 추가. S-45에 "목적지 직접
   지정" 모드도 추가 — 켜면 지도에서 도착지를 하나 찍고, 순환 코스 대신 그 지점까지 가는
-  point-to-point 코스를 만든다(`mode: "POINT_TO_POINT"`, `endLat`/`endLng`). 상세는
-  `docs/02-api-spec.md` 11장.
+  point-to-point 코스를 만든다(`mode: "POINT_TO_POINT"`, `endLat`/`endLng`). "목적지 직접 지정"
+  모드에서도 "꼭 지나갈 장소"를 함께 켤 수 있다 — 두 옵션이 동시에 화면에 표시되고
+  함께 전송된다. 상세는 `docs/02-api-spec.md` 11장.
 - 상세 API 계약/생성 알고리즘은 `docs/02-api-spec.md` 8장, 11장 참고.
 
 ### 1.7 알림 모듈 (2026-09-03 신규 — 사용자 요청, 1단계: 인앱 알림함)
