@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -76,7 +74,7 @@ fun AiRouteRoute(
         onDistanceChange = viewModel::onDistanceChange,
         onPaceSelected = viewModel::onPaceSelected,
         onWaypointLongPress = viewModel::onWaypointLongPress,
-        onWaypointClearClick = viewModel::onWaypointClearClick,
+        onWaypointClick = viewModel::onWaypointClick,
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
@@ -90,7 +88,7 @@ private fun AiRouteScreen(
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
-    onWaypointClearClick: () -> Unit,
+    onWaypointClick: (GeoPoint) -> Unit,
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
@@ -136,12 +134,12 @@ private fun AiRouteScreen(
                     targetDistanceKm = uiState.targetDistanceKm,
                     pace = uiState.pace,
                     initialCenter = uiState.initialCenter,
-                    requiredWaypoint = uiState.requiredWaypoint,
+                    requiredWaypoints = uiState.requiredWaypoints,
                     enabled = !uiState.isGenerating,
                     onDistanceChange = onDistanceChange,
                     onPaceSelected = onPaceSelected,
                     onWaypointLongPress = onWaypointLongPress,
-                    onWaypointClearClick = onWaypointClearClick,
+                    onWaypointClick = onWaypointClick,
                 )
 
                 ResultSection(uiState = uiState)
@@ -161,12 +159,12 @@ private fun InputSection(
     targetDistanceKm: Float,
     pace: ComfortablePace?,
     initialCenter: GeoPoint?,
-    requiredWaypoint: GeoPoint?,
+    requiredWaypoints: List<GeoPoint>,
     enabled: Boolean,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
-    onWaypointClearClick: () -> Unit,
+    onWaypointClick: (GeoPoint) -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md)) {
         Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
@@ -212,18 +210,18 @@ private fun InputSection(
         if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
             WaypointSection(
                 initialCenter = initialCenter,
-                requiredWaypoint = requiredWaypoint,
+                requiredWaypoints = requiredWaypoints,
                 onWaypointLongPress = onWaypointLongPress,
-                onWaypointClearClick = onWaypointClearClick,
+                onWaypointClick = onWaypointClick,
             )
         }
     }
 }
 
 /**
- * "꼭 지나갈 장소" 선택 — 지도 롱프레스로 최대 1곳 지정한다 (docs/02-api-spec.md 11.2,
- * docs/01-feature-spec.md 1.6). 여러 경유지는 SPEC 범위 밖이라 다시 롱프레스하면 기존 지정을
- * 덮어쓰기만 한다 — 별도 목록/삭제 UI 없이 지도 위 마커 + X 버튼 하나로 충분하다.
+ * "꼭 지나갈 장소" 선택 — 지도 롱프레스로 최대 3곳 지정한다 (docs/02-api-spec.md 11.2,
+ * docs/01-feature-spec.md 1.6). 꽉 찼을 때 롱프레스는 무시되고, 찍힌 마커를 탭하면 그 지점만
+ * 삭제된다 — 별도 목록 UI 없이 지도 위 마커만으로 충분하다.
  *
  * NCP Client ID가 없는 로컬 빌드에서는 지도 자체가 없으므로(호출부에서 이미 분기) 이 옵션은
  * 그냥 노출하지 않는다 — 결과 미리보기처럼 Canvas 폴백을 만들 만큼 핵심 기능이 아니다.
@@ -231,18 +229,22 @@ private fun InputSection(
 @Composable
 private fun WaypointSection(
     initialCenter: GeoPoint?,
-    requiredWaypoint: GeoPoint?,
+    requiredWaypoints: List<GeoPoint>,
     onWaypointLongPress: (GeoPoint) -> Unit,
-    onWaypointClearClick: () -> Unit,
+    onWaypointClick: (GeoPoint) -> Unit,
 ) {
     Text(
-        text = "꼭 지나갈 장소 (선택)",
+        text = "꼭 지나갈 장소 (선택, 최대 3곳)",
         style = DallimTypography.Title2,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )
     Text(
-        text = if (requiredWaypoint != null) "지도를 다시 길게 누르면 위치가 바뀌어요" else "지도를 길게 눌러 지정하세요",
+        text = when {
+            requiredWaypoints.isEmpty() -> "지도를 길게 눌러 지정하세요"
+            requiredWaypoints.size < 3 -> "지도를 길게 눌러 추가하거나, 마커를 눌러 삭제하세요"
+            else -> "최대 개수에 도달했어요 — 마커를 눌러 삭제할 수 있어요"
+        },
         style = DallimTypography.Caption,
         color = DallimColors.TextSecondary,
         modifier = Modifier.padding(top = Spacing.xs),
@@ -258,28 +260,11 @@ private fun WaypointSection(
             plannedRoute = emptyList(),
             actualRoute = emptyList(),
             initialCenter = initialCenter,
-            waypoint = requiredWaypoint,
+            waypoints = requiredWaypoints,
             onMapLongClick = onWaypointLongPress,
+            onWaypointClick = onWaypointClick,
             modifier = Modifier.fillMaxSize(),
         )
-
-        if (requiredWaypoint != null) {
-            IconButton(
-                onClick = onWaypointClearClick,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(Spacing.xs)
-                    .size(DallimShapes.MinTapTarget)
-                    .clip(DallimShapes.CardCorner)
-                    .background(DallimColors.Surface),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = "지정한 장소 취소",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-        }
     }
 }
 
@@ -376,7 +361,7 @@ private fun AiRouteScreenPreview() {
             onDistanceChange = {},
             onPaceSelected = {},
             onWaypointLongPress = {},
-            onWaypointClearClick = {},
+            onWaypointClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
@@ -408,7 +393,7 @@ private fun AiRouteScreenResultPreview() {
             onDistanceChange = {},
             onPaceSelected = {},
             onWaypointLongPress = {},
-            onWaypointClearClick = {},
+            onWaypointClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},

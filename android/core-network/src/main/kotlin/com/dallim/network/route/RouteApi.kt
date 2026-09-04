@@ -112,9 +112,9 @@ data class RouteDrawConvertResponseBody(
     val distanceKm: Double,
 )
 
-// --- 8.2 POST /routes/discovery (requiredWaypoint: docs/02-api-spec.md 11.2) ---
+// --- 8.2 POST /routes/discovery (requiredWaypoints: docs/02-api-spec.md 11.2) ---
 
-/** "꼭 지나갈 장소" 필수 경유지 — 이번 라운드는 최대 1개(docs/02-api-spec.md 11.2/11.3). */
+/** "꼭 지나갈 장소" 필수 경유지 하나 — 요청당 최대 3개(docs/02-api-spec.md 11.2). */
 @Serializable
 data class RouteWaypoint(val lat: Double, val lng: Double)
 
@@ -125,8 +125,8 @@ data class RouteDiscoveryRequest(
     val targetDistanceKm: Double,
     /** docs/01-feature-spec.md ComfortablePace의 apiValue 중 하나(예: "PACE_6_7"). optional. */
     val pace: String? = null,
-    /** 지정 안 했으면 필드 자체를 생략(null) — 여러 경유지는 SPEC 범위 밖. */
-    val requiredWaypoint: RouteWaypoint? = null,
+    /** 비어 있으면(기본값) 필드를 그냥 빈 배열로 보낸다 — 서버가 없는 것과 동일하게 처리한다. */
+    val requiredWaypoints: List<RouteWaypoint> = emptyList(),
 )
 
 @Serializable

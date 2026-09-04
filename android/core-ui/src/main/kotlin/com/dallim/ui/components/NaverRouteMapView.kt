@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -58,10 +59,11 @@ import com.naver.maps.map.overlay.PathOverlay
  * 모두 replay하므로(AndroidX Lifecycle 문서 동작), 이 컴포저블이 이미 RESUMED 상태인 화면에
  * 진입해도 onCreate/onStart/onResume이 누락되지 않는다.
  *
- * [waypoint]/[onMapLongClick]은 S-45 "꼭 지나갈 장소" 지정(docs/02-api-spec.md 11.2)에 쓰인다 —
- * `onMapLongClick`이 non-null이면 지도 롱프레스를 캡처해 위경도로 변환해 넘기고, [waypoint]가
- * 주어지면 그 위치에 마커를 찍는다. 둘 다 기본값 null이라 기존 호출부(결과 미리보기 전용)는
- * 영향받지 않는다.
+ * [waypoints]/[onMapLongClick]/[onWaypointClick]은 S-45 "꼭 지나갈 장소" 지정(최대 3곳,
+ * docs/02-api-spec.md 11.2)에 쓰인다 — `onMapLongClick`이 non-null이면 지도 롱프레스를 캡처해
+ * 위경도로 변환해 넘기고(추가), [waypoints]에 있는 만큼 마커를 찍는다. 마커를 탭하면
+ * [onWaypointClick]으로 그 지점을 돌려줘 호출부가 개별 삭제를 구현할 수 있게 한다. 셋 다
+ * 기본값(빈 리스트/null)이라 기존 호출부(결과 미리보기 전용)는 영향받지 않는다.
  */
 @Composable
 fun NaverRouteMapView(
@@ -70,8 +72,9 @@ fun NaverRouteMapView(
     modifier: Modifier = Modifier,
     strokeWidth: Dp = 4.dp,
     initialCenter: GeoPoint? = null,
-    waypoint: GeoPoint? = null,
+    waypoints: List<GeoPoint> = emptyList(),
     onMapLongClick: ((GeoPoint) -> Unit)? = null,
+    onWaypointClick: ((GeoPoint) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -108,7 +111,7 @@ fun NaverRouteMapView(
     val actualOverlay = remember { MultipartPathOverlay() }
     val currentPositionDot = remember { CircleOverlay() }
     val currentPositionHalo = remember { CircleOverlay() }
-    val waypointMarker = remember { Marker() }
+    val waypointMarkers = remember { mutableStateListOf<Marker>() }
 
     LaunchedEffect(mapView) {
         // Overlay는 attach(.map = map) 시점에 자기 데이터(coords 등)가 이미 유효해야 한다 —
@@ -186,16 +189,28 @@ fun NaverRouteMapView(
         }
     }
 
-    LaunchedEffect(naverMap, waypoint) {
+    val currentOnWaypointClick by rememberUpdatedState(onWaypointClick)
+    LaunchedEffect(naverMap, waypoints) {
         val map = naverMap ?: return@LaunchedEffect
-        if (waypoint != null) {
-            val position = LatLng(waypoint.lat, waypoint.lng)
-            waypointMarker.position = position
-            waypointMarker.iconTintColor = DallimColors.Primary.toArgb()
-            waypointMarker.map = map
-            map.moveCamera(CameraUpdate.scrollTo(position))
-        } else {
-            waypointMarker.map = null
+
+        waypointMarkers.forEach { it.map = null }
+        waypointMarkers.clear()
+
+        waypoints.forEach { point ->
+            val marker = Marker().apply {
+                position = LatLng(point.lat, point.lng)
+                iconTintColor = DallimColors.Primary.toArgb()
+                this.map = map
+                setOnClickListener {
+                    currentOnWaypointClick?.invoke(point)
+                    true
+                }
+            }
+            waypointMarkers.add(marker)
+        }
+
+        if (waypoints.isNotEmpty()) {
+            map.moveCamera(CameraUpdate.scrollTo(LatLng(waypoints.last().lat, waypoints.last().lng)))
         }
     }
 
@@ -213,7 +228,8 @@ fun NaverRouteMapView(
             actualOverlay.map = null
             currentPositionHalo.map = null
             currentPositionDot.map = null
-            waypointMarker.map = null
+            waypointMarkers.forEach { it.map = null }
+            waypointMarkers.clear()
         }
     }
 
