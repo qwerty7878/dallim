@@ -2,6 +2,7 @@ package com.dallim.app.onboarding.splash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dallim.app.push.DeviceTokenRegistrar
 import com.dallim.network.auth.TokenProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ sealed interface SplashDestination {
 @HiltViewModel
 class SplashViewModel @Inject constructor(
     private val tokenProvider: TokenProvider,
+    private val deviceTokenRegistrar: DeviceTokenRegistrar,
 ) : ViewModel() {
 
     private val _destination = MutableStateFlow<SplashDestination>(SplashDestination.Loading)
@@ -46,6 +48,13 @@ class SplashViewModel @Inject constructor(
                 !tokenProvider.getAccessToken().isNullOrBlank() && !tokenProvider.getRefreshToken().isNullOrBlank()
             }
             _destination.value = if (hasSavedSession) SplashDestination.Home else SplashDestination.OnboardingCarousel
+
+            // FCM 토큰 등록 (docs/01-feature-spec.md §1.7 2단계 "앱 시작 시") — 이미 로그인된
+            // 상태로 앱을 여는 경우를 커버한다. 목적지 판단과 무관한 부수 작업이라 별도로 launch해
+            // 네비게이션을 지연시키지 않는다.
+            if (hasSavedSession) {
+                launch { deviceTokenRegistrar.registerCurrentToken() }
+            }
         }
     }
 }

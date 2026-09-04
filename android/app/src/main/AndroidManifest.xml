@@ -46,6 +46,15 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- 폰 시스템 푸시 (docs/01-feature-spec.md §1.7 2단계, docs/02-api-spec.md 10장). -->
+        <service
+            android:name=".push.DallimFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- S-26 공유 카드: Canvas로 합성한 Bitmap을 ShareSheet로 넘길 때 파일 URI를 제공. -->
         <provider
             android:name="androidx.core.content.FileProvider"

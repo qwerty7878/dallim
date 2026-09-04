@@ -8,6 +8,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    // FCM 폰 시스템 푸시 (docs/02-api-spec.md 10장). app/google-services.json(gitignore 처리,
+    // project_id: dallim-765b5)이 없으면 이 플러그인이 빌드를 실패시키므로, 파일이 로컬에
+    // 존재해야만 정상 빌드된다 — 저장소를 새로 클론한 환경은 Firebase 콘솔에서 직접 받아야 한다.
+    alias(libs.plugins.google.services)
 }
 
 // 네이버맵 SDK Client ID — local.properties(gitignore 대상)에서만 읽는다. 값이 없으면 빈 문자열로
@@ -110,6 +114,10 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
     implementation(libs.androidx.lifecycle.service)
+
+    // FCM 폰 시스템 푸시 (docs/01-feature-spec.md §1.7 2단계, docs/02-api-spec.md 10장).
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)

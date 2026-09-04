@@ -32,6 +32,15 @@ interface UserApi {
 
     @DELETE("users/me/saved-routes/{routeId}")
     suspend fun unsaveRoute(@Path("routeId") routeId: String): Response<ApiResponse<Unit>>
+
+    /**
+     * 현재 기기의 FCM 토큰을 등록(upsert) — docs/02-api-spec.md 10.1(폰 시스템 푸시, 알림 2단계).
+     * 같은 토큰이 이미 있으면 마지막 등록 시각만 갱신되고 중복 저장되지 않는 건 서버 책임이라,
+     * 클라이언트는 토큰을 새로 받을 때마다(또는 앱 시작/로그인 성공 시) 그냥 다시 호출하면 된다.
+     * 무효 토큰 삭제 API는 서버가 발송 실패 시 조용히 처리하므로 클라이언트에 두지 않는다(10.3).
+     */
+    @POST("users/me/device-tokens")
+    suspend fun registerDeviceToken(@Body request: DeviceTokenRequest): Response<ApiResponse<Unit>>
 }
 
 @Serializable
@@ -76,3 +85,10 @@ data class SavedRouteItem(
 
 @Serializable
 data class SavedRoutesResponseBody(val items: List<SavedRouteItem>, val totalCount: Int)
+
+/** docs/02-api-spec.md 10.1 — `platform`은 이번 라운드에 안드로이드만 존재해 항상 `"ANDROID"`. */
+@Serializable
+data class DeviceTokenRequest(
+    val fcmToken: String,
+    val platform: String = "ANDROID",
+)

@@ -2,6 +2,7 @@ package com.dallim.app.onboarding.signup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dallim.app.push.DeviceTokenRegistrar
 import com.dallim.network.auth.AuthApi
 import com.dallim.network.auth.EmailLoginRequest
 import com.dallim.network.auth.EmailSignupRequest
@@ -73,6 +74,7 @@ sealed interface EmailAuthNavigationEvent {
 class EmailAuthViewModel @Inject constructor(
     private val authApi: AuthApi,
     private val tokenProvider: TokenProvider,
+    private val deviceTokenRegistrar: DeviceTokenRegistrar,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EmailAuthUiState())
@@ -117,6 +119,8 @@ class EmailAuthViewModel @Inject constructor(
                 val data = body?.data
                 if (response.isSuccessful && body?.success == true && data != null) {
                     tokenProvider.saveTokens(data.accessToken, data.refreshToken)
+                    // 로그인/회원가입 성공 직후 FCM 토큰 등록 (docs/01-feature-spec.md §1.7 2단계).
+                    viewModelScope.launch { deviceTokenRegistrar.registerCurrentToken() }
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     _navigationEvents.emit(
                         if (data.isNewUser) EmailAuthNavigationEvent.GoToTerms else EmailAuthNavigationEvent.GoToHome,
