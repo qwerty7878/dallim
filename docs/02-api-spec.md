@@ -730,6 +730,32 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 `POST /runs/{runId}/finish`에서 판정 결과가 `COMPLETED`로 확정되는 시점(`com.dallim.run.RunService.finishRun`, `finisherCountSync.recordFinisher` 호출 바로 옆)에 알림 1건을 생성한다. `type: "RUN_COMPLETED"`, `title`/`body`는 위 예시처럼 코스 이름 + 거리를 채워 넣는다. 클라이언트가 별도로 호출하는 API는 아니다.
 
 ### 9.5 이번에도 유보한 것
-- 폰 시스템 푸시(FCM) — Firebase 프로젝트 키 발급 후 후속 라운드
 - 완주 외 다른 알림 트리거(근처 신규 코스, 마케팅성 알림 등)
 - 알림 설정(끄기/종류별 on-off) 화면
+
+## 10. 폰 시스템 푸시 (2026-09-04 추가 — FCM, 알림 2단계)
+
+> Firebase 프로젝트(`dallim-765b5`) 발급 완료로 9장에서 유보했던 FCM 푸시를 이어서 구현한다.
+> 서버는 알림이 생성되는 시점(9.4의 트리거, 앞으로 추가될 다른 알림 타입도 동일)에 인앱 알림
+> 저장과 함께 등록된 기기로 FCM 푸시를 보낸다. 푸시의 title/body는 인앱 알림과 동일하다.
+
+### 10.1 `POST /users/me/device-tokens` 🔒
+현재 기기의 FCM 토큰을 등록(upsert). 같은 토큰이 이미 있으면 갱신(마지막 등록 시각 업데이트)만 하고 중복 저장하지 않는다. 한 유저가 여러 기기 토큰을 가질 수 있다(다중 기기 푸시).
+
+```json
+// Request
+{ "fcmToken": "dXy...", "platform": "ANDROID" }
+```
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+
+### 10.2 서버 내부 동작
+- 알림 생성 시(`NotificationService`가 알림 레코드를 만드는 지점) 해당 유저의 등록된 토큰 전체로 FCM 메시지를 발송한다. 발송은 알림 생성 자체를 막지 않는다 — 실패해도 인앱 알림함 레코드는 그대로 남는다.
+- FCM이 `UNREGISTERED`/`NOT_FOUND`(토큰 무효)를 반환하면 서버가 해당 토큰을 조용히 삭제한다. 클라이언트가 별도로 토큰 삭제를 호출할 API는 두지 않는다.
+- 서비스 계정 키는 저장소에 커밋하지 않는다(`backend/secrets/firebase-adminsdk.json`, gitignore 처리됨). 경로는 환경변수(`FCM_CREDENTIALS_PATH`)로 주입하며 로컬 기본값은 그 경로를 가리킨다.
+
+### 10.3 이번에도 유보한 것
+- 로그아웃/토큰 폐기 시 클라이언트가 명시적으로 호출하는 삭제 API (무효 토큰은 발송 실패 시 서버가 정리)
+- 알림 타입별 푸시 on/off 설정

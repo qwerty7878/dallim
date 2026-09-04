@@ -146,8 +146,9 @@ POST /runs/{runId}/gps-batch
 | S-46 | 알림 목록 | 내 알림 목록(최신순), 읽음 처리 | `GET /notifications`, `POST /notifications/{id}/read` |
 
 - 홈(S-10) 상단에 종 모양 아이콘 + 안 읽은 개수 배지(`GET /notifications/unread-count`) 추가, 탭하면 S-46 진입.
-- 1단계는 **인앱 알림함만** — 러닝 완주 시 서버가 알림 1건을 자동 생성한다(`docs/02-api-spec.md` 9.4). 폰 시스템 푸시(FCM)는 Firebase 프로젝트 키가 필요해 후속 라운드로 미룸.
-- 상세 API 계약은 `docs/02-api-spec.md` 9장 참고.
+- 1단계는 **인앱 알림함만** — 러닝 완주 시 서버가 알림 1건을 자동 생성한다(`docs/02-api-spec.md` 9.4).
+- 2단계(2026-09-04, Firebase 프로젝트 발급 완료): 알림 생성 시 등록된 기기로 FCM 푸시도 함께 발송한다. 앱은 시작 시(또는 로그인 후) FCM 토큰을 발급받아 `POST /users/me/device-tokens`로 등록한다. 상세는 `docs/02-api-spec.md` 10장.
+- 상세 API 계약은 `docs/02-api-spec.md` 9장(인앱), 10장(FCM 푸시) 참고.
 
 ---
 
