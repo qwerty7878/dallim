@@ -139,11 +139,18 @@ data class RouteDiscoveryRequest(
     val pace: String? = null,
     /** 비어 있으면(기본값) 필드를 그냥 빈 배열로 보낸다 — 서버가 없는 것과 동일하게 처리한다. */
     val requiredWaypoints: List<RouteWaypoint> = emptyList(),
-    /** "LOOP"(기본값) | "POINT_TO_POINT" (docs/02-api-spec.md 11.4). */
+    /** "LOOP"(기본값) | "POINT_TO_POINT" | "SHAPE" (docs/02-api-spec.md 11.4, 13.1). */
     val mode: String = "LOOP",
     /** mode가 POINT_TO_POINT일 때만 둘 다 채운다. */
     val endLat: Double? = null,
     val endLng: Double? = null,
+    /**
+     * mode가 SHAPE일 때만 필수 — "HEART" | "CIRCLE" | "DROP" | "STAR" (docs/02-api-spec.md 13.1/13.3).
+     * SHAPE와 [requiredWaypoints]/[endLat]/[endLng]는 함께 보낼 수 없다(13.4, 400 VALIDATION_ERROR).
+     */
+    val shapeType: String? = null,
+    /** mode가 SHAPE일 때만 의미 있음 — "DISTANCE"(기본값) | "SHAPE" (docs/02-api-spec.md 13.1). */
+    val priority: String? = null,
 )
 
 @Serializable

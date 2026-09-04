@@ -36,13 +36,20 @@ data class AiRouteUiState(
     val requiredWaypoints: List<GeoPoint> = emptyList(),
     /**
      * "LOOP"(기본값, 출발점으로 돌아옴) | "POINT_TO_POINT"(지정한 목적지까지만 감,
-     * docs/02-api-spec.md 11.4). [requiredWaypoints]와 함께 쓸 수 있다(11.6) — 목적지를 지정한
-     * 채로 꼭 지나갈 장소도 함께 켤 수 있다. 다만 LOOP는 destination 개념이 없으므로 LOOP로
-     * 되돌리면 [destination]은 비워진다.
+     * docs/02-api-spec.md 11.4) | "SHAPE"(등록된 모양 윤곽을 따라 달림, docs/02-api-spec.md 13장).
+     * LOOP/POINT_TO_POINT는 [requiredWaypoints]와 함께 쓸 수 있다(11.6) — 목적지를 지정한 채로
+     * 꼭 지나갈 장소도 함께 켤 수 있다. SHAPE는 이번 라운드엔 [requiredWaypoints]/[destination]과
+     * 조합하지 않는다(13.4) — SHAPE로 전환하면 둘 다 비우고, 반대로 LOOP/POINT_TO_POINT로
+     * 전환하면 [shapeType]을 비운다. LOOP는 destination 개념이 없으므로 LOOP로 되돌리면
+     * [destination]도 비워진다.
      */
     val mode: String = "LOOP",
     /** POINT_TO_POINT일 때 지도 롱프레스로 지정하는 목적지 — 한 곳만 허용. */
     val destination: GeoPoint? = null,
+    /** SHAPE 모드에서 선택한 모양 — "HEART" | "CIRCLE" | "DROP" | "STAR", null이면 미선택 (13.3). */
+    val shapeType: String? = null,
+    /** SHAPE 모드 "거리 우선/모양 우선" 토글 — "DISTANCE"(기본값) | "SHAPE" (13.1). */
+    val shapePriority: String = "DISTANCE",
     val isGenerating: Boolean = false,
     val result: RouteDiscoveryResponseBody? = null,
     val errorMessage: String? = null,
@@ -148,17 +155,30 @@ class AiRouteViewModel @Inject constructor(
     }
 
     /**
-     * LOOP <-> POINT_TO_POINT 전환. [requiredWaypoints]는 두 모드 모두에서 유지된다
-     * (docs/02-api-spec.md 11.6) — LOOP로 되돌릴 때는 destination 개념이 없는 모드이므로
-     * [destination]만 비운다.
+     * LOOP <-> POINT_TO_POINT <-> SHAPE 전환. LOOP/POINT_TO_POINT 사이에서는
+     * [requiredWaypoints]가 그대로 유지된다(docs/02-api-spec.md 11.6) — LOOP로 되돌릴 때는
+     * destination 개념이 없는 모드이므로 [destination]만 비운다. SHAPE는 이번 라운드엔
+     * [requiredWaypoints]/[destination]과 조합하지 않으므로(13.4) SHAPE로 들어갈 때 둘 다 비우고,
+     * SHAPE에서 LOOP/POINT_TO_POINT로 나갈 때는 [shapeType]을 비운다.
      */
     fun onModeSelected(mode: String) {
         _uiState.update {
             when (mode) {
-                "POINT_TO_POINT" -> it.copy(mode = mode)
-                else -> it.copy(mode = "LOOP", destination = null)
+                "POINT_TO_POINT" -> it.copy(mode = mode, shapeType = null)
+                "SHAPE" -> it.copy(mode = mode, requiredWaypoints = emptyList(), destination = null)
+                else -> it.copy(mode = "LOOP", destination = null, shapeType = null)
             }
         }
+    }
+
+    /** SHAPE 모드 모양 그리드 탭 — 다시 탭해도 선택은 유지(토글 아님, 하나는 항상 골라야 생성 가능). */
+    fun onShapeTypeSelected(shapeType: String) {
+        _uiState.update { it.copy(shapeType = shapeType) }
+    }
+
+    /** "거리 우선/모양 우선" 토글 (docs/02-api-spec.md 13.1). */
+    fun onShapePrioritySelected(priority: String) {
+        _uiState.update { it.copy(shapePriority = priority) }
     }
 
     /** 목적지 지정 — 다시 롱프레스하면 새 위치로 교체된다(한 곳만 허용). */
@@ -183,6 +203,10 @@ class AiRouteViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "지도를 길게 눌러 목적지를 먼저 지정해주세요.") }
             return
         }
+        if (stateBeforeLaunch.mode == "SHAPE" && stateBeforeLaunch.shapeType == null) {
+            _uiState.update { it.copy(errorMessage = "모양을 먼저 선택해주세요.") }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true, errorMessage = null) }
@@ -205,6 +229,8 @@ class AiRouteViewModel @Inject constructor(
                 mode = state.mode,
                 endLat = state.destination?.lat,
                 endLng = state.destination?.lng,
+                shapeType = if (state.mode == "SHAPE") state.shapeType else null,
+                priority = if (state.mode == "SHAPE") state.shapePriority else null,
             )
             val result = safeApiCall { routeApi.discoverRoute(request) }
 

@@ -1,5 +1,6 @@
 package com.dallim.app.route.create.ai
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,6 +71,9 @@ import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * S-45 AI 자동 생성 — 현재 위치 + 목표 거리(+선택 페이스)로 순환 코스를 생성한다
@@ -86,6 +98,8 @@ fun AiRouteRoute(
         onModeSelected = viewModel::onModeSelected,
         onDestinationLongPress = viewModel::onDestinationLongPress,
         onDestinationClearClick = viewModel::onDestinationClearClick,
+        onShapeTypeSelected = viewModel::onShapeTypeSelected,
+        onShapePrioritySelected = viewModel::onShapePrioritySelected,
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
@@ -105,6 +119,8 @@ private fun AiRouteScreen(
     onModeSelected: (String) -> Unit,
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
+    onShapeTypeSelected: (String) -> Unit,
+    onShapePrioritySelected: (String) -> Unit,
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
@@ -156,6 +172,8 @@ private fun AiRouteScreen(
                     isSearchingPlaces = uiState.isSearchingPlaces,
                     mode = uiState.mode,
                     destination = uiState.destination,
+                    shapeType = uiState.shapeType,
+                    shapePriority = uiState.shapePriority,
                     enabled = !uiState.isGenerating,
                     onDistanceChange = onDistanceChange,
                     onPaceSelected = onPaceSelected,
@@ -166,6 +184,8 @@ private fun AiRouteScreen(
                     onModeSelected = onModeSelected,
                     onDestinationLongPress = onDestinationLongPress,
                     onDestinationClearClick = onDestinationClearClick,
+                    onShapeTypeSelected = onShapeTypeSelected,
+                    onShapePrioritySelected = onShapePrioritySelected,
                 )
 
                 ResultSection(uiState = uiState)
@@ -191,6 +211,8 @@ private fun InputSection(
     isSearchingPlaces: Boolean,
     mode: String,
     destination: GeoPoint?,
+    shapeType: String?,
+    shapePriority: String,
     enabled: Boolean,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
@@ -201,6 +223,8 @@ private fun InputSection(
     onModeSelected: (String) -> Unit,
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
+    onShapeTypeSelected: (String) -> Unit,
+    onShapePrioritySelected: (String) -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md)) {
         Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
@@ -259,9 +283,19 @@ private fun InputSection(
                 selected = mode == "POINT_TO_POINT",
                 onClick = { onModeSelected("POINT_TO_POINT") },
             )
+            DallimFilterChip(label = "모양 선택", selected = mode == "SHAPE", onClick = { onModeSelected("SHAPE") })
         }
 
-        if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
+        if (mode == "SHAPE") {
+            // SHAPE는 지도를 쓰지 않는 입력이라 NCP Client ID 유무와 무관하게 항상 노출한다
+            // (docs/02-api-spec.md 13장, requiredWaypoints/destination과 조합 불가 — 13.4).
+            ShapeSection(
+                shapeType = shapeType,
+                shapePriority = shapePriority,
+                onShapeTypeSelected = onShapeTypeSelected,
+                onShapePrioritySelected = onShapePrioritySelected,
+            )
+        } else if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
             if (mode == "POINT_TO_POINT") {
                 DestinationSection(
                     initialCenter = initialCenter,
@@ -480,6 +514,204 @@ private fun PlaceSearchResultRow(item: PlaceSearchItem, onClick: () -> Unit) {
     }
 }
 
+/** SHAPE 모드에서 고를 수 있는 등록된 모양 (docs/02-api-spec.md 13.3). */
+private enum class ShapeOption(val apiValue: String, val label: String) {
+    HEART("HEART", "하트"),
+    CIRCLE("CIRCLE", "원"),
+    DROP("DROP", "물방울"),
+    STAR("STAR", "별"),
+}
+
+/**
+ * "모양 선택" 코스 방식 (docs/02-api-spec.md 13장) — 등록된 4개 모양을 아이콘 그리드로 노출하고
+ * "거리 우선/모양 우선" 토글을 함께 보여준다(13.5). 이 화면 안에서 간단한 Canvas 도형으로 아이콘을
+ * 직접 그린다(정교한 에셋은 이번 범위 밖) — [RouteThumbnailView]와 달리 서버 GeoJSON이 아닌
+ * 고정된 4종 템플릿 미리보기라 제네릭 클립아트 금지 규칙과는 무관하다.
+ */
+@Composable
+private fun ShapeSection(
+    shapeType: String?,
+    shapePriority: String,
+    onShapeTypeSelected: (String) -> Unit,
+    onShapePrioritySelected: (String) -> Unit,
+) {
+    Text(
+        text = "모양",
+        style = DallimTypography.Title2,
+        color = DallimColors.TextPrimary,
+        modifier = Modifier.padding(top = Spacing.lg),
+    )
+    Text(
+        text = "원하는 모양의 윤곽을 따라 달리는 코스를 만들어드려요",
+        style = DallimTypography.Caption,
+        color = DallimColors.TextSecondary,
+        modifier = Modifier.padding(top = Spacing.xs),
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        ShapeOption.entries.forEach { option ->
+            ShapeIconButton(
+                option = option,
+                selected = shapeType == option.apiValue,
+                onClick = { onShapeTypeSelected(option.apiValue) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    if (shapeType == "STAR") {
+        Text(
+            text = "오목한 모서리가 있는 모양은 실제 도로에서 다소 달라질 수 있어요",
+            style = DallimTypography.Caption,
+            color = DallimColors.Warning,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+    }
+
+    Text(
+        text = "우선순위",
+        style = DallimTypography.Title2,
+        color = DallimColors.TextPrimary,
+        modifier = Modifier.padding(top = Spacing.lg),
+    )
+    Text(
+        text = if (shapePriority == "SHAPE") {
+            "모양을 더 뚜렷하게 유지해요 — 결과 거리가 목표보다 많이 길어질 수 있어요"
+        } else {
+            "목표 거리에 최대한 맞춰요 — 모양이 다소 작아질 수 있어요"
+        },
+        style = DallimTypography.Caption,
+        color = DallimColors.TextSecondary,
+        modifier = Modifier.padding(top = Spacing.xs),
+    )
+    Row(
+        modifier = Modifier.padding(top = Spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        DallimFilterChip(
+            label = "거리 우선",
+            selected = shapePriority == "DISTANCE",
+            onClick = { onShapePrioritySelected("DISTANCE") },
+        )
+        DallimFilterChip(
+            label = "모양 우선",
+            selected = shapePriority == "SHAPE",
+            onClick = { onShapePrioritySelected("SHAPE") },
+        )
+    }
+}
+
+@Composable
+private fun ShapeIconButton(
+    option: ShapeOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val glyphColor = if (selected) DallimColors.Primary else DallimColors.TextSecondary
+    Column(
+        modifier = modifier
+            .clip(DallimShapes.CardCorner)
+            .background(if (selected) DallimColors.PrimaryLight else DallimColors.Surface)
+            .clickable(onClick = onClick)
+            .padding(vertical = Spacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Canvas(modifier = Modifier.size(40.dp)) {
+            drawShapeGlyph(option = option, color = glyphColor)
+        }
+        Text(
+            text = option.label,
+            style = DallimTypography.Caption,
+            color = glyphColor,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/** 4종 모양 아이콘을 Canvas 도형으로 직접 그린다 — 제네릭 아이콘/클립아트 사용 금지. */
+private fun DrawScope.drawShapeGlyph(option: ShapeOption, color: Color) {
+    val strokeWidth = size.minDimension * 0.09f
+    val stroke = Stroke(width = strokeWidth, join = StrokeJoin.Round, cap = StrokeCap.Round)
+    when (option) {
+        ShapeOption.CIRCLE -> drawCircle(
+            color = color,
+            radius = size.minDimension / 2f - strokeWidth,
+            center = center,
+            style = stroke,
+        )
+        ShapeOption.HEART -> drawPath(path = heartGlyphPath(size), color = color, style = stroke)
+        ShapeOption.DROP -> drawPath(path = dropGlyphPath(size), color = color, style = stroke)
+        ShapeOption.STAR -> drawPath(path = starGlyphPath(size), color = color, style = stroke)
+    }
+}
+
+/** 표준 하트 매개변수 곡선(x = 16sin³t, y = 13cos t − 5cos2t − 2cos3t − cos4t)을 샘플링해 정규화. */
+private fun heartGlyphPath(size: Size): Path {
+    val steps = 48
+    val rawPoints = (0..steps).map { i ->
+        val t = (i.toFloat() / steps) * (2f * PI.toFloat())
+        val x = 16f * sin(t).let { it * it * it }
+        val y = -(13f * cos(t) - 5f * cos(2f * t) - 2f * cos(3f * t) - cos(4f * t))
+        Offset(x, y)
+    }
+    return rawPoints.toNormalizedPath(size, marginFraction = 0.08f)
+}
+
+/** 위쪽이 뾰족하고 아래쪽이 둥근 물방울 — 큐빅 베지어 2개로 좌우 대칭 윤곽을 그린다. */
+private fun dropGlyphPath(size: Size): Path {
+    val w = size.width
+    val h = size.height
+    val cx = w / 2f
+    return Path().apply {
+        moveTo(cx, h * 0.06f)
+        cubicTo(cx + w * 0.46f, h * 0.38f, cx + w * 0.38f, h * 0.94f, cx, h * 0.94f)
+        cubicTo(cx - w * 0.38f, h * 0.94f, cx - w * 0.46f, h * 0.38f, cx, h * 0.06f)
+        close()
+    }
+}
+
+/** 5각 별 — 바깥/안쪽 반지름을 번갈아 잇는 10개 점 폴리곤. */
+private fun starGlyphPath(size: Size): Path {
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    val outerR = size.minDimension / 2f * 0.92f
+    val innerR = outerR * 0.382f
+    val path = Path()
+    for (i in 0 until 10) {
+        val angle = -PI.toFloat() / 2f + i * PI.toFloat() / 5f
+        val r = if (i % 2 == 0) outerR else innerR
+        val x = cx + r * cos(angle)
+        val y = cy + r * sin(angle)
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
+}
+
+/** 임의의 점 목록을 [size] 안에 [marginFraction] 여백을 두고 중앙 정렬해 닫힌 Path로 변환한다. */
+private fun List<Offset>.toNormalizedPath(size: Size, marginFraction: Float): Path {
+    val minX = minOf { it.x }
+    val maxX = maxOf { it.x }
+    val minY = minOf { it.y }
+    val maxY = maxOf { it.y }
+    val margin = 1f - marginFraction * 2f
+    val scale = minOf(size.width * margin / (maxX - minX), size.height * margin / (maxY - minY))
+    val offsetX = size.width / 2f - (minX + maxX) / 2f * scale
+    val offsetY = size.height / 2f - (minY + maxY) / 2f * scale
+    return Path().apply {
+        forEachIndexed { index, point ->
+            val x = point.x * scale + offsetX
+            val y = point.y * scale + offsetY
+            if (index == 0) moveTo(x, y) else lineTo(x, y)
+        }
+        close()
+    }
+}
+
 @Composable
 private fun ResultSection(uiState: AiRouteUiState) {
     val result = uiState.result
@@ -521,10 +753,10 @@ private fun ResultSection(uiState: AiRouteUiState) {
             }
             else -> DallimEmptyState(
                 title = "아래 버튼으로 코스를 만들어보세요",
-                description = if (uiState.mode == "POINT_TO_POINT") {
-                    "현재 위치에서 출발해 지정한 목적지까지 가는 코스를 만들어드려요."
-                } else {
-                    "현재 위치에서 출발해 다시 돌아오는 코스를 만들어드려요."
+                description = when (uiState.mode) {
+                    "POINT_TO_POINT" -> "현재 위치에서 출발해 지정한 목적지까지 가는 코스를 만들어드려요."
+                    "SHAPE" -> "선택한 모양의 윤곽을 따라 달리는 코스를 만들어드려요."
+                    else -> "현재 위치에서 출발해 다시 돌아오는 코스를 만들어드려요."
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
             )
@@ -583,6 +815,8 @@ private fun AiRouteScreenPreview() {
             onModeSelected = {},
             onDestinationLongPress = {},
             onDestinationClearClick = {},
+            onShapeTypeSelected = {},
+            onShapePrioritySelected = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
@@ -620,6 +854,8 @@ private fun AiRouteScreenResultPreview() {
             onModeSelected = {},
             onDestinationLongPress = {},
             onDestinationClearClick = {},
+            onShapeTypeSelected = {},
+            onShapePrioritySelected = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
