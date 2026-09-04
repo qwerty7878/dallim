@@ -91,9 +91,10 @@ class DiscoveryService(
     }
 
     /**
-     * POST /routes/discovery (docs/02-api-spec.md 8.2/11.2/11.4). Validates `mode` and the fields
-     * it requires, then dispatches to the loop or point-to-point algorithm — both funnel through
-     * [respond] to build the final [DiscoveryResponse] the same way.
+     * POST /routes/discovery (docs/02-api-spec.md 8.2/11.2/11.4/11.6). Validates `mode` and the
+     * fields it requires, then dispatches to the loop or point-to-point algorithm — the latter
+     * further split by whether `requiredWaypoints` is present (11.6) or not (11.4) — both funnel
+     * through [respond] to build the final [DiscoveryResponse] the same way.
      */
     suspend fun generateDiscoveryRoute(request: DiscoveryRequest): DiscoveryResponse {
         if (request.requiredWaypoints.size > MAX_REQUIRED_WAYPOINTS) {
@@ -109,14 +110,17 @@ class DiscoveryService(
         val result = when (request.mode) {
             "LOOP" -> generateLoopRoute(request, start, targetDistanceMeters)
             "POINT_TO_POINT" -> {
-                if (request.requiredWaypoints.isNotEmpty()) {
-                    throw BadRequestException(
-                        ErrorCodes.VALIDATION_ERROR,
-                        "point-to-point 모드에서는 필수 경유지를 함께 지정할 수 없어요.",
+                val end = requireEndPoint(request)
+                if (request.requiredWaypoints.isEmpty()) {
+                    generatePointToPointRoute(start, end, targetDistanceMeters)
+                } else {
+                    generatePointToPointWithWaypointsRoute(
+                        start = start,
+                        end = end,
+                        requiredWaypoints = request.requiredWaypoints.map { it.toLatLng() },
+                        targetDistanceMeters = targetDistanceMeters,
                     )
                 }
-                val end = requireEndPoint(request)
-                generatePointToPointRoute(start, end, targetDistanceMeters)
             }
             else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP 또는 POINT_TO_POINT만 허용됩니다.")
         }
@@ -196,17 +200,96 @@ class DiscoveryService(
         val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
         if (direct.distanceMeters >= lowerBound) return direct
 
-        val baseBearing = GeoMath.bearingDegrees(start, end)
+        return routeWithPerpendicularDetour(
+            baseRoute = listOf(start, end),
+            insertIndex = 1,
+            detourOrigin = start,
+            bearingFrom = start,
+            bearingTo = end,
+            targetDistanceMeters = targetDistanceMeters,
+            fallback = direct,
+        )
+    }
+
+    /**
+     * docs/02-api-spec.md 11.6 — point-to-point routing combined with `requiredWaypoints`. Unlike
+     * 11.2's loop mode, there's no K-slot bearing system to pin waypoints to, so instead each
+     * waypoint is ordered by `(distance-to-start - distance-to-end)` ascending (closer to start
+     * relative to end visited first), then the whole thing — `start -> waypoints -> end` — is
+     * routed in a single OSRM call.
+     *
+     * If that combined route already meets [targetDistanceMeters] (or overshoots it), it's
+     * returned as-is, same "can't shorten fixed points" policy as 11.4. If it falls short, exactly
+     * one perpendicular detour point is added — inserted into whichever leg of the combined route
+     * is straight-line (Haversine) longest, since that's the leg with the most slack to absorb a
+     * detour without radically distorting the route.
+     */
+    private suspend fun generatePointToPointWithWaypointsRoute(
+        start: LatLng,
+        end: LatLng,
+        requiredWaypoints: List<LatLng>,
+        targetDistanceMeters: Double,
+    ): OsrmRouteResult {
+        val sortedWaypoints = requiredWaypoints.sortedBy { wp ->
+            GeoMath.haversineMeters(start, wp) - GeoMath.haversineMeters(wp, end)
+        }
+        val baseRoute = listOf(start) + sortedWaypoints + end
+
+        val direct = runCatching { osrmClient.route(baseRoute) }.getOrNull()
+            ?: throw UnprocessableEntityException(
+                ErrorCodes.DISCOVERY_NO_ROUTE,
+                "요청하신 지점들 사이에서 경로를 찾지 못했습니다.",
+            )
+
+        val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
+        if (direct.distanceMeters >= lowerBound) return direct
+
+        val longestLegIndex = (0 until baseRoute.size - 1)
+            .maxByOrNull { i -> GeoMath.haversineMeters(baseRoute[i], baseRoute[i + 1]) }!!
+
+        return routeWithPerpendicularDetour(
+            baseRoute = baseRoute,
+            insertIndex = longestLegIndex + 1,
+            detourOrigin = baseRoute[longestLegIndex],
+            bearingFrom = baseRoute[longestLegIndex],
+            bearingTo = baseRoute[longestLegIndex + 1],
+            targetDistanceMeters = targetDistanceMeters,
+            fallback = direct,
+        )
+    }
+
+    /**
+     * Shared by [generatePointToPointRoute] (11.4) and [generatePointToPointWithWaypointsRoute]
+     * (11.6): inserts one perpendicular-bearing detour point — computed from [bearingFrom] to
+     * [bearingTo], placed [radius] meters from [detourOrigin], side/jitter randomized — at
+     * [insertIndex] in [baseRoute], then routes and retries up to [MAX_ATTEMPTS] times, adjusting
+     * only the detour's radius by the over/undershoot ratio each time (same principle as
+     * [generateLoopRoute]'s candidates). Falls back to [fallback] — the already-succeeded,
+     * too-short pre-detour route — if every detour attempt throws.
+     */
+    private suspend fun routeWithPerpendicularDetour(
+        baseRoute: List<LatLng>,
+        insertIndex: Int,
+        detourOrigin: LatLng,
+        bearingFrom: LatLng,
+        bearingTo: LatLng,
+        targetDistanceMeters: Double,
+        fallback: OsrmRouteResult,
+    ): OsrmRouteResult {
+        val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
+        val upperBound = targetDistanceMeters * (1 + TARGET_TOLERANCE)
+
+        val baseBearing = GeoMath.bearingDegrees(bearingFrom, bearingTo)
         val side = if (Random.nextBoolean()) 1.0 else -1.0
         val detourBearing = baseBearing + side * 90.0 + Random.nextDouble(-POINT_TO_POINT_BEARING_JITTER_DEGREES, POINT_TO_POINT_BEARING_JITTER_DEGREES)
         var radius = targetDistanceMeters / 2.0
 
-        val upperBound = targetDistanceMeters * (1 + TARGET_TOLERANCE)
-        var lastResult: OsrmRouteResult = direct
+        var lastResult = fallback
 
         for (attempt in 1..MAX_ATTEMPTS) {
-            val detour = GeoMath.destination(start, detourBearing, radius)
-            val result = runCatching { osrmClient.route(listOf(start, detour, end)) }.getOrNull() ?: continue
+            val detour = GeoMath.destination(detourOrigin, detourBearing, radius)
+            val candidateRoute = baseRoute.toMutableList().apply { add(insertIndex, detour) }
+            val result = runCatching { osrmClient.route(candidateRoute) }.getOrNull() ?: continue
             lastResult = result
 
             if (result.distanceMeters in lowerBound..upperBound) break

@@ -37,8 +37,9 @@ data class DiscoveryRequest(
     val pace: String? = null,
     // docs/02-api-spec.md 11.2 — 0-3 required waypoints the generated loop must pass through.
     // Each replaces whichever of the K candidate waypoint slots is angularly closest to it
-    // (greedily matched so two required points never contend for the same slot). LOOP mode only
-    // for now — combining with POINT_TO_POINT is rejected (11.5).
+    // (greedily matched so two required points never contend for the same slot). Also usable with
+    // POINT_TO_POINT mode (11.6): sorted by (distance-to-start - distance-to-end) instead of the
+    // K-slot bearing system, then routed start -> waypoints -> end in one OSRM call.
     val requiredWaypoints: List<LatLngDto> = emptyList(),
     // docs/02-api-spec.md 11.4 — "LOOP" (default) | "POINT_TO_POINT". Raw string validated in
     // DiscoveryService, same convention as com.dallim.run.RunService.updateStatus's statusRaw.

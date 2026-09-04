@@ -444,23 +444,6 @@ class DiscoveryServiceTest {
     }
 
     @Test
-    fun `generateDiscoveryRoute - point-to-point combined with requiredWaypoints is a 400 VALIDATION_ERROR`() {
-        val fake = FakeOsrmClient(routeResults = emptyList())
-        val service = DiscoveryService(fake)
-
-        val ex = assertFailsWith<ApiException> {
-            runBlocking {
-                service.generateDiscoveryRoute(
-                    p2pRequest().copy(requiredWaypoints = listOf(LatLngDto(lat = 37.40, lng = 126.93))),
-                )
-            }
-        }
-        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
-        assertEquals(HttpStatusCode.BadRequest, ex.status)
-        assertEquals(0, fake.routeCallCount)
-    }
-
-    @Test
     fun `generateDiscoveryRoute - unknown mode is a 400 VALIDATION_ERROR`() {
         val fake = FakeOsrmClient(routeResults = emptyList())
         val service = DiscoveryService(fake)
@@ -486,5 +469,117 @@ class DiscoveryServiceTest {
         }
         assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
         assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
+    }
+
+    // ---------------------------------------------------------------------
+    // discovery point-to-point + requiredWaypoints combination (11.6)
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with waypoints sorts by (distance-to-start minus distance-to-end) ascending`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(5200.0))))
+        val service = DiscoveryService(fake)
+
+        // near start (close to start, far from end) -> should sort first.
+        val nearStart = LatLngDto(lat = 37.3910, lng = 126.9240)
+        // near end (far from start, close to end) -> should sort last.
+        val nearEnd = LatLngDto(lat = 37.4190, lng = 126.9490)
+
+        // Deliberately submitted in end->start order to prove the service re-sorts them.
+        runBlocking {
+            service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = listOf(nearEnd, nearStart)))
+        }
+
+        val route = fake.receivedWaypoints.single()
+        // [start, nearStart, nearEnd, end]
+        assertEquals(4, route.size)
+        assertEquals(nearStart.lat, route[1].lat, 1e-9)
+        assertEquals(nearStart.lng, route[1].lng, 1e-9)
+        assertEquals(nearEnd.lat, route[2].lat, 1e-9)
+        assertEquals(nearEnd.lng, route[2].lng, 1e-9)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with waypoints returns the combined route unmodified when it already meets the target`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(5200.0))))
+        val service = DiscoveryService(fake)
+        val waypoint = LatLngDto(lat = 37.4000, lng = 126.9300)
+
+        val response = runBlocking {
+            service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = listOf(waypoint)))
+        }
+
+        assertEquals(1, fake.routeCallCount, "a combined route already within tolerance should never trigger a detour call")
+        assertEquals(5.2, response.distanceKm)
+        assertEquals(3, fake.receivedWaypoints.single().size) // [start, waypoint, end], no detour
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with waypoints adds exactly one detour when the combined route falls short`() {
+        val fake = FakeOsrmClient(
+            routeResults = listOf(
+                Result.success(fakeResult(2000.0)), // combined start->waypoint->end: way under the 5km target
+                Result.success(fakeResult(4900.0)), // detour attempt: within tolerance -> stop
+            ),
+        )
+        val service = DiscoveryService(fake)
+        val waypoint = LatLngDto(lat = 37.4000, lng = 126.9300)
+
+        val response = runBlocking {
+            service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = listOf(waypoint)))
+        }
+
+        assertEquals(2, fake.routeCallCount)
+        assertEquals(3, fake.receivedWaypoints[0].size, "first call is the un-detoured [start, waypoint, end] probe")
+        assertEquals(4, fake.receivedWaypoints[1].size, "detour call adds exactly one extra point")
+        assertEquals(4.9, response.distanceKm)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with waypoints falling short retries up to 5 times then returns the last result`() {
+        val fake = FakeOsrmClient(
+            routeResults = listOf(Result.success(fakeResult(2000.0))) + List(5) { Result.success(fakeResult(2500.0)) },
+        )
+        val service = DiscoveryService(fake)
+        val waypoint = LatLngDto(lat = 37.4000, lng = 126.9300)
+
+        runBlocking {
+            service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = listOf(waypoint)))
+        }
+
+        // 1 initial probe + up to MAX_ATTEMPTS(5) detour retries, all persistently out of tolerance.
+        assertEquals(6, fake.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with more than 3 requiredWaypoints is still a 400 VALIDATION_ERROR`() {
+        val fake = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(fake)
+        val tooMany = (0 until 4).map { LatLngDto(lat = 37.39 + it * 0.001, lng = 126.92 + it * 0.001) }
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = tooMany))
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, fake.routeCallCount, "should reject before ever calling OSRM")
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with waypoints and no reachable route is DISCOVERY_NO_ROUTE (422)`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.failure(RuntimeException("no route"))))
+        val service = DiscoveryService(fake)
+        val waypoint = LatLngDto(lat = 37.4000, lng = 126.9300)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(p2pRequest().copy(requiredWaypoints = listOf(waypoint)))
+            }
+        }
+        assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
+        assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
+        assertEquals(1, fake.routeCallCount, "the combined-route probe failing should not trigger any detour retries")
     }
 }
