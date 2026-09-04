@@ -5,6 +5,62 @@
 
 ---
 
+## 라운드 2 — 알림(notification) 도메인 + RunService 연동 (2026-09-04)
+
+대상: `RunService.finishRun`의 `NotificationService.notifyRunCompleted` 호출(생성자에
+`NotificationService` 추가, docs/02-api-spec.md 9.4), `com.dallim.notification` 모듈
+(`NotificationRepository`/`NotificationService`/`NotificationRoutes`, docs/02-api-spec.md
+9.1~9.3).
+
+### 기존 테스트 회귀 확인
+
+`RunService` 생성자에 `NotificationService`가 추가됐지만, 기존 테스트 중 `RunService`를
+직접 `new`로 생성해 mock을 주입하는 단위 테스트는 없었다(`RunJudgementServiceTest.kt`는
+`RunJudgementService`만 직접 테스트하고 `RunService`를 거치지 않음, `RunFlowIntegrationTest.kt`는
+Koin DI로 뜬 실제 서버를 HTTP로만 호출). 따라서 생성자 시그니처 변경으로 깨지는 기존
+테스트는 없었고, mock/fixture 수정도 필요 없었음 — `./gradlew test`로 변경 전/후 모두 확인.
+완주 판정 로직(`RunJudgementServiceTest.kt`)은 이번 라운드에서 손대지 않음.
+
+**참고**: 이 저장소에는 mockk 등 목킹 라이브러리가 없고(`build.gradle.kts` 확인),
+`RunRepository`/`FinisherCountSync`/`NotificationService`가 모두 `open`이 아닌 concrete
+class라 서브클래싱으로 목을 만들 수도 없다. 그래서 "`notifyRunCompleted`가 정확히 1회
+호출되는지"는 mock 호출 카운트 대신, 기존 `RunFlowIntegrationTest.kt`와 동일한 컨벤션(실
+Postgres/Redis에 대한 HTTP 통합 테스트)으로 **알림이 실제로 정확히 1건 생성/영속되는지**를
+검증했다 — 호출 여부의 대리 지표가 아니라 최종 관찰 가능한 효과를 직접 확인하는 것이라
+오히려 더 강한 증거로 판단함.
+
+### 자동화된 테스트
+
+| 파일 | 유형 | 개수 | 결과 |
+|---|---|---|---|
+| `backend/src/test/kotlin/com/dallim/integration/NotificationFlowIntegrationTest.kt` | 통합(실DB) | 9 | 통과 |
+
+`./gradlew test` 전체 실행 결과: 91개 테스트(기존 82 + 신규 9) 전부 통과, 실패/에러 0건
+(로컬 docker-compose Postgres/PostGIS + Redis 기준, `docker compose up -d postgres redis`).
+
+검증 내용:
+- `POST /runs/{id}/finish`가 `COMPLETED`로 확정되는 순간 `RUN_COMPLETED` 알림이 정확히
+  1건 생성되고(`relatedRunId`=해당 runId, `isRead=false`, `body`에 코스명+거리 포함),
+  같은 사용자가 이어서 `ABORTED`/`UNDER_REVIEW`로 종료해도 알림이 추가되지 않음(총
+  개수 불변) — 9.4 트리거의 "COMPLETED일 때만, 정확히 1번" 조건을 직접 검증.
+- `GET /notifications`: 기본 페이지네이션(`page=0`, `size=20`), `size`를 좁혔을 때
+  페이지 분할이 겹치거나 누락되지 않는지, 최신순 정렬.
+- `GET /notifications/unread-count`: 신규 유저 0건, 읽음 처리 후 감소.
+- `POST /notifications/{id}/read`: 최초 호출 200 + `isRead=true` 반영, 이미 읽은
+  알림에 재호출해도 200(멱등), 존재하지 않는 id는 404 `NOTIFICATION_NOT_FOUND`, 다른
+  사용자의 알림 id로 호출해도 404(본인 것 존재 여부를 노출하지 않음).
+- 인증 없이 3개 알림 엔드포인트 호출 시 401.
+- `GET /notifications` 응답에 `gender` 필드가 없는지 전 응답 텍스트 스캔.
+
+### 이번 라운드에서 만들지 않은 것 (SPEC 범위 밖)
+
+- FCM 푸시, 알림 설정(끄기/종류별 on-off) 화면에 대한 테스트 — docs/02-api-spec.md 9.5에
+  이번 라운드 유보로 명시돼 있어 테스트도 만들지 않음.
+- 알림 생성 자체를 트리거하는 별도 API는 없음(9.4는 서버 내부 트리거)이므로 그 경로에
+  대한 별도 엔드포인트 테스트도 없음 — `RunService.finishRun`을 통한 간접 트리거만 검증.
+
+---
+
 ## 라운드 1 — 러닝(run) 도메인 완주 판정 로직 (2026-08-31)
 
 대상: `RunJudgementService`, `GeoMath`, `FrechetDistance`, `DouglasPeucker`,
