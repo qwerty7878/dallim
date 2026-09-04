@@ -15,6 +15,7 @@ data class DallimConfig(
     val oauth: OAuthSettings,
     val osrm: OsrmSettings,
     val fcm: FcmSettings,
+    val kakao: KakaoSettings,
 ) {
     data class JwtSettings(
         val secret: String,
@@ -54,6 +55,19 @@ data class DallimConfig(
     data class FcmSettings(
         val credentialsPath: String,
     )
+
+    /**
+     * docs/02-api-spec.md 12.2 — REST API key for Kakao Local's keyword search
+     * (`GET /v2/local/search/keyword.json`), used by place search (GET /routes/places/search).
+     * Deliberately separate from [OAuthSettings.kakaoUserInfoUrl]'s login key (12장 prose: "카카오
+     * 로그인용 키와는 별도 발급"). Blank/unset (local dev without the key configured) is a valid,
+     * expected value — com.dallim.common.KakaoLocalClient treats it as "skip the Kakao call,
+     * return no results" rather than failing, same as FcmSettings.credentialsPath pointing at a
+     * missing file.
+     */
+    data class KakaoSettings(
+        val localApiKey: String,
+    )
 }
 
 fun Application.loadDallimConfig(): DallimConfig {
@@ -68,6 +82,7 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
     val oauth = config("oauth")
     val osrm = config("osrm")
     val fcm = config("fcm")
+    val kakao = config("kakao")
 
     return DallimConfig(
         profile = property("profile").getString(),
@@ -97,6 +112,9 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
         ),
         fcm = DallimConfig.FcmSettings(
             credentialsPath = fcm.property("credentialsPath").getString(),
+        ),
+        kakao = DallimConfig.KakaoSettings(
+            localApiKey = kakao.propertyOrNull("localApiKey")?.getString().orEmpty(),
         ),
     )
 }

@@ -13,10 +13,11 @@ import io.ktor.server.routing.route
 import org.koin.ktor.ext.inject
 
 /**
- * Route endpoints — GET /routes, /routes/{routeId}, /routes/{routeId}/finishers
- * (docs/02-api-spec.md 4장). Handlers are thin: parse the request, delegate to RouteService,
- * wrap in ApiResponse. StatusPages translates any thrown ApiException (e.g. 404 ROUTE_NOT_FOUND)
- * into the common error envelope.
+ * Route endpoints — GET /routes, /routes/{routeId}, /routes/{routeId}/finishers,
+ * /routes/places/search (docs/02-api-spec.md 4장, 12장). Handlers are thin: parse the request,
+ * delegate to RouteService/PlaceSearchService, wrap in ApiResponse. StatusPages translates any
+ * thrown ApiException (e.g. 404 ROUTE_NOT_FOUND, 400 VALIDATION_ERROR) into the common error
+ * envelope.
  *
  * Both GET /routes (list) and GET /routes/{routeId} (detail) are usable anonymously but
  * personalize `isSaved` when a valid Bearer token is present, via
@@ -24,11 +25,25 @@ import org.koin.ktor.ext.inject
  */
 fun Route.routeRoutes() {
     val routeService by inject<RouteService>()
+    val placeSearchService by inject<PlaceSearchService>()
 
     route("/routes") {
         get("/{routeId}/finishers") {
             val routeId = call.parameters["routeId"]!!
             val response = routeService.getFinishers(routeId)
+            call.respond(HttpStatusCode.OK, ApiResponse.success(response))
+        }
+
+        // docs/02-api-spec.md 12.1 — no 🔒 marker, usable anonymously like the other unauthenticated
+        // /routes endpoints above. "places" is a literal path segment so it never collides with
+        // /routes/{routeId} below (Ktor prefers a literal match over a parameterized one anyway).
+        get("/places/search") {
+            val q = call.request.queryParameters
+            val response = placeSearchService.search(
+                query = q["query"],
+                lat = q["lat"]?.toDoubleOrNull(),
+                lng = q["lng"]?.toDoubleOrNull(),
+            )
             call.respond(HttpStatusCode.OK, ApiResponse.success(response))
         }
 
