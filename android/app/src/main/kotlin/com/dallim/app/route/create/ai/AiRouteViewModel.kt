@@ -32,8 +32,9 @@ data class AiRouteUiState(
     val requiredWaypoints: List<GeoPoint> = emptyList(),
     /**
      * "LOOP"(기본값, 출발점으로 돌아옴) | "POINT_TO_POINT"(지정한 목적지까지만 감,
-     * docs/02-api-spec.md 11.4). 서로 배타적이라 POINT_TO_POINT로 바꾸면 [requiredWaypoints]는
-     * 비워지고, LOOP로 되돌리면 [destination]이 비워진다.
+     * docs/02-api-spec.md 11.4). [requiredWaypoints]와 함께 쓸 수 있다(11.6) — 목적지를 지정한
+     * 채로 꼭 지나갈 장소도 함께 켤 수 있다. 다만 LOOP는 destination 개념이 없으므로 LOOP로
+     * 되돌리면 [destination]은 비워진다.
      */
     val mode: String = "LOOP",
     /** POINT_TO_POINT일 때 지도 롱프레스로 지정하는 목적지 — 한 곳만 허용. */
@@ -88,11 +89,15 @@ class AiRouteViewModel @Inject constructor(
         _uiState.update { it.copy(requiredWaypoints = it.requiredWaypoints - point) }
     }
 
-    /** LOOP <-> POINT_TO_POINT 전환 — 서로 배타적인 상대 필드를 비운다(docs/02-api-spec.md 11.5). */
+    /**
+     * LOOP <-> POINT_TO_POINT 전환. [requiredWaypoints]는 두 모드 모두에서 유지된다
+     * (docs/02-api-spec.md 11.6) — LOOP로 되돌릴 때는 destination 개념이 없는 모드이므로
+     * [destination]만 비운다.
+     */
     fun onModeSelected(mode: String) {
         _uiState.update {
             when (mode) {
-                "POINT_TO_POINT" -> it.copy(mode = mode, requiredWaypoints = emptyList())
+                "POINT_TO_POINT" -> it.copy(mode = mode)
                 else -> it.copy(mode = "LOOP", destination = null)
             }
         }

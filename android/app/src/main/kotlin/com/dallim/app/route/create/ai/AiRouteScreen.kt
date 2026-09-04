@@ -249,14 +249,15 @@ private fun InputSection(
                     onDestinationLongPress = onDestinationLongPress,
                     onDestinationClearClick = onDestinationClearClick,
                 )
-            } else {
-                WaypointSection(
-                    initialCenter = initialCenter,
-                    requiredWaypoints = requiredWaypoints,
-                    onWaypointLongPress = onWaypointLongPress,
-                    onWaypointClick = onWaypointClick,
-                )
             }
+            // 목적지 지정 모드에서도 꼭 지나갈 장소를 함께 켤 수 있다 (docs/01-feature-spec.md 1.6,
+            // docs/02-api-spec.md 11.6) — 두 지도 카드는 서로 독립된 상태/핸들러를 갖는다.
+            WaypointSection(
+                initialCenter = initialCenter,
+                requiredWaypoints = requiredWaypoints,
+                onWaypointLongPress = onWaypointLongPress,
+                onWaypointClick = onWaypointClick,
+            )
         }
     }
 }
@@ -304,9 +305,10 @@ private fun DestinationSection(
 }
 
 /**
- * "꼭 지나갈 장소" 선택 — 지도 롱프레스로 최대 3곳 지정한다 (docs/02-api-spec.md 11.2,
- * docs/01-feature-spec.md 1.6). 꽉 찼을 때 롱프레스는 무시되고, 찍힌 마커를 탭하면 그 지점만
- * 삭제된다 — 별도 목록 UI 없이 지도 위 마커만으로 충분하다.
+ * "꼭 지나갈 장소" 선택 — 지도 롱프레스로 최대 3곳 지정한다 (docs/02-api-spec.md 11.2/11.6,
+ * docs/01-feature-spec.md 1.6). 순환 코스뿐 아니라 목적지 지정 모드에서도 함께 노출되어(11.6),
+ * [DestinationSection]과는 별개의 지도 카드로 독립된 상태를 갖는다. 꽉 찼을 때 롱프레스는
+ * 무시되고, 찍힌 마커를 탭하면 그 지점만 삭제된다 — 별도 목록 UI 없이 지도 위 마커만으로 충분하다.
  *
  * NCP Client ID가 없는 로컬 빌드에서는 지도 자체가 없으므로(호출부에서 이미 분기) 이 옵션은
  * 그냥 노출하지 않는다 — 결과 미리보기처럼 Canvas 폴백을 만들 만큼 핵심 기능이 아니다.
