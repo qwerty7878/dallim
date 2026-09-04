@@ -24,12 +24,29 @@ services:
   # osrm-data/(gitignore됨, .osrm* 파일들)를 그대로 마운트만 한다.
   # API: http://localhost:5001/route/v1/foot/{lng1},{lat1};{lng2},{lat2}?...
   #      http://localhost:5001/match/v1/foot/{lng1},{lat1};...  (직접 그리기 스냅용)
+  # --mmap (2026-09-04 추가, docs/02-api-spec.md 13.2 선행 작업): 전국 데이터셋(~2.8GB, mmap
+  # 미적용)을 Lightsail t3.micro급(RAM 1GB)에서 돌리고 있어, osrm-shape 인스턴스를 얹기 전에
+  # 먼저 메모리 사용을 줄인다 — 파일을 프로세스 힙으로 전부 읽어들이지 않고 페이지 캐시로 매핑.
   osrm:
     image: osrm/osrm-backend:latest
     container_name: dallim-osrm
     platform: linux/amd64
-    command: osrm-routed --algorithm mld --max-matching-size 500 /data/south-korea.osrm
+    command: osrm-routed --algorithm mld --mmap --max-matching-size 500 /data/south-korea.osrm
     ports: ["5001:5000"]
+    volumes: ["./osrm-data:/data"]
+
+  # 모양 선택(SHAPE) AI 생성 전용 OSRM 인스턴스 (2026-09-04 추가, docs/02-api-spec.md 13.2).
+  # 위 osrm 서비스(8장/11장의 LOOP/POINT_TO_POINT/필수 경유지용, 인도·공원길 우대 프로필)와는
+  # 별도로, "도로보다 도보 위주의 대로변" 우선순위를 반영한 dallim-foot-shape.lua 프로필 +
+  # 서비스 벨트(안양·군포·의왕·과천·성남 분당/판교)만 추출한 훨씬 작은 데이터셋을 쓴다 —
+  # scripts/osrm-shape-build.sh가 osrm-data/dallim-belt.osrm을 생성한다(gitignore됨, 마운트만).
+  # API: http://localhost:5002/route/v1/foot/{lng1},{lat1};{lng2},{lat2}?...
+  osrm-shape:
+    image: osrm/osrm-backend:latest
+    container_name: dallim-osrm-shape
+    platform: linux/amd64
+    command: osrm-routed --algorithm mld --mmap /data/dallim-belt.osrm
+    ports: ["5002:5000"]
     volumes: ["./osrm-data:/data"]
 
 volumes:

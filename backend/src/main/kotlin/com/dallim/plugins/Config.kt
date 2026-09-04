@@ -44,6 +44,10 @@ data class DallimConfig(
 
     data class OsrmSettings(
         val baseUrl: String,
+        // docs/02-api-spec.md 13.2 — SHAPE-mode discovery routes through a separate OSRM
+        // instance/profile (dallim-foot-shape.lua, service-belt-only dataset) than [baseUrl]'s
+        // LOOP/POINT_TO_POINT/requiredWaypoints instance.
+        val shapeBaseUrl: String,
     )
 
     /**
@@ -109,6 +113,7 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
         ),
         osrm = DallimConfig.OsrmSettings(
             baseUrl = osrm.property("baseUrl").getString(),
+            shapeBaseUrl = osrm.property("shapeBaseUrl").getString(),
         ),
         fcm = DallimConfig.FcmSettings(
             credentialsPath = fcm.property("credentialsPath").getString(),

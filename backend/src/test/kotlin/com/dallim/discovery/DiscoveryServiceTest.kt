@@ -582,4 +582,187 @@ class DiscoveryServiceTest {
         assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
         assertEquals(1, fake.routeCallCount, "the combined-route probe failing should not trigger any detour retries")
     }
+
+    // ---------------------------------------------------------------------
+    // discovery SHAPE mode (13.1/13.2/13.3)
+    // ---------------------------------------------------------------------
+
+    private fun shapeRequest(
+        shapeType: String? = "HEART",
+        priority: String = "DISTANCE",
+        targetDistanceKm: Double = 5.0,
+    ) = DiscoveryRequest(
+        startLng = 126.9235,
+        startLat = 37.3905,
+        targetDistanceKm = targetDistanceKm,
+        mode = "SHAPE",
+        shapeType = shapeType,
+        priority = priority,
+    )
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE without shapeType is a 400 VALIDATION_ERROR`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(normal, shape)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking { service.generateDiscoveryRoute(shapeRequest(shapeType = null)) }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE with an unregistered shapeType is a 400 VALIDATION_ERROR`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(normal, shape)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking { service.generateDiscoveryRoute(shapeRequest(shapeType = "TRIANGLE")) }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE with an invalid priority is a 400 VALIDATION_ERROR`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(normal, shape)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking { service.generateDiscoveryRoute(shapeRequest(priority = "BOGUS")) }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE combined with requiredWaypoints is a 400 VALIDATION_ERROR (13_4)`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(normal, shape)
+        val required = LatLngDto(lat = 37.4000, lng = 126.9300)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(shapeRequest().copy(requiredWaypoints = listOf(required)))
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE combined with endLat-endLng is a 400 VALIDATION_ERROR (13_4)`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(normal, shape)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(shapeRequest().copy(endLat = 37.42, endLng = 126.95))
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE routes through the dedicated shape OSRM client only`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val service = DiscoveryService(normal, shape)
+
+        val response = runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
+
+        assertEquals(0, normal.routeCallCount, "SHAPE mode must never call the default OSRM instance")
+        assertEquals(1, shape.routeCallCount)
+        assertEquals(4.9, response.distanceKm, 1e-9)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE waypoints start and end at the request's start point`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val service = DiscoveryService(normal, shape)
+
+        runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
+
+        val waypoints = shape.receivedWaypoints.single()
+        assertEquals(ShapeTemplate.POINT_COUNT, waypoints.size)
+        val start = LatLng(lat = 37.3905, lng = 126.9235)
+        assertEquals(start, waypoints.first())
+        // The template's own first/last points coincide (ShapeTemplatesTest), so the whole mapped
+        // loop should start and end at `start` too.
+        assertEquals(start.lat, waypoints.last().lat, 1e-6)
+        assertEquals(start.lng, waypoints.last().lng, 1e-6)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE priority DISTANCE (default) retries up to 5 times when persistently out of tolerance`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = List(5) { Result.success(fakeResult(50_000.0)) }) // way over target every time
+        val service = DiscoveryService(normal, shape)
+
+        runBlocking { service.generateDiscoveryRoute(shapeRequest(priority = "DISTANCE")) }
+
+        assertEquals(5, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE priority SHAPE caps retries at 2 when persistently out of tolerance`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = List(2) { Result.success(fakeResult(50_000.0)) })
+        val service = DiscoveryService(normal, shape)
+
+        val response = runBlocking { service.generateDiscoveryRoute(shapeRequest(priority = "SHAPE")) }
+
+        assertEquals(2, shape.routeCallCount)
+        assertEquals(50.0, response.distanceKm, 1e-9)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE first attempt within tolerance stops the retry loop immediately`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val service = DiscoveryService(normal, shape)
+
+        runBlocking { service.generateDiscoveryRoute(shapeRequest(priority = "SHAPE")) }
+
+        assertEquals(1, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE with every route() attempt failing is DISCOVERY_NO_ROUTE (422)`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val shape = FakeOsrmClient(routeResults = List(5) { Result.failure(RuntimeException("no route")) })
+        val service = DiscoveryService(normal, shape)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking { service.generateDiscoveryRoute(shapeRequest(priority = "DISTANCE")) }
+        }
+        assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
+        assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
+        assertEquals(5, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE accepts CIRCLE, DROP and STAR shapeTypes too`() {
+        for (shapeType in listOf("CIRCLE", "DROP", "STAR")) {
+            val normal = FakeOsrmClient(routeResults = emptyList())
+            val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+            val service = DiscoveryService(normal, shape)
+
+            val response = runBlocking { service.generateDiscoveryRoute(shapeRequest(shapeType = shapeType)) }
+            assertEquals(4.9, response.distanceKm, 1e-9, "shapeType=$shapeType")
+        }
+    }
 }

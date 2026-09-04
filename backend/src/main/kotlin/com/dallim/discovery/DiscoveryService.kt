@@ -9,7 +9,11 @@ import com.dallim.common.OsrmClient
 import com.dallim.common.OsrmRouteResult
 import com.dallim.common.UnprocessableEntityException
 import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
@@ -22,6 +26,11 @@ import kotlin.random.Random
  */
 class DiscoveryService(
     private val osrmClient: OsrmClient,
+    // docs/02-api-spec.md 13.2 — mode: "SHAPE" routes only through this dedicated instance
+    // (arterial-sidewalk-preferring profile, service-belt-only dataset); LOOP/POINT_TO_POINT/
+    // requiredWaypoints all stay on [osrmClient]. Defaults to [osrmClient] so every pre-existing
+    // call site/test (none of which exercise SHAPE mode) keeps working unchanged.
+    private val osrmShapeClient: OsrmClient = osrmClient,
 ) {
     companion object {
         private const val MIN_DRAW_POINTS = 10
@@ -41,6 +50,16 @@ class DiscoveryService(
         // docs/02-api-spec.md 11.4 — jitter applied to the detour waypoint's perpendicular bearing
         // in point-to-point mode, same purpose as BEARING_JITTER_DEGREES for the loop candidates.
         private const val POINT_TO_POINT_BEARING_JITTER_DEGREES = 20.0
+
+        // docs/02-api-spec.md 13.1 — `priority: "SHAPE"` caps retries at 2 (vs the usual
+        // MAX_ATTEMPTS) so the shape stays recognizable instead of shrinking toward the target.
+        private const val MAX_SHAPE_PRIORITY_ATTEMPTS = 2
+
+        // Meters per degree of latitude/longitude at the equator (2*PI*EARTH_RADIUS_METERS/360,
+        // same EARTH_RADIUS_METERS as GeoMath) — used to convert a ShapeTemplate's tiny-degree
+        // offsets (deliberately centered near lat=0, see ShapeTemplate's doc comment) into an
+        // undistorted local meters plane for rotation/scaling in generateShapeRoute.
+        private const val DEGREES_TO_METERS = PI / 180.0 * 6_371_000.0
 
         // Matches the pace implied by the curated SketchRoute seed data
         // (db/migration/V2__seed_curated_routes.sql: distance_km/estimated_minutes ratios cluster
@@ -122,7 +141,16 @@ class DiscoveryService(
                     )
                 }
             }
-            else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP 또는 POINT_TO_POINT만 허용됩니다.")
+            "SHAPE" -> {
+                validateNoShapeConflicts(request)
+                generateShapeRoute(
+                    shapeType = requireShapeType(request),
+                    priority = requireShapePriority(request),
+                    start = start,
+                    targetDistanceMeters = targetDistanceMeters,
+                )
+            }
+            else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP, POINT_TO_POINT, SHAPE만 허용됩니다.")
         }
 
         return respond(result)
@@ -139,6 +167,32 @@ class DiscoveryService(
             )
         }
         return LatLng(lat = lat, lng = lng)
+    }
+
+    /** docs/02-api-spec.md 13.1 — required, must be a registered ShapeType name, when mode == SHAPE. */
+    private fun requireShapeType(request: DiscoveryRequest): ShapeType =
+        ShapeType.fromRequestValue(request.shapeType)
+            ?: throw BadRequestException(
+                ErrorCodes.VALIDATION_ERROR,
+                "shapeType은 HEART, CIRCLE, DROP, STAR 중 하나여야 해요.",
+            )
+
+    /** docs/02-api-spec.md 13.1 — "DISTANCE"(default) | "SHAPE" only. */
+    private fun requireShapePriority(request: DiscoveryRequest): String {
+        if (request.priority != "DISTANCE" && request.priority != "SHAPE") {
+            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "priority는 DISTANCE 또는 SHAPE만 허용됩니다.")
+        }
+        return request.priority
+    }
+
+    /** docs/02-api-spec.md 13.4 — SHAPE mode doesn't compose with requiredWaypoints or point-to-point (this round). */
+    private fun validateNoShapeConflicts(request: DiscoveryRequest) {
+        if (request.requiredWaypoints.isNotEmpty() || request.endLat != null || request.endLng != null) {
+            throw BadRequestException(
+                ErrorCodes.VALIDATION_ERROR,
+                "SHAPE 모드는 requiredWaypoints/endLat/endLng와 함께 사용할 수 없어요.",
+            )
+        }
     }
 
     /** docs/02-api-spec.md 8.2 — the original always-loops-back-to-start algorithm, requiredWaypoints per 11.2. */
@@ -175,6 +229,86 @@ class DiscoveryService(
                 ErrorCodes.DISCOVERY_NO_ROUTE,
                 "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
             )
+    }
+
+    /**
+     * docs/02-api-spec.md 13.1/13.3 — mode: "SHAPE". Places [ShapeTemplate.POINT_COUNT] waypoints
+     * around [start] by scaling/rotating [shapeType]'s normalized template — its first point is
+     * always pinned to [start] itself (13.3: "시작 좌표로 평행이동, 시작=끝 고정") — then routes
+     * them in order through [osrmShapeClient] (13.2's dedicated arterial-sidewalk-preferring
+     * instance, never [osrmClient]).
+     *
+     * Retries adjusting only the scale factor, same over/undershoot-ratio principle as
+     * [generateLoopRoute], up to [MAX_SHAPE_PRIORITY_ATTEMPTS] for `priority: "SHAPE"` or the usual
+     * [MAX_ATTEMPTS] for `priority: "DISTANCE"` (default) — 13.1.
+     */
+    private suspend fun generateShapeRoute(
+        shapeType: ShapeType,
+        priority: String,
+        start: LatLng,
+        targetDistanceMeters: Double,
+    ): OsrmRouteResult {
+        val template = shapeType.template
+        val anchor = template.points.first()
+        // One random rotation per request (not re-rolled between retries) — same principle as
+        // generateLoopRoute's slot bearings being fixed up front and only radius/scale retried.
+        val rotationRadians = Random.nextDouble(0.0, 2 * PI)
+        val maxAttempts = if (priority == "SHAPE") MAX_SHAPE_PRIORITY_ATTEMPTS else MAX_ATTEMPTS
+
+        val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
+        val upperBound = targetDistanceMeters * (1 + TARGET_TOLERANCE)
+
+        var scale = targetDistanceMeters / template.perimeterMeters
+        var lastResult: OsrmRouteResult? = null
+
+        for (attempt in 1..maxAttempts) {
+            val waypoints = template.points.map { placeShapePoint(it, anchor, start, scale, rotationRadians) }
+            val result = runCatching { osrmShapeClient.route(waypoints) }.getOrNull() ?: continue
+            lastResult = result
+
+            if (result.distanceMeters in lowerBound..upperBound) break
+            if (result.distanceMeters > 0) {
+                scale *= targetDistanceMeters / result.distanceMeters
+            }
+        }
+
+        return lastResult
+            ?: throw UnprocessableEntityException(
+                ErrorCodes.DISCOVERY_NO_ROUTE,
+                "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
+            )
+    }
+
+    /**
+     * Maps one [ShapeTemplate] point to a real-world [LatLng]: its offset from [anchor] — in the
+     * template's own tiny-degree space, which per [ShapeTemplate]'s doc comment is small enough
+     * that degree-deltas there are indistinguishable from an undistorted local meters plane — is
+     * converted to meters, rotated by [rotationRadians], multiplied by [scale], then projected from
+     * [start] via [GeoMath.destination] (which correctly accounts for [start]'s actual latitude,
+     * unlike a naive degree-delta addition would). [anchor] itself always maps back to exactly
+     * [start] (zero offset) — that's what pins the generated loop's start and end together.
+     */
+    private fun placeShapePoint(
+        point: LatLng,
+        anchor: LatLng,
+        start: LatLng,
+        scale: Double,
+        rotationRadians: Double,
+    ): LatLng {
+        val dxMeters = (point.lng - anchor.lng) * DEGREES_TO_METERS
+        val dyMeters = (point.lat - anchor.lat) * DEGREES_TO_METERS
+        if (dxMeters == 0.0 && dyMeters == 0.0) return start
+
+        val cosR = cos(rotationRadians)
+        val sinR = sin(rotationRadians)
+        val rotatedX = (dxMeters * cosR - dyMeters * sinR) * scale
+        val rotatedY = (dxMeters * sinR + dyMeters * cosR) * scale
+
+        val distance = sqrt(rotatedX * rotatedX + rotatedY * rotatedY)
+        if (distance == 0.0) return start
+
+        val bearing = (Math.toDegrees(atan2(rotatedX, rotatedY)) + 360.0) % 360.0
+        return GeoMath.destination(start, bearing, distance)
     }
 
     /**

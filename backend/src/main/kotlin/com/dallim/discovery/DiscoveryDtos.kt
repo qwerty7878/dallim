@@ -41,12 +41,21 @@ data class DiscoveryRequest(
     // POINT_TO_POINT mode (11.6): sorted by (distance-to-start - distance-to-end) instead of the
     // K-slot bearing system, then routed start -> waypoints -> end in one OSRM call.
     val requiredWaypoints: List<LatLngDto> = emptyList(),
-    // docs/02-api-spec.md 11.4 — "LOOP" (default) | "POINT_TO_POINT". Raw string validated in
-    // DiscoveryService, same convention as com.dallim.run.RunService.updateStatus's statusRaw.
+    // docs/02-api-spec.md 11.4/13.1 — "LOOP" (default) | "POINT_TO_POINT" | "SHAPE". Raw string
+    // validated in DiscoveryService, same convention as com.dallim.run.RunService.updateStatus's
+    // statusRaw.
     val mode: String = "LOOP",
-    // Required (both) when mode == "POINT_TO_POINT"; ignored for "LOOP".
+    // Required (both) when mode == "POINT_TO_POINT"; ignored otherwise.
     val endLat: Double? = null,
     val endLng: Double? = null,
+    // docs/02-api-spec.md 13.1 — required when mode == "SHAPE": "HEART" | "CIRCLE" | "DROP" |
+    // "STAR" (com.dallim.discovery.ShapeType). Ignored otherwise.
+    val shapeType: String? = null,
+    // docs/02-api-spec.md 13.1 — only meaningful when mode == "SHAPE". "DISTANCE" (default): retry
+    // up to the usual 5 attempts to land within +-15% of targetDistanceKm, shrinking the shape as
+    // needed. "SHAPE": cap retries at 2 so the shape stays recognizable even if distanceKm ends up
+    // well over target.
+    val priority: String = "DISTANCE",
 )
 
 @Serializable

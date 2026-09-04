@@ -65,6 +65,9 @@ dependencies {
     // --- FCM push (docs/02-api-spec.md 10장) ---
     implementation("com.google.firebase:firebase-admin:9.5.0")
 
+    // --- SVG path parsing for SHAPE-mode discovery shape templates (docs/02-api-spec.md 13.3) ---
+    implementation("org.apache.xmlgraphics:batik-parser:1.17")
+
     // --- Logging ---
     implementation("ch.qos.logback:logback-classic:1.5.12")
 

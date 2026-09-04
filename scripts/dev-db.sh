@@ -16,6 +16,11 @@ case "${1:-up}" in
     else
       echo "OSRM     : 데이터 없음 — scripts/osrm-build.sh 먼저 실행하면 osrm 컨테이너도 뜬다"
     fi
+    if [ -f osrm-data/dallim-belt.osrm ]; then
+      echo "OSRM(SHAPE) : localhost:5002 (모양 선택 전용, 서비스 벨트 한정 — docs/02-api-spec.md 13.2)"
+    else
+      echo "OSRM(SHAPE) : 데이터 없음 — scripts/osrm-shape-build.sh 먼저 실행하면 osrm-shape 컨테이너도 뜬다"
+    fi
     ;;
   down) docker compose down ;;
   reset)
