@@ -1,13 +1,18 @@
 package com.dallim.discovery
 
 import com.dallim.common.GeoJsonLineString
+import com.dallim.common.LatLng
 import kotlinx.serialization.Serializable
 
 // Request/response DTOs — docs/02-api-spec.md 8장 (course generation: draw-convert, discovery)
+// and 11장 (draw-convert closeLoop / discovery requiredWaypoint option extensions).
 
 @Serializable
 data class DrawConvertRequest(
     val drawnPath: GeoJsonLineString,
+    // docs/02-api-spec.md 11.1 — only meaningful when the user explicitly drew with a
+    // start=finish intent; the server never infers this from the shape itself.
+    val closeLoop: Boolean = false,
 )
 
 @Serializable
@@ -15,6 +20,12 @@ data class DrawConvertResponse(
     val geoJson: GeoJsonLineString,
     val distanceKm: Double,
 )
+
+/** Wire-format lat/lng pair, e.g. docs/02-api-spec.md 11.2's `requiredWaypoint`. */
+@Serializable
+data class LatLngDto(val lat: Double, val lng: Double) {
+    fun toLatLng() = LatLng(lat = lat, lng = lng)
+}
 
 @Serializable
 data class DiscoveryRequest(
@@ -24,6 +35,9 @@ data class DiscoveryRequest(
     // Optional — accepted for future personalization/logging per docs/02-api-spec.md 8.2, not
     // yet factored into the routing algorithm itself.
     val pace: String? = null,
+    // docs/02-api-spec.md 11.2 — at most one required waypoint the generated loop must pass
+    // through. Replaces whichever of the K candidate waypoints is angularly closest to it.
+    val requiredWaypoint: LatLngDto? = null,
 )
 
 @Serializable

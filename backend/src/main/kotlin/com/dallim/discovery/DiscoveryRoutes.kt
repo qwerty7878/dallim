@@ -23,7 +23,7 @@ fun Route.discoveryRoutes() {
     route("/routes") {
         post("/draw-convert") {
             val request = call.receive<DrawConvertRequest>()
-            val response = discoveryService.convertDrawnPath(request.drawnPath)
+            val response = discoveryService.convertDrawnPath(request)
             call.respond(HttpStatusCode.OK, ApiResponse.success(response))
         }
 

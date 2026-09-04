@@ -100,4 +100,20 @@ class GeoMathTest {
 
         assertEquals(distance, GeoMath.haversineMeters(origin, dest), 1.0)
     }
+
+    @Test
+    fun `bearingDegrees - due north is 0, due east is 90`() {
+        val origin = LatLng(37.0, 127.0)
+        assertEquals(0.0, GeoMath.bearingDegrees(origin, LatLng(38.0, 127.0)), 1.0)
+        assertEquals(90.0, GeoMath.bearingDegrees(origin, LatLng(37.0, 128.0)), 1.0)
+    }
+
+    @Test
+    fun `bearingDegrees - is the inverse of destination for the same bearing and distance`() {
+        val origin = LatLng(37.3905, 126.9235)
+        val bearing = 200.0
+        val dest = GeoMath.destination(origin, bearingDegrees = bearing, distanceMeters = 1500.0)
+
+        assertEquals(bearing, GeoMath.bearingDegrees(origin, dest), 1e-3)
+    }
 }

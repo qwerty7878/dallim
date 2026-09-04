@@ -112,4 +112,23 @@ object GeoMath {
         val normalizedLng = ((Math.toDegrees(lng2) + 540.0) % 360.0) - 180.0
         return LatLng(lat = Math.toDegrees(lat2), lng = normalizedLng)
     }
+
+    /**
+     * Initial compass bearing (0 = north, 90 = east, clockwise, 0..360) travelling the great-circle
+     * path from [from] to [to]. The inverse of [destination]'s bearing parameter.
+     *
+     * Used by the discovery module (docs/02-api-spec.md 11.2) to figure out which candidate loop
+     * waypoint a client-supplied `requiredWaypoint` is closest to, angularly, around the start
+     * point. Pure function — no I/O — so it is directly unit-testable.
+     */
+    fun bearingDegrees(from: LatLng, to: LatLng): Double {
+        val lat1 = Math.toRadians(from.lat)
+        val lat2 = Math.toRadians(to.lat)
+        val dLng = Math.toRadians(to.lng - from.lng)
+
+        val y = sin(dLng) * cos(lat2)
+        val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLng)
+        val bearing = Math.toDegrees(atan2(y, x))
+        return (bearing + 360.0) % 360.0
+    }
 }
