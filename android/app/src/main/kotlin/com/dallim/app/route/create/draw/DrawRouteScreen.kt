@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.BuildConfig
 import com.dallim.app.running.RunFormat
 import com.dallim.network.route.RouteDrawConvertResponseBody
+import com.dallim.ui.components.DallimCheckboxRow
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
@@ -62,6 +63,7 @@ fun DrawRouteRoute(
         onBackClick = onBackClick,
         onPointDrawn = viewModel::onPointDrawn,
         onClearClick = viewModel::onClearClick,
+        onCloseLoopToggle = viewModel::onCloseLoopToggle,
         onConvertClick = viewModel::onConvertClick,
         onRedrawClick = viewModel::onRedrawClick,
         onSaveClick = viewModel::onSaveClick,
@@ -75,6 +77,7 @@ private fun DrawRouteScreen(
     onBackClick: () -> Unit,
     onPointDrawn: (GeoPoint) -> Unit,
     onClearClick: () -> Unit,
+    onCloseLoopToggle: (Boolean) -> Unit,
     onConvertClick: () -> Unit,
     onRedrawClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -153,6 +156,7 @@ private fun DrawRouteScreen(
             BottomPanel(
                 uiState = uiState,
                 onClearClick = onClearClick,
+                onCloseLoopToggle = onCloseLoopToggle,
                 onConvertClick = onConvertClick,
                 onRedrawClick = onRedrawClick,
                 onSaveClick = onSaveClick,
@@ -165,6 +169,7 @@ private fun DrawRouteScreen(
 private fun BottomPanel(
     uiState: DrawRouteUiState,
     onClearClick: () -> Unit,
+    onCloseLoopToggle: (Boolean) -> Unit,
     onConvertClick: () -> Unit,
     onRedrawClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -206,6 +211,12 @@ private fun BottomPanel(
                     modifier = Modifier.padding(bottom = Spacing.sm),
                 )
             }
+            DallimCheckboxRow(
+                uiState.closeLoop,
+                "출발점으로 돌아오기",
+                onCloseLoopToggle,
+                Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 DallimSecondaryButton(
                     text = "지우기",
@@ -238,6 +249,7 @@ private fun DrawRouteScreenPreview() {
             onBackClick = {},
             onPointDrawn = {},
             onClearClick = {},
+            onCloseLoopToggle = {},
             onConvertClick = {},
             onRedrawClick = {},
             onSaveClick = {},
@@ -263,6 +275,7 @@ private fun DrawRouteScreenConvertedPreview() {
             onBackClick = {},
             onPointDrawn = {},
             onClearClick = {},
+            onCloseLoopToggle = {},
             onConvertClick = {},
             onRedrawClick = {},
             onSaveClick = {},

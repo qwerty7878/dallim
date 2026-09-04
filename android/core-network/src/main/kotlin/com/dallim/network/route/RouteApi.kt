@@ -94,10 +94,17 @@ data class FinisherThumbnail(
 @Serializable
 data class FinishersResponseBody(val items: List<FinisherThumbnail>)
 
-// --- 8.1 POST /routes/draw-convert ---
+// --- 8.1 POST /routes/draw-convert (closeLoop: docs/02-api-spec.md 11.1) ---
 
 @Serializable
-data class RouteDrawConvertRequest(val drawnPath: GeoJsonLineString)
+data class RouteDrawConvertRequest(
+    val drawnPath: GeoJsonLineString,
+    /**
+     * 출발=도착 의도로 그렸을 때만 true — 기본 false(직선 코스도 허용, docs/01-feature-spec.md 1.6).
+     * true인데 매칭 결과가 15m 넘게 벌어져 있으면 서버가 보정 구간을 붙여 폐곡선을 완성한다.
+     */
+    val closeLoop: Boolean = false,
+)
 
 @Serializable
 data class RouteDrawConvertResponseBody(
@@ -105,7 +112,11 @@ data class RouteDrawConvertResponseBody(
     val distanceKm: Double,
 )
 
-// --- 8.2 POST /routes/discovery ---
+// --- 8.2 POST /routes/discovery (requiredWaypoint: docs/02-api-spec.md 11.2) ---
+
+/** "꼭 지나갈 장소" 필수 경유지 — 이번 라운드는 최대 1개(docs/02-api-spec.md 11.2/11.3). */
+@Serializable
+data class RouteWaypoint(val lat: Double, val lng: Double)
 
 @Serializable
 data class RouteDiscoveryRequest(
@@ -114,6 +125,8 @@ data class RouteDiscoveryRequest(
     val targetDistanceKm: Double,
     /** docs/01-feature-spec.md ComfortablePace의 apiValue 중 하나(예: "PACE_6_7"). optional. */
     val pace: String? = null,
+    /** 지정 안 했으면 필드 자체를 생략(null) — 여러 경유지는 SPEC 범위 밖. */
+    val requiredWaypoint: RouteWaypoint? = null,
 )
 
 @Serializable

@@ -9,6 +9,8 @@ import com.dallim.app.onboarding.profile.ComfortablePace
 import com.dallim.network.route.RouteApi
 import com.dallim.network.route.RouteDiscoveryRequest
 import com.dallim.network.route.RouteDiscoveryResponseBody
+import com.dallim.network.route.RouteWaypoint
+import com.dallim.ui.components.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +22,13 @@ import javax.inject.Inject
 data class AiRouteUiState(
     val targetDistanceKm: Float = 5f,
     val pace: ComfortablePace? = null,
+    /** 처음 지도를 띄울 위치 — 현재 GPS 위치, 못 가져오면 null(네이버맵 기본 위치로 뜬다). */
+    val initialCenter: GeoPoint? = null,
+    /**
+     * "꼭 지나갈 장소" — 지도 롱프레스로 최대 1곳 지정 (docs/02-api-spec.md 11.2). 다시 롱프레스하면
+     * 이 값이 새 위치로 교체된다. 지정 안 했으면 null — 생성 요청에서 필드 자체를 생략한다.
+     */
+    val requiredWaypoint: GeoPoint? = null,
     val isGenerating: Boolean = false,
     val result: RouteDiscoveryResponseBody? = null,
     val errorMessage: String? = null,
@@ -41,12 +50,31 @@ class AiRouteViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AiRouteUiState())
     val uiState: StateFlow<AiRouteUiState> = _uiState.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            val location = locationProvider.getCurrentLocation()
+            if (location != null) {
+                _uiState.update { it.copy(initialCenter = GeoPoint(lng = location.second, lat = location.first)) }
+            }
+        }
+    }
+
     fun onDistanceChange(km: Float) {
         _uiState.update { it.copy(targetDistanceKm = km) }
     }
 
     fun onPaceSelected(pace: ComfortablePace?) {
         _uiState.update { it.copy(pace = if (it.pace == pace) null else pace) }
+    }
+
+    /** 지도 롱프레스 — 기존 지정이 있어도 항상 새 위치로 교체한다(최대 1개 제한, docs/02-api-spec.md 11.3). */
+    fun onWaypointLongPress(point: GeoPoint) {
+        _uiState.update { it.copy(requiredWaypoint = point) }
+    }
+
+    /** 지정 취소(X 버튼) — 별도 API 없이 다음 생성 요청에서 필드를 생략하게 한다. */
+    fun onWaypointClearClick() {
+        _uiState.update { it.copy(requiredWaypoint = null) }
     }
 
     /** "코스 생성" / "다시 생성" 공용 — 같은 입력이라도 서버가 매번 다른 반지름 편차를 준다. */
@@ -70,6 +98,7 @@ class AiRouteViewModel @Inject constructor(
                 startLat = location.first,
                 targetDistanceKm = state.targetDistanceKm.toDouble(),
                 pace = state.pace?.apiValue,
+                requiredWaypoint = state.requiredWaypoint?.let { RouteWaypoint(lat = it.lat, lng = it.lng) },
             )
             val result = safeApiCall { routeApi.discoverRoute(request) }
 

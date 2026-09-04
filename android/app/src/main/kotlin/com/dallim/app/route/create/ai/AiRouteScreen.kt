@@ -2,14 +2,17 @@ package com.dallim.app.route.create.ai
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -17,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -32,7 +36,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.BuildConfig
@@ -48,6 +54,7 @@ import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
+import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
@@ -68,6 +75,8 @@ fun AiRouteRoute(
         onBackClick = onBackClick,
         onDistanceChange = viewModel::onDistanceChange,
         onPaceSelected = viewModel::onPaceSelected,
+        onWaypointLongPress = viewModel::onWaypointLongPress,
+        onWaypointClearClick = viewModel::onWaypointClearClick,
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
@@ -80,6 +89,8 @@ private fun AiRouteScreen(
     onBackClick: () -> Unit,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
+    onWaypointLongPress: (GeoPoint) -> Unit,
+    onWaypointClearClick: () -> Unit,
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
@@ -124,9 +135,13 @@ private fun AiRouteScreen(
                 InputSection(
                     targetDistanceKm = uiState.targetDistanceKm,
                     pace = uiState.pace,
+                    initialCenter = uiState.initialCenter,
+                    requiredWaypoint = uiState.requiredWaypoint,
                     enabled = !uiState.isGenerating,
                     onDistanceChange = onDistanceChange,
                     onPaceSelected = onPaceSelected,
+                    onWaypointLongPress = onWaypointLongPress,
+                    onWaypointClearClick = onWaypointClearClick,
                 )
 
                 ResultSection(uiState = uiState)
@@ -145,9 +160,13 @@ private fun AiRouteScreen(
 private fun InputSection(
     targetDistanceKm: Float,
     pace: ComfortablePace?,
+    initialCenter: GeoPoint?,
+    requiredWaypoint: GeoPoint?,
     enabled: Boolean,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
+    onWaypointLongPress: (GeoPoint) -> Unit,
+    onWaypointClearClick: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md)) {
         Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
@@ -186,6 +205,78 @@ private fun InputSection(
                     label = option.label,
                     selected = pace == option,
                     onClick = { onPaceSelected(option) },
+                )
+            }
+        }
+
+        if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
+            WaypointSection(
+                initialCenter = initialCenter,
+                requiredWaypoint = requiredWaypoint,
+                onWaypointLongPress = onWaypointLongPress,
+                onWaypointClearClick = onWaypointClearClick,
+            )
+        }
+    }
+}
+
+/**
+ * "꼭 지나갈 장소" 선택 — 지도 롱프레스로 최대 1곳 지정한다 (docs/02-api-spec.md 11.2,
+ * docs/01-feature-spec.md 1.6). 여러 경유지는 SPEC 범위 밖이라 다시 롱프레스하면 기존 지정을
+ * 덮어쓰기만 한다 — 별도 목록/삭제 UI 없이 지도 위 마커 + X 버튼 하나로 충분하다.
+ *
+ * NCP Client ID가 없는 로컬 빌드에서는 지도 자체가 없으므로(호출부에서 이미 분기) 이 옵션은
+ * 그냥 노출하지 않는다 — 결과 미리보기처럼 Canvas 폴백을 만들 만큼 핵심 기능이 아니다.
+ */
+@Composable
+private fun WaypointSection(
+    initialCenter: GeoPoint?,
+    requiredWaypoint: GeoPoint?,
+    onWaypointLongPress: (GeoPoint) -> Unit,
+    onWaypointClearClick: () -> Unit,
+) {
+    Text(
+        text = "꼭 지나갈 장소 (선택)",
+        style = DallimTypography.Title2,
+        color = DallimColors.TextPrimary,
+        modifier = Modifier.padding(top = Spacing.lg),
+    )
+    Text(
+        text = if (requiredWaypoint != null) "지도를 다시 길게 누르면 위치가 바뀌어요" else "지도를 길게 눌러 지정하세요",
+        style = DallimTypography.Caption,
+        color = DallimColors.TextSecondary,
+        modifier = Modifier.padding(top = Spacing.xs),
+    )
+    Box(
+        modifier = Modifier
+            .padding(top = Spacing.sm)
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(DallimShapes.CardCorner),
+    ) {
+        NaverRouteMapView(
+            plannedRoute = emptyList(),
+            actualRoute = emptyList(),
+            initialCenter = initialCenter,
+            waypoint = requiredWaypoint,
+            onMapLongClick = onWaypointLongPress,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        if (requiredWaypoint != null) {
+            IconButton(
+                onClick = onWaypointClearClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(Spacing.xs)
+                    .size(DallimShapes.MinTapTarget)
+                    .clip(DallimShapes.CardCorner)
+                    .background(DallimColors.Surface),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "지정한 장소 취소",
+                    tint = DallimColors.TextPrimary,
                 )
             }
         }
@@ -284,6 +375,8 @@ private fun AiRouteScreenPreview() {
             onBackClick = {},
             onDistanceChange = {},
             onPaceSelected = {},
+            onWaypointLongPress = {},
+            onWaypointClearClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
@@ -314,6 +407,8 @@ private fun AiRouteScreenResultPreview() {
             onBackClick = {},
             onDistanceChange = {},
             onPaceSelected = {},
+            onWaypointLongPress = {},
+            onWaypointClearClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},

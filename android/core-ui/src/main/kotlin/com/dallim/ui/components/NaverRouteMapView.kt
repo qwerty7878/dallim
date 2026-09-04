@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
@@ -28,6 +29,7 @@ import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
 import com.naver.maps.map.NaverMapOptions
 import com.naver.maps.map.overlay.CircleOverlay
+import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.MultipartPathOverlay
 import com.naver.maps.map.overlay.PathOverlay
 
@@ -55,6 +57,11 @@ import com.naver.maps.map.overlay.PathOverlay
  * 붙여 그대로 위임한다. `Lifecycle.addObserver`는 관찰자를 추가하는 즉시 현재 상태까지의 이벤트를
  * 모두 replay하므로(AndroidX Lifecycle 문서 동작), 이 컴포저블이 이미 RESUMED 상태인 화면에
  * 진입해도 onCreate/onStart/onResume이 누락되지 않는다.
+ *
+ * [waypoint]/[onMapLongClick]은 S-45 "꼭 지나갈 장소" 지정(docs/02-api-spec.md 11.2)에 쓰인다 —
+ * `onMapLongClick`이 non-null이면 지도 롱프레스를 캡처해 위경도로 변환해 넘기고, [waypoint]가
+ * 주어지면 그 위치에 마커를 찍는다. 둘 다 기본값 null이라 기존 호출부(결과 미리보기 전용)는
+ * 영향받지 않는다.
  */
 @Composable
 fun NaverRouteMapView(
@@ -62,6 +69,9 @@ fun NaverRouteMapView(
     actualRoute: List<GeoPoint>,
     modifier: Modifier = Modifier,
     strokeWidth: Dp = 4.dp,
+    initialCenter: GeoPoint? = null,
+    waypoint: GeoPoint? = null,
+    onMapLongClick: ((GeoPoint) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -93,10 +103,12 @@ fun NaverRouteMapView(
     }
 
     var naverMap by remember { mutableStateOf<NaverMap?>(null) }
+    var hasCenteredOnInitial by remember { mutableStateOf(false) }
     val plannedOverlay = remember { PathOverlay() }
     val actualOverlay = remember { MultipartPathOverlay() }
     val currentPositionDot = remember { CircleOverlay() }
     val currentPositionHalo = remember { CircleOverlay() }
+    val waypointMarker = remember { Marker() }
 
     LaunchedEffect(mapView) {
         // Overlay는 attach(.map = map) 시점에 자기 데이터(coords 등)가 이미 유효해야 한다 —
@@ -164,6 +176,34 @@ fun NaverRouteMapView(
             boundsSource.size == 1 -> {
                 map.moveCamera(CameraUpdate.scrollAndZoomTo(boundsSource.first(), 16.0))
             }
+            !hasCenteredOnInitial && initialCenter != null -> {
+                // 그려줄 경로가 아직 없는 "장소 지정" 전용 화면(S-45 꼭 지나갈 장소) — 현재 위치로
+                // 한 번만 이동한다. waypoint가 이미 찍혀 있으면 아래 waypoint 전용 effect가 그
+                // 위치로 다시 이동시키므로 여기서는 초기 1회만 담당한다.
+                map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(initialCenter.lat, initialCenter.lng), 15.0))
+                hasCenteredOnInitial = true
+            }
+        }
+    }
+
+    LaunchedEffect(naverMap, waypoint) {
+        val map = naverMap ?: return@LaunchedEffect
+        if (waypoint != null) {
+            val position = LatLng(waypoint.lat, waypoint.lng)
+            waypointMarker.position = position
+            waypointMarker.iconTintColor = DallimColors.Primary.toArgb()
+            waypointMarker.map = map
+            map.moveCamera(CameraUpdate.scrollTo(position))
+        } else {
+            waypointMarker.map = null
+        }
+    }
+
+    val currentOnMapLongClick by rememberUpdatedState(onMapLongClick)
+    LaunchedEffect(naverMap) {
+        val map = naverMap ?: return@LaunchedEffect
+        map.setOnMapLongClickListener { _, latLng ->
+            currentOnMapLongClick?.invoke(GeoPoint(lng = latLng.longitude, lat = latLng.latitude))
         }
     }
 
@@ -173,6 +213,7 @@ fun NaverRouteMapView(
             actualOverlay.map = null
             currentPositionHalo.map = null
             currentPositionDot.map = null
+            waypointMarker.map = null
         }
     }
 

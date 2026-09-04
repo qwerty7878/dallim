@@ -26,6 +26,11 @@ data class DrawRouteUiState(
     val isConverting: Boolean = false,
     val convertResult: RouteDrawConvertResponseBody? = null,
     val errorMessage: String? = null,
+    /**
+     * "출발점으로 돌아오기" 토글 — 기본 false(직선 코스로 뛰고 싶은 사람도 있음, docs/01-feature-spec.md
+     * 1.6). true일 때만 draw-convert 요청에 closeLoop: true를 실어 보낸다(docs/02-api-spec.md 11.1).
+     */
+    val closeLoop: Boolean = false,
     /** "저장" 탭 시 보여줄 스낵바 메시지 — 실제 저장 API는 이번 라운드 범위 밖(docs/02-api-spec.md 8.3). */
     val snackbarMessage: String? = null,
 ) {
@@ -69,6 +74,11 @@ class DrawRouteViewModel @Inject constructor(
         _uiState.update { it.copy(drawnPoints = emptyList(), convertResult = null, errorMessage = null) }
     }
 
+    /** "출발점으로 돌아오기" 토글 — 기본 꺼짐, 그리는 동안 언제든 켜고 끌 수 있다. */
+    fun onCloseLoopToggle(checked: Boolean) {
+        _uiState.update { it.copy(closeLoop = checked) }
+    }
+
     /** "완료" — 그린 궤적을 서버로 보내 실도로 경로로 변환한다. */
     fun onConvertClick() {
         val state = _uiState.value
@@ -79,6 +89,7 @@ class DrawRouteViewModel @Inject constructor(
 
             val request = RouteDrawConvertRequest(
                 drawnPath = GeoJsonLineString(coordinates = state.drawnPoints.map { listOf(it.lng, it.lat) }),
+                closeLoop = state.closeLoop,
             )
             val result = safeApiCall { routeApi.convertDrawnPath(request) }
 
