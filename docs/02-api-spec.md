@@ -827,7 +827,44 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
   `422 DISCOVERY_NO_ROUTE`.
 
 ### 11.3 이번에도 유보한 것
-- 출발점으로 안 돌아오는 point-to-point AI 생성 — 8.2는 여전히 순환(loop) 코스 전용
 - 직접 그리기의 폐곡선 여부를 서버가 자동 판단하는 것 — `closeLoop`은 항상 클라이언트가
   명시할 때만 동작한다(그림을 보고 "닫힌 도형처럼 보인다"를 서버가 추측하지 않음)
 - 경유지 방문 순서를 사용자가 직접 지정하는 것 — 항상 슬롯 각도 순서로 자동 정렬된다
+
+### 11.4 `POST /routes/discovery` — point-to-point 모드 (`mode`, `endLat`/`endLng`) 추가
+
+> 사용자 요청. 8.2는 항상 출발점으로 돌아오는 순환 코스만 만들었다 — 지하철역/집 등 실제
+> 목적지가 있어서 그쪽으로 안 돌아와도 되는 사람을 위해, 지도에서 목적지를 직접 지정하는
+> point-to-point 모드를 추가한다.
+
+```json
+// Request (추가 필드, optional)
+{
+  "startLng": 126.9235,
+  "startLat": 37.3905,
+  "targetDistanceKm": 5.0,
+  "mode": "POINT_TO_POINT",   // "LOOP"(기본값) | "POINT_TO_POINT"
+  "endLat": 37.4010,
+  "endLng": 126.9300
+}
+```
+- `mode: "POINT_TO_POINT"`이면 `endLat`/`endLng`가 둘 다 필수 — 없으면 `400 VALIDATION_ERROR`.
+- 이번 라운드는 `requiredWaypoints`와 조합을 지원하지 않는다 — `POINT_TO_POINT`에서
+  `requiredWaypoints`를 같이 보내면 `400 VALIDATION_ERROR`(11.5에 유보 명시).
+- 알고리즘: 먼저 `start -> end` 직선 OSRM 경로(직선 최단 경로)를 구한다.
+  - 그 거리가 이미 `targetDistanceKm`의 허용 오차(±15%) 안이거나 더 길면, 그대로 반환한다 —
+    목적지가 고정된 이상 이보다 더 줄일 방법은 없다(응답 `distanceKm`이 목표와 다를 수 있음을
+    클라이언트가 그대로 보여주면 된다, 8.2와 동일한 방침).
+  - 더 짧으면, `start`와 `end`를 잇는 직선의 수직 방향으로 한 지점(우회 경유지)을 두고
+    `start -> 우회지점 -> end` 순서로 다시 라우팅한다. 실제 반환 거리가 목표 대비 오차 밖이면
+    우회지점까지의 거리를 `targetDistanceKm`에 맞춰 조정해 재시도한다(최대 5회, 8.2 알고리즘과
+    동일한 재시도 원리) — 좌/우 어느 쪽으로 우회할지, 정확한 각도는 매 요청마다 무작위라 "다시
+    생성"을 누르면 다른 우회 경로가 나온다.
+- `start`-`end` 사이(또는 우회지점까지)에서 OSRM이 경로를 못 찾으면 기존과 동일하게
+  `422 DISCOVERY_NO_ROUTE`.
+
+### 11.5 이번에도 유보한 것 (11.4)
+- `requiredWaypoints`와 `POINT_TO_POINT`의 조합 (둘 다 웨이포인트 배치 로직을 쓰지만 아직
+  합치지 않았다)
+- 목적지 없이 "방향만 정하고 거리만큼 가다 멈추는" 모드 — 실제 목적지가 없으면 러너가 복귀
+  수단을 알아서 찾아야 해서 이번 라운드는 목적지 직접 지정만 지원
