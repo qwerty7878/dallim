@@ -24,9 +24,9 @@ class ShapeTemplatesTest {
     }
 
     @Test
-    fun `every registered ShapeType has a positive perimeter`() {
+    fun `every registered ShapeType has a positive maxRadiusMeters`() {
         for (shapeType in ShapeType.entries) {
-            assertTrue(shapeType.template.perimeterMeters > 0.0, "shapeType=$shapeType")
+            assertTrue(shapeType.template.maxRadiusMeters > 0.0, "shapeType=$shapeType")
         }
     }
 
@@ -46,12 +46,14 @@ class ShapeTemplatesTest {
         assertEquals(ShapeType.HEART, ShapeType.fromRequestValue("HEART"))
         assertEquals(ShapeType.CIRCLE, ShapeType.fromRequestValue("CIRCLE"))
         assertEquals(ShapeType.DROP, ShapeType.fromRequestValue("DROP"))
-        assertEquals(ShapeType.STAR, ShapeType.fromRequestValue("STAR"))
 
         assertNull(ShapeType.fromRequestValue("heart"))
         assertNull(ShapeType.fromRequestValue("TRIANGLE"))
         assertNull(ShapeType.fromRequestValue(null))
         assertNull(ShapeType.fromRequestValue(""))
+        // docs/02-api-spec.md 13.3 — STAR was dropped from v1 (concave-vertex spikes), so it's an
+        // unregistered name like any other now, not a special case.
+        assertNull(ShapeType.fromRequestValue("STAR"))
     }
 
     @Test

@@ -31,6 +31,9 @@ data class LatLngDto(val lat: Double, val lng: Double) {
 data class DiscoveryRequest(
     val startLng: Double,
     val startLat: Double,
+    // Required for every mode's request shape, but docs/02-api-spec.md 13.1 has SHAPE mode ignore
+    // it entirely — SHAPE's size comes from `size` instead (13.1.1). Still required here (not
+    // nullable) so LOOP/POINT_TO_POINT keep their existing non-null contract.
     val targetDistanceKm: Double,
     // Optional — accepted for future personalization/logging per docs/02-api-spec.md 8.2, not
     // yet factored into the routing algorithm itself.
@@ -48,14 +51,16 @@ data class DiscoveryRequest(
     // Required (both) when mode == "POINT_TO_POINT"; ignored otherwise.
     val endLat: Double? = null,
     val endLng: Double? = null,
-    // docs/02-api-spec.md 13.1 — required when mode == "SHAPE": "HEART" | "CIRCLE" | "DROP" |
-    // "STAR" (com.dallim.discovery.ShapeType). Ignored otherwise.
+    // docs/02-api-spec.md 13.1 — required when mode == "SHAPE": "HEART" | "CIRCLE" | "DROP"
+    // (com.dallim.discovery.ShapeType; STAR is deliberately unregistered — 13.3). Ignored
+    // otherwise.
     val shapeType: String? = null,
-    // docs/02-api-spec.md 13.1 — only meaningful when mode == "SHAPE". "DISTANCE" (default): retry
-    // up to the usual 5 attempts to land within +-15% of targetDistanceKm, shrinking the shape as
-    // needed. "SHAPE": cap retries at 2 so the shape stays recognizable even if distanceKm ends up
-    // well over target.
-    val priority: String = "DISTANCE",
+    // docs/02-api-spec.md 13.1/13.1.1 — only meaningful when mode == "SHAPE". "S" | "M" | "L",
+    // default "M" when omitted from the request JSON (an invalid non-null value, e.g. "XL", is
+    // still a 400 VALIDATION_ERROR — validated in DiscoveryService). Fixes the template's absolute
+    // scale directly (templateRadiusMeters 1000/1500/2200) — replaces the old `priority` field,
+    // which no longer means anything now that there's no target-distance retry loop to prioritize.
+    val size: String = "M",
 )
 
 @Serializable

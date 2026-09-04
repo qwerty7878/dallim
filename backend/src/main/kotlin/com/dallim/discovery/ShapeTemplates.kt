@@ -12,9 +12,11 @@ import java.awt.geom.Point2D
  * authored as a single-subpath, closed SVG path (M/L/C/Q/Z per standard path grammar) rather than
  * hand-encoded coordinates, and parsed into a [ShapeTemplate] lazily on first use.
  *
- * v1 set per 13.3: HEART/CIRCLE/DROP have gentle curves and were the more stable prototypes; STAR
- * is included too but its concave vertices are expected to distort more once routed onto the real
- * road network (13.5 surfaces a warning for it in the Android UI).
+ * v1 set per 13.3: HEART/CIRCLE/DROP only. `STAR` was prototyped and dropped — real-road-network
+ * measurement at the 13.1.1 size tiers found its concave vertices produce out-and-back spikes that
+ * grow with scale (45.8-60.0km actual distance at radius 1.0-1.5km, still an unrecognizable
+ * tangle), whereas the three shapes kept here stayed legible across the same range. See 13.3 for
+ * the full writeup and what re-adding a concave shape would require.
  */
 enum class ShapeType(private val svgPath: String) {
     CIRCLE(
@@ -29,17 +31,18 @@ enum class ShapeType(private val svgPath: String) {
         "M0,-100 C40,-40 70,10 70,50 C70,88 39,120 0,120 C-39,120 -70,88 -70,50 " +
             "C-70,10 -40,-40 0,-100 Z",
     ),
-    STAR(
-        "M0,-100 L23.5,-32.4 L95.1,-30.9 L38.0,12.4 L58.8,80.9 L0,40 L-58.8,80.9 L-38.0,12.4 " +
-            "L-95.1,-30.9 L-23.5,-32.4 Z",
-    ),
     ;
 
     /** Parsed/normalized once and reused across every request for this shape (immutable). */
     val template: ShapeTemplate by lazy { ShapeTemplate.fromSvgPath(svgPath) }
 
     companion object {
-        /** docs/02-api-spec.md 13.1 — null for a missing or unrecognized `shapeType` string. */
+        /**
+         * docs/02-api-spec.md 13.1/13.3 — null for a missing or unrecognized `shapeType` string.
+         * `"STAR"` deliberately falls through to null here too — it's not a registered enum entry
+         * (13.3) — which is what makes it a 400 VALIDATION_ERROR at the request layer rather than
+         * needing a separate explicit rejection list.
+         */
         fun fromRequestValue(value: String?): ShapeType? = entries.find { it.name == value }
     }
 }
@@ -47,12 +50,19 @@ enum class ShapeType(private val svgPath: String) {
 /**
  * A shape template, resampled to [POINT_COUNT] evenly arc-length-spaced points and expressed in
  * tiny-degree units centered near (0,0) — see [fromSvgPath] for why that scale is what lets
- * [GeoMath.resample]/[GeoMath.pathLengthMeters] (both haversine-based, built for real geographic
+ * [GeoMath.resample]/[GeoMath.haversineMeters] (both haversine-based, built for real geographic
  * coordinates) be reused correctly here.
  */
 class ShapeTemplate private constructor(val points: List<LatLng>) {
-    /** Perimeter of the (already effectively closed — first/last point coincide) template, meters. */
-    val perimeterMeters: Double = GeoMath.pathLengthMeters(points)
+    /**
+     * docs/02-api-spec.md 13.1.1 — "정규화된 템플릿(centroid 기준, 최원점 반경 1.0)": the greatest
+     * Haversine distance from the template's own centroid (origin, per [fromSvgPath]'s recentering)
+     * to any of its points, in meters. `DiscoveryService.generateShapeRoute` divides `size`'s fixed
+     * `templateRadiusMeters` by this to get a scale factor — equivalent to first normalizing the
+     * template to max-radius 1.0 and then multiplying by the target radius, just without a separate
+     * normalization pass.
+     */
+    val maxRadiusMeters: Double = points.maxOf { GeoMath.haversineMeters(LatLng(lat = 0.0, lng = 0.0), it) }
 
     companion object {
         // docs/02-api-spec.md 13.3 — "균등 아크렝스 N개 점(예: 40개)".

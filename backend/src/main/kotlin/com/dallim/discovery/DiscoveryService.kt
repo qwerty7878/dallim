@@ -51,9 +51,19 @@ class DiscoveryService(
         // in point-to-point mode, same purpose as BEARING_JITTER_DEGREES for the loop candidates.
         private const val POINT_TO_POINT_BEARING_JITTER_DEGREES = 20.0
 
-        // docs/02-api-spec.md 13.1 — `priority: "SHAPE"` caps retries at 2 (vs the usual
-        // MAX_ATTEMPTS) so the shape stays recognizable instead of shrinking toward the target.
-        private const val MAX_SHAPE_PRIORITY_ATTEMPTS = 2
+        // docs/02-api-spec.md 13.1.1 — size -> templateRadiusMeters. Fixed, measured scale per
+        // tier; replaces the old distance-target retry loop entirely (there's no target to hit
+        // anymore, so there's nothing to retry-adjust the scale against).
+        private val SHAPE_SIZE_RADIUS_METERS = mapOf(
+            "S" to 1000.0,
+            "M" to 1500.0,
+            "L" to 2200.0,
+        )
+
+        // docs/02-api-spec.md 13.1.1 — SHAPE mode's scale is fixed by `size`, so the only thing
+        // left to retry on is a routing failure (no path found) — up to this many total attempts,
+        // each with a freshly randomized rotation.
+        private const val MAX_SHAPE_ROUTING_ATTEMPTS = 2
 
         // Meters per degree of latitude/longitude at the equator (2*PI*EARTH_RADIUS_METERS/360,
         // same EARTH_RADIUS_METERS as GeoMath) — used to convert a ShapeTemplate's tiny-degree
@@ -145,9 +155,8 @@ class DiscoveryService(
                 validateNoShapeConflicts(request)
                 generateShapeRoute(
                     shapeType = requireShapeType(request),
-                    priority = requireShapePriority(request),
+                    templateRadiusMeters = requireShapeSizeRadiusMeters(request),
                     start = start,
-                    targetDistanceMeters = targetDistanceMeters,
                 )
             }
             else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP, POINT_TO_POINT, SHAPE만 허용됩니다.")
@@ -169,21 +178,21 @@ class DiscoveryService(
         return LatLng(lat = lat, lng = lng)
     }
 
-    /** docs/02-api-spec.md 13.1 — required, must be a registered ShapeType name, when mode == SHAPE. */
+    /**
+     * docs/02-api-spec.md 13.1 — required, must be a registered ShapeType name, when mode == SHAPE.
+     * `STAR` is deliberately not a registered entry (13.3), so it falls through to this same 400.
+     */
     private fun requireShapeType(request: DiscoveryRequest): ShapeType =
         ShapeType.fromRequestValue(request.shapeType)
             ?: throw BadRequestException(
                 ErrorCodes.VALIDATION_ERROR,
-                "shapeType은 HEART, CIRCLE, DROP, STAR 중 하나여야 해요.",
+                "shapeType은 HEART, CIRCLE, DROP 중 하나여야 해요.",
             )
 
-    /** docs/02-api-spec.md 13.1 — "DISTANCE"(default) | "SHAPE" only. */
-    private fun requireShapePriority(request: DiscoveryRequest): String {
-        if (request.priority != "DISTANCE" && request.priority != "SHAPE") {
-            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "priority는 DISTANCE 또는 SHAPE만 허용됩니다.")
-        }
-        return request.priority
-    }
+    /** docs/02-api-spec.md 13.1.1 — "S" | "M" | "L" only (default "M" already applied by DiscoveryRequest). */
+    private fun requireShapeSizeRadiusMeters(request: DiscoveryRequest): Double =
+        SHAPE_SIZE_RADIUS_METERS[request.size]
+            ?: throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "size는 S, M, L 중 하나여야 해요.")
 
     /** docs/02-api-spec.md 13.4 — SHAPE mode doesn't compose with requiredWaypoints or point-to-point (this round). */
     private fun validateNoShapeConflicts(request: DiscoveryRequest) {
@@ -232,51 +241,38 @@ class DiscoveryService(
     }
 
     /**
-     * docs/02-api-spec.md 13.1/13.3 — mode: "SHAPE". Places [ShapeTemplate.POINT_COUNT] waypoints
-     * around [start] by scaling/rotating [shapeType]'s normalized template — its first point is
-     * always pinned to [start] itself (13.3: "시작 좌표로 평행이동, 시작=끝 고정") — then routes
-     * them in order through [osrmShapeClient] (13.2's dedicated arterial-sidewalk-preferring
+     * docs/02-api-spec.md 13.1/13.1.1/13.3 — mode: "SHAPE". Places [ShapeTemplate.POINT_COUNT]
+     * waypoints around [start] by scaling/rotating [shapeType]'s normalized template — its first
+     * point is always pinned to [start] itself (13.3: "시작 좌표로 평행이동, 시작=끝 고정") — then
+     * routes them in order through [osrmShapeClient] (13.2's dedicated arterial-sidewalk-preferring
      * instance, never [osrmClient]).
      *
-     * Retries adjusting only the scale factor, same over/undershoot-ratio principle as
-     * [generateLoopRoute], up to [MAX_SHAPE_PRIORITY_ATTEMPTS] for `priority: "SHAPE"` or the usual
-     * [MAX_ATTEMPTS] for `priority: "DISTANCE"` (default) — 13.1.
+     * [templateRadiusMeters] (from `size`, 13.1.1) fixes the scale directly — `scale =
+     * templateRadiusMeters / template.maxRadiusMeters` — so unlike [generateLoopRoute] there is no
+     * distance-target retry loop at all. The only retry is on a routing failure itself (no path
+     * found): up to [MAX_SHAPE_ROUTING_ATTEMPTS] attempts, each with a freshly randomized rotation
+     * so a retry isn't just resubmitting the exact same failing waypoints.
      */
     private suspend fun generateShapeRoute(
         shapeType: ShapeType,
-        priority: String,
+        templateRadiusMeters: Double,
         start: LatLng,
-        targetDistanceMeters: Double,
     ): OsrmRouteResult {
         val template = shapeType.template
         val anchor = template.points.first()
-        // One random rotation per request (not re-rolled between retries) — same principle as
-        // generateLoopRoute's slot bearings being fixed up front and only radius/scale retried.
-        val rotationRadians = Random.nextDouble(0.0, 2 * PI)
-        val maxAttempts = if (priority == "SHAPE") MAX_SHAPE_PRIORITY_ATTEMPTS else MAX_ATTEMPTS
+        val scale = templateRadiusMeters / template.maxRadiusMeters
 
-        val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
-        val upperBound = targetDistanceMeters * (1 + TARGET_TOLERANCE)
-
-        var scale = targetDistanceMeters / template.perimeterMeters
-        var lastResult: OsrmRouteResult? = null
-
-        for (attempt in 1..maxAttempts) {
+        for (attempt in 1..MAX_SHAPE_ROUTING_ATTEMPTS) {
+            val rotationRadians = Random.nextDouble(0.0, 2 * PI)
             val waypoints = template.points.map { placeShapePoint(it, anchor, start, scale, rotationRadians) }
-            val result = runCatching { osrmShapeClient.route(waypoints) }.getOrNull() ?: continue
-            lastResult = result
-
-            if (result.distanceMeters in lowerBound..upperBound) break
-            if (result.distanceMeters > 0) {
-                scale *= targetDistanceMeters / result.distanceMeters
-            }
+            val result = runCatching { osrmShapeClient.route(waypoints) }.getOrNull()
+            if (result != null) return result
         }
 
-        return lastResult
-            ?: throw UnprocessableEntityException(
-                ErrorCodes.DISCOVERY_NO_ROUTE,
-                "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
-            )
+        throw UnprocessableEntityException(
+            ErrorCodes.DISCOVERY_NO_ROUTE,
+            "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
+        )
     }
 
     /**
