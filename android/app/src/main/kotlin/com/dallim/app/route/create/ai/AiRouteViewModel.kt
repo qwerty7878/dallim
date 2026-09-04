@@ -46,10 +46,10 @@ data class AiRouteUiState(
     val mode: String = "LOOP",
     /** POINT_TO_POINT일 때 지도 롱프레스로 지정하는 목적지 — 한 곳만 허용. */
     val destination: GeoPoint? = null,
-    /** SHAPE 모드에서 선택한 모양 — "HEART" | "CIRCLE" | "DROP" | "STAR", null이면 미선택 (13.3). */
+    /** SHAPE 모드에서 선택한 모양 — "HEART" | "CIRCLE" | "DROP", null이면 미선택 (13.3, STAR는 v1 제외). */
     val shapeType: String? = null,
-    /** SHAPE 모드 "거리 우선/모양 우선" 토글 — "DISTANCE"(기본값) | "SHAPE" (13.1). */
-    val shapePriority: String = "DISTANCE",
+    /** SHAPE 모드 크기 선택 — "S" | "M"(기본값) | "L", 모양 템플릿의 절대 스케일을 고정한다(13.1.1). */
+    val shapeSize: String = "M",
     val isGenerating: Boolean = false,
     val result: RouteDiscoveryResponseBody? = null,
     val errorMessage: String? = null,
@@ -176,9 +176,9 @@ class AiRouteViewModel @Inject constructor(
         _uiState.update { it.copy(shapeType = shapeType) }
     }
 
-    /** "거리 우선/모양 우선" 토글 (docs/02-api-spec.md 13.1). */
-    fun onShapePrioritySelected(priority: String) {
-        _uiState.update { it.copy(shapePriority = priority) }
+    /** "짧은/보통/긴 코스" 크기 선택 (docs/02-api-spec.md 13.1.1). */
+    fun onShapeSizeSelected(size: String) {
+        _uiState.update { it.copy(shapeSize = size) }
     }
 
     /** 목적지 지정 — 다시 롱프레스하면 새 위치로 교체된다(한 곳만 허용). */
@@ -230,7 +230,7 @@ class AiRouteViewModel @Inject constructor(
                 endLat = state.destination?.lat,
                 endLng = state.destination?.lng,
                 shapeType = if (state.mode == "SHAPE") state.shapeType else null,
-                priority = if (state.mode == "SHAPE") state.shapePriority else null,
+                size = if (state.mode == "SHAPE") state.shapeSize else null,
             )
             val result = safeApiCall { routeApi.discoverRoute(request) }
 

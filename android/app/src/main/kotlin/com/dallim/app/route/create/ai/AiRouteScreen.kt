@@ -99,7 +99,7 @@ fun AiRouteRoute(
         onDestinationLongPress = viewModel::onDestinationLongPress,
         onDestinationClearClick = viewModel::onDestinationClearClick,
         onShapeTypeSelected = viewModel::onShapeTypeSelected,
-        onShapePrioritySelected = viewModel::onShapePrioritySelected,
+        onShapeSizeSelected = viewModel::onShapeSizeSelected,
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
@@ -120,7 +120,7 @@ private fun AiRouteScreen(
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
     onShapeTypeSelected: (String) -> Unit,
-    onShapePrioritySelected: (String) -> Unit,
+    onShapeSizeSelected: (String) -> Unit,
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
@@ -173,7 +173,7 @@ private fun AiRouteScreen(
                     mode = uiState.mode,
                     destination = uiState.destination,
                     shapeType = uiState.shapeType,
-                    shapePriority = uiState.shapePriority,
+                    shapeSize = uiState.shapeSize,
                     enabled = !uiState.isGenerating,
                     onDistanceChange = onDistanceChange,
                     onPaceSelected = onPaceSelected,
@@ -185,7 +185,7 @@ private fun AiRouteScreen(
                     onDestinationLongPress = onDestinationLongPress,
                     onDestinationClearClick = onDestinationClearClick,
                     onShapeTypeSelected = onShapeTypeSelected,
-                    onShapePrioritySelected = onShapePrioritySelected,
+                    onShapeSizeSelected = onShapeSizeSelected,
                 )
 
                 ResultSection(uiState = uiState)
@@ -212,7 +212,7 @@ private fun InputSection(
     mode: String,
     destination: GeoPoint?,
     shapeType: String?,
-    shapePriority: String,
+    shapeSize: String,
     enabled: Boolean,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
@@ -224,28 +224,32 @@ private fun InputSection(
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
     onShapeTypeSelected: (String) -> Unit,
-    onShapePrioritySelected: (String) -> Unit,
+    onShapeSizeSelected: (String) -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md)) {
-        Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
-        Text(
-            text = "%.1fkm".format(targetDistanceKm),
-            style = DallimTypography.Title1,
-            color = DallimColors.Primary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        Slider(
-            value = targetDistanceKm,
-            onValueChange = onDistanceChange,
-            valueRange = 1f..15f,
-            steps = 27, // 0.5km 단위 (1.0~15.0)
-            enabled = enabled,
-            colors = SliderDefaults.colors(
-                thumbColor = DallimColors.Primary,
-                activeTrackColor = DallimColors.Primary,
-                inactiveTrackColor = DallimColors.Border,
-            ),
-        )
+        // SHAPE 모드에서는 서버가 targetDistanceKm을 무시하고 size(S/M/L)로 스케일을 고정하므로
+        // 슬라이더 자체를 숨긴다 — 무시되는 입력을 받게 두면 혼란만 준다(docs/02-api-spec.md 13.5).
+        if (mode != "SHAPE") {
+            Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+            Text(
+                text = "%.1fkm".format(targetDistanceKm),
+                style = DallimTypography.Title1,
+                color = DallimColors.Primary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            Slider(
+                value = targetDistanceKm,
+                onValueChange = onDistanceChange,
+                valueRange = 1f..15f,
+                steps = 27, // 0.5km 단위 (1.0~15.0)
+                enabled = enabled,
+                colors = SliderDefaults.colors(
+                    thumbColor = DallimColors.Primary,
+                    activeTrackColor = DallimColors.Primary,
+                    inactiveTrackColor = DallimColors.Border,
+                ),
+            )
+        }
 
         Text(
             text = "페이스 (선택)",
@@ -291,9 +295,9 @@ private fun InputSection(
             // (docs/02-api-spec.md 13장, requiredWaypoints/destination과 조합 불가 — 13.4).
             ShapeSection(
                 shapeType = shapeType,
-                shapePriority = shapePriority,
+                shapeSize = shapeSize,
                 onShapeTypeSelected = onShapeTypeSelected,
-                onShapePrioritySelected = onShapePrioritySelected,
+                onShapeSizeSelected = onShapeSizeSelected,
             )
         } else if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
             if (mode == "POINT_TO_POINT") {
@@ -514,26 +518,35 @@ private fun PlaceSearchResultRow(item: PlaceSearchItem, onClick: () -> Unit) {
     }
 }
 
-/** SHAPE 모드에서 고를 수 있는 등록된 모양 (docs/02-api-spec.md 13.3). */
+/** SHAPE 모드에서 고를 수 있는 등록된 모양 (docs/02-api-spec.md 13.3, STAR는 v1 제외). */
 private enum class ShapeOption(val apiValue: String, val label: String) {
     HEART("HEART", "하트"),
     CIRCLE("CIRCLE", "원"),
     DROP("DROP", "물방울"),
-    STAR("STAR", "별"),
 }
 
 /**
- * "모양 선택" 코스 방식 (docs/02-api-spec.md 13장) — 등록된 4개 모양을 아이콘 그리드로 노출하고
- * "거리 우선/모양 우선" 토글을 함께 보여준다(13.5). 이 화면 안에서 간단한 Canvas 도형으로 아이콘을
- * 직접 그린다(정교한 에셋은 이번 범위 밖) — [RouteThumbnailView]와 달리 서버 GeoJSON이 아닌
- * 고정된 4종 템플릿 미리보기라 제네릭 클립아트 금지 규칙과는 무관하다.
+ * 모양 템플릿의 절대 크기 프리셋 — 거리는 이 크기의 결과값이지 입력이 아니다
+ * (docs/02-api-spec.md 13.1.1). 표시하는 거리 범위는 하트/원/물방울 실측 기준 "약"이다.
+ */
+private enum class SizeOption(val apiValue: String, val label: String, val distanceRange: String, val note: String?) {
+    S("S", "짧은 코스 (S)", "약 9~10km", null),
+    M("M", "보통 코스 (M)", "약 14~18km", null),
+    L("L", "긴 코스 (L)", "약 20~25km", "하프마라톤급, 상급자용"),
+}
+
+/**
+ * "모양 선택" 코스 방식 (docs/02-api-spec.md 13장) — 등록된 3개 모양을 아이콘 그리드로, 크기는
+ * S/M/L 프리셋으로 고른다(13.5). 이 화면 안에서 간단한 Canvas 도형으로 아이콘을 직접 그린다
+ * (정교한 에셋은 이번 범위 밖) — [RouteThumbnailView]와 달리 서버 GeoJSON이 아닌 고정된 3종
+ * 템플릿 미리보기라 제네릭 클립아트 금지 규칙과는 무관하다.
  */
 @Composable
 private fun ShapeSection(
     shapeType: String?,
-    shapePriority: String,
+    shapeSize: String,
     onShapeTypeSelected: (String) -> Unit,
-    onShapePrioritySelected: (String) -> Unit,
+    onShapeSizeSelected: (String) -> Unit,
 ) {
     Text(
         text = "모양",
@@ -562,45 +575,57 @@ private fun ShapeSection(
         }
     }
 
-    if (shapeType == "STAR") {
-        Text(
-            text = "오목한 모서리가 있는 모양은 실제 도로에서 다소 달라질 수 있어요",
-            style = DallimTypography.Caption,
-            color = DallimColors.Warning,
-            modifier = Modifier.padding(top = Spacing.sm),
-        )
-    }
-
     Text(
-        text = "우선순위",
+        text = "크기",
         style = DallimTypography.Title2,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )
     Text(
-        text = if (shapePriority == "SHAPE") {
-            "모양을 더 뚜렷하게 유지해요 — 결과 거리가 목표보다 많이 길어질 수 있어요"
-        } else {
-            "목표 거리에 최대한 맞춰요 — 모양이 다소 작아질 수 있어요"
-        },
+        text = "모양의 크기를 고르면 결과 거리가 정해져요 (13.1.1 실측 기준, 도로 사정에 따라 달라질 수 있어요)",
         style = DallimTypography.Caption,
         color = DallimColors.TextSecondary,
         modifier = Modifier.padding(top = Spacing.xs),
     )
-    Row(
+    Column(
         modifier = Modifier.padding(top = Spacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        DallimFilterChip(
-            label = "거리 우선",
-            selected = shapePriority == "DISTANCE",
-            onClick = { onShapePrioritySelected("DISTANCE") },
-        )
-        DallimFilterChip(
-            label = "모양 우선",
-            selected = shapePriority == "SHAPE",
-            onClick = { onShapePrioritySelected("SHAPE") },
-        )
+        SizeOption.entries.forEach { option ->
+            SizeOptionRow(
+                option = option,
+                selected = shapeSize == option.apiValue,
+                onClick = { onShapeSizeSelected(option.apiValue) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SizeOptionRow(
+    option: SizeOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentColor = if (selected) DallimColors.Primary else DallimColors.TextPrimary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DallimShapes.CardCorner)
+            .background(if (selected) DallimColors.PrimaryLight else DallimColors.Surface)
+            .clickable(onClick = onClick)
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = option.label, style = DallimTypography.Body, color = contentColor)
+            Text(
+                text = if (option.note != null) "${option.distanceRange} · ${option.note}" else option.distanceRange,
+                style = DallimTypography.Caption,
+                color = if (selected) DallimColors.Primary else DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
     }
 }
 
@@ -645,7 +670,6 @@ private fun DrawScope.drawShapeGlyph(option: ShapeOption, color: Color) {
         )
         ShapeOption.HEART -> drawPath(path = heartGlyphPath(size), color = color, style = stroke)
         ShapeOption.DROP -> drawPath(path = dropGlyphPath(size), color = color, style = stroke)
-        ShapeOption.STAR -> drawPath(path = starGlyphPath(size), color = color, style = stroke)
     }
 }
 
@@ -672,24 +696,6 @@ private fun dropGlyphPath(size: Size): Path {
         cubicTo(cx - w * 0.38f, h * 0.94f, cx - w * 0.46f, h * 0.38f, cx, h * 0.06f)
         close()
     }
-}
-
-/** 5각 별 — 바깥/안쪽 반지름을 번갈아 잇는 10개 점 폴리곤. */
-private fun starGlyphPath(size: Size): Path {
-    val cx = size.width / 2f
-    val cy = size.height / 2f
-    val outerR = size.minDimension / 2f * 0.92f
-    val innerR = outerR * 0.382f
-    val path = Path()
-    for (i in 0 until 10) {
-        val angle = -PI.toFloat() / 2f + i * PI.toFloat() / 5f
-        val r = if (i % 2 == 0) outerR else innerR
-        val x = cx + r * cos(angle)
-        val y = cy + r * sin(angle)
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
-    path.close()
-    return path
 }
 
 /** 임의의 점 목록을 [size] 안에 [marginFraction] 여백을 두고 중앙 정렬해 닫힌 Path로 변환한다. */
@@ -816,7 +822,7 @@ private fun AiRouteScreenPreview() {
             onDestinationLongPress = {},
             onDestinationClearClick = {},
             onShapeTypeSelected = {},
-            onShapePrioritySelected = {},
+            onShapeSizeSelected = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
@@ -855,7 +861,7 @@ private fun AiRouteScreenResultPreview() {
             onDestinationLongPress = {},
             onDestinationClearClick = {},
             onShapeTypeSelected = {},
-            onShapePrioritySelected = {},
+            onShapeSizeSelected = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},

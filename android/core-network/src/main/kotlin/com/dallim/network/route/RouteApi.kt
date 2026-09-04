@@ -145,12 +145,17 @@ data class RouteDiscoveryRequest(
     val endLat: Double? = null,
     val endLng: Double? = null,
     /**
-     * mode가 SHAPE일 때만 필수 — "HEART" | "CIRCLE" | "DROP" | "STAR" (docs/02-api-spec.md 13.1/13.3).
+     * mode가 SHAPE일 때만 필수 — "HEART" | "CIRCLE" | "DROP" (docs/02-api-spec.md 13.1/13.3, STAR는
+     * 오목한 꼭짓점 문제로 v1에서 제외).
      * SHAPE와 [requiredWaypoints]/[endLat]/[endLng]는 함께 보낼 수 없다(13.4, 400 VALIDATION_ERROR).
      */
     val shapeType: String? = null,
-    /** mode가 SHAPE일 때만 의미 있음 — "DISTANCE"(기본값) | "SHAPE" (docs/02-api-spec.md 13.1). */
-    val priority: String? = null,
+    /**
+     * mode가 SHAPE일 때만 의미 있음 — "S" | "M"(기본값) | "L", 모양 템플릿의 절대 크기를 직접
+     * 고정한다(docs/02-api-spec.md 13.1.1). `targetDistanceKm`으로 스케일을 맞추던 방식은 모양이
+     * 뭉개지는 문제로 폐기됐다 — 거리는 이 크기의 결과값이지 입력이 아니다.
+     */
+    val size: String? = null,
 )
 
 @Serializable
