@@ -212,10 +212,10 @@ private fun BottomPanel(
                 )
             }
             DallimCheckboxRow(
-                uiState.closeLoop,
-                "출발점으로 돌아오기",
-                onCloseLoopToggle,
-                Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+                checked = uiState.closeLoop,
+                onCheckedChange = onCloseLoopToggle,
+                label = "출발점으로 돌아오기",
+                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 DallimSecondaryButton(
