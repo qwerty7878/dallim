@@ -29,8 +29,21 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
+
+/**
+ * OkHttp's 10s default read timeout is too tight for `POST /routes/draw-convert`
+ * (docs/02-api-spec.md 8장): the backend's OSRM map-matching call can legitimately take 15-20s+ for
+ * a finger-drawn trace through a dense downtown road network (e.g. central Seoul), and the backend
+ * side of this same timeout was raised to match (see backend HttpClientFactory). Every other
+ * endpoint responds in well under a second, so raising the ceiling here doesn't change their
+ * effective behavior — it only stops legitimate-but-slow OSRM calls from failing client-side with
+ * a generic "네트워크 연결을 확인해주세요" error.
+ */
+private const val READ_TIMEOUT_SECONDS = 45L
+private const val CONNECT_TIMEOUT_SECONDS = 10L
 
 private val Context.dallimTokenDataStore: DataStore<Preferences> by preferencesDataStore(name = "dallim_tokens")
 
@@ -95,6 +108,8 @@ object NetworkModule {
         .addInterceptor(authInterceptor)
         .authenticator(tokenAuthenticator)
         .addInterceptor(loggingInterceptor)
+        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
     @Provides
