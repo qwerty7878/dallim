@@ -4,6 +4,7 @@ import com.dallim.auth.authRoutes
 import com.dallim.common.ApiResponse
 import com.dallim.dallimbook.dallimbookRoutes
 import com.dallim.discovery.discoveryRoutes
+import com.dallim.notification.notificationRoutes
 import com.dallim.route.homeRoutes
 import com.dallim.route.routeRoutes
 import com.dallim.run.runRoutes
@@ -37,6 +38,7 @@ fun Application.configureRouting() {
             runRoutes()
             dallimbookRoutes()
             discoveryRoutes()
+            notificationRoutes()
         }
     }
 }

@@ -5,6 +5,7 @@ import com.dallim.common.ConflictException
 import com.dallim.common.ErrorCodes
 import com.dallim.common.GeoJsonLineString
 import com.dallim.common.NotFoundException
+import com.dallim.notification.NotificationService
 import java.time.Instant
 
 /**
@@ -18,6 +19,7 @@ class RunService(
     private val runRepository: RunRepository,
     private val judgementService: RunJudgementService,
     private val finisherCountSync: FinisherCountSync,
+    private val notificationService: NotificationService,
 ) {
     private val finishedStatuses = setOf(RunStatus.COMPLETED, RunStatus.PARTIAL, RunStatus.ABORTED, RunStatus.UNDER_REVIEW)
 
@@ -118,6 +120,15 @@ class RunService(
 
         if (result.status == RunStatus.COMPLETED) {
             finisherCountSync.recordFinisher(run.routeId)
+            // docs/02-api-spec.md 9.4 — RUN_COMPLETED in-app notification, fired at the same point
+            // the finisher count is recorded (COMPLETED is the only trigger in this phase).
+            val routeName = runRepository.findRouteName(run.routeId) ?: ""
+            notificationService.notifyRunCompleted(
+                userId = userId,
+                runId = runId,
+                routeName = routeName,
+                distanceKm = result.distanceMeters / 1000.0,
+            )
         }
 
         return RunFinishResponse(

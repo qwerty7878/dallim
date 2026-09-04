@@ -50,6 +50,9 @@ object ErrorCodes {
     const val DRAW_MATCH_FAILED = "DRAW_MATCH_FAILED"
     const val DISCOVERY_NO_ROUTE = "DISCOVERY_NO_ROUTE"
 
+    // notification (docs/02-api-spec.md 9장)
+    const val NOTIFICATION_NOT_FOUND = "NOTIFICATION_NOT_FOUND"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"

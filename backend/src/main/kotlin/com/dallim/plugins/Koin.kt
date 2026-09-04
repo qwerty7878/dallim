@@ -4,6 +4,7 @@ import com.dallim.auth.authModule
 import com.dallim.common.HttpClientFactory
 import com.dallim.dallimbook.dallimbookModule
 import com.dallim.discovery.discoveryModule
+import com.dallim.notification.notificationModule
 import com.dallim.route.routeModule
 import com.dallim.run.runModule
 import com.dallim.user.userModule
@@ -33,6 +34,15 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
 
     install(Koin) {
         slf4jLogger()
-        modules(coreModule, authModule, userModule, routeModule, runModule, dallimbookModule, discoveryModule)
+        modules(
+            coreModule,
+            authModule,
+            userModule,
+            routeModule,
+            runModule,
+            dallimbookModule,
+            discoveryModule,
+            notificationModule,
+        )
     }
 }

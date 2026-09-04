@@ -11,10 +11,15 @@ import org.koin.dsl.module
  * FinisherCountSync reuses the shared Redis connection + Database beans registered in
  * plugins/Koin.kt's coreModule (see RedisFactory). Its periodic flushToDatabase() is started from
  * com.dallim.Application, not here — Koin modules only wire dependencies, they don't start jobs.
+ *
+ * RunService also depends on com.dallim.notification.NotificationService (loaded via
+ * notificationModule, registered alongside this module in plugins/Koin.kt) to fire the
+ * RUN_COMPLETED in-app notification right next to FinisherCountSync.recordFinisher
+ * (docs/02-api-spec.md 9.4).
  */
 val runModule = module {
     single { RunRepository(get(), get()) }
     single { RunJudgementService() }
     single { FinisherCountSync(get(), get()) }
-    single { RunService(get(), get(), get()) }
+    single { RunService(get(), get(), get(), get()) }
 }
