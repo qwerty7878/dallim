@@ -1,5 +1,6 @@
 package com.dallim.plugins
 
+import com.dallim.push.DeviceTokenTable
 import com.dallim.route.SavedRouteTable
 import com.dallim.route.SketchRouteTable
 import com.dallim.run.GpsPointTable
@@ -52,6 +53,7 @@ object Databases {
         SavedRouteTable,
         RunRecordTable,
         GpsPointTable,
+        DeviceTokenTable,
     )
 
     fun devSanityCheck(database: Database) {

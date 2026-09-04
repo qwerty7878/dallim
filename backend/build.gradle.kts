@@ -62,6 +62,9 @@ dependencies {
     // --- Redis (refresh token store) ---
     implementation("io.lettuce:lettuce-core:6.4.0.RELEASE")
 
+    // --- FCM push (docs/02-api-spec.md 10장) ---
+    implementation("com.google.firebase:firebase-admin:9.5.0")
+
     // --- Logging ---
     implementation("ch.qos.logback:logback-classic:1.5.12")
 

@@ -14,6 +14,7 @@ data class DallimConfig(
     val redis: RedisSettings,
     val oauth: OAuthSettings,
     val osrm: OsrmSettings,
+    val fcm: FcmSettings,
 ) {
     data class JwtSettings(
         val secret: String,
@@ -43,6 +44,16 @@ data class DallimConfig(
     data class OsrmSettings(
         val baseUrl: String,
     )
+
+    /**
+     * docs/02-api-spec.md 10.2 — path to the Firebase Admin SDK service account JSON. Never the
+     * key content itself, just where to find it on disk; the file is gitignored
+     * (backend/secrets/, see backend/.gitignore) and must never be committed or hardcoded
+     * elsewhere in the codebase.
+     */
+    data class FcmSettings(
+        val credentialsPath: String,
+    )
 }
 
 fun Application.loadDallimConfig(): DallimConfig {
@@ -56,6 +67,7 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
     val redis = config("redis")
     val oauth = config("oauth")
     val osrm = config("osrm")
+    val fcm = config("fcm")
 
     return DallimConfig(
         profile = property("profile").getString(),
@@ -82,6 +94,9 @@ private fun ApplicationConfig.toDallimConfig(): DallimConfig {
         ),
         osrm = DallimConfig.OsrmSettings(
             baseUrl = osrm.property("baseUrl").getString(),
+        ),
+        fcm = DallimConfig.FcmSettings(
+            credentialsPath = fcm.property("credentialsPath").getString(),
         ),
     )
 }

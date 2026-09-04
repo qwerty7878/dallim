@@ -2,17 +2,22 @@ package com.dallim.notification
 
 import com.dallim.common.ErrorCodes
 import com.dallim.common.NotFoundException
+import com.dallim.push.FcmPushService
+import org.slf4j.LoggerFactory
 import java.util.Locale
 
 /**
- * Notification domain business logic — docs/02-api-spec.md 9장 (인앱 알림함). NotificationRoutes.kt
- * stays a thin HTTP adapter; [notifyRunCompleted] has no route of its own — it's called from
- * com.dallim.run.RunService.finishRun, right next to FinisherCountSync.recordFinisher
- * (docs/02-api-spec.md 9.4).
+ * Notification domain business logic — docs/02-api-spec.md 9장 (인앱 알림함) + 10장 (FCM 푸시,
+ * 알림 2단계). NotificationRoutes.kt stays a thin HTTP adapter; [notifyRunCompleted] has no route
+ * of its own — it's called from com.dallim.run.RunService.finishRun, right next to
+ * FinisherCountSync.recordFinisher (docs/02-api-spec.md 9.4).
  */
 class NotificationService(
     private val notificationRepository: NotificationRepository,
+    private val fcmPushService: FcmPushService,
 ) {
+    private val logger = LoggerFactory.getLogger(NotificationService::class.java)
+
     /** GET /notifications. */
     fun listMyNotifications(userId: String, page: Int, size: Int): NotificationListResponse {
         val safePage = page.coerceAtLeast(0)
@@ -50,7 +55,8 @@ class NotificationService(
 
     /**
      * docs/02-api-spec.md 9.4 — 러닝 완주(COMPLETED) 확정 시 1건 생성. title은 스펙 예시 그대로 고정
-     * 문구, body는 "{코스명} {거리}km를 완주했어요." 포맷.
+     * 문구, body는 "{코스명} {거리}km를 완주했어요." 포맷. 10.2에 따라 인앱 레코드 생성 직후 동일한
+     * title/body로 등록된 기기에 FCM 푸시도 발송한다.
      */
     fun notifyRunCompleted(userId: String, runId: String, routeName: String, distanceKm: Double) {
         val title = "완주를 축하드려요! 🎉"
@@ -63,5 +69,18 @@ class NotificationService(
             body = body,
             relatedRunId = runId,
         )
+
+        pushToDevices(userId, title, body)
+    }
+
+    /**
+     * docs/02-api-spec.md 10.2 — fires strictly after the in-app record above is committed
+     * (NotificationRepository.create's own `transaction {}` has already returned), and is
+     * deliberately outside that transaction. A push failure here must never roll back or hide
+     * the in-app notification, so every exception is caught and only logged.
+     */
+    private fun pushToDevices(userId: String, title: String, body: String) {
+        runCatching { fcmPushService.sendToUser(userId, title, body) }
+            .onFailure { logger.warn("FCM push failed for userId={}", userId, it) }
     }
 }
