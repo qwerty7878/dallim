@@ -30,6 +30,14 @@ data class AiRouteUiState(
      * 삭제된다. 비어 있으면 생성 요청에서 필드를 빈 리스트로 보낸다.
      */
     val requiredWaypoints: List<GeoPoint> = emptyList(),
+    /**
+     * "LOOP"(기본값, 출발점으로 돌아옴) | "POINT_TO_POINT"(지정한 목적지까지만 감,
+     * docs/02-api-spec.md 11.4). 서로 배타적이라 POINT_TO_POINT로 바꾸면 [requiredWaypoints]는
+     * 비워지고, LOOP로 되돌리면 [destination]이 비워진다.
+     */
+    val mode: String = "LOOP",
+    /** POINT_TO_POINT일 때 지도 롱프레스로 지정하는 목적지 — 한 곳만 허용. */
+    val destination: GeoPoint? = null,
     val isGenerating: Boolean = false,
     val result: RouteDiscoveryResponseBody? = null,
     val errorMessage: String? = null,
@@ -80,6 +88,25 @@ class AiRouteViewModel @Inject constructor(
         _uiState.update { it.copy(requiredWaypoints = it.requiredWaypoints - point) }
     }
 
+    /** LOOP <-> POINT_TO_POINT 전환 — 서로 배타적인 상대 필드를 비운다(docs/02-api-spec.md 11.5). */
+    fun onModeSelected(mode: String) {
+        _uiState.update {
+            when (mode) {
+                "POINT_TO_POINT" -> it.copy(mode = mode, requiredWaypoints = emptyList())
+                else -> it.copy(mode = "LOOP", destination = null)
+            }
+        }
+    }
+
+    /** 목적지 지정 — 다시 롱프레스하면 새 위치로 교체된다(한 곳만 허용). */
+    fun onDestinationLongPress(point: GeoPoint) {
+        _uiState.update { it.copy(destination = point) }
+    }
+
+    fun onDestinationClearClick() {
+        _uiState.update { it.copy(destination = null) }
+    }
+
     private companion object {
         const val MAX_REQUIRED_WAYPOINTS = 3
     }
@@ -87,6 +114,12 @@ class AiRouteViewModel @Inject constructor(
     /** "코스 생성" / "다시 생성" 공용 — 같은 입력이라도 서버가 매번 다른 반지름 편차를 준다. */
     fun onGenerateClick() {
         if (_uiState.value.isGenerating) return
+
+        val stateBeforeLaunch = _uiState.value
+        if (stateBeforeLaunch.mode == "POINT_TO_POINT" && stateBeforeLaunch.destination == null) {
+            _uiState.update { it.copy(errorMessage = "지도를 길게 눌러 목적지를 먼저 지정해주세요.") }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true, errorMessage = null) }
@@ -106,6 +139,9 @@ class AiRouteViewModel @Inject constructor(
                 targetDistanceKm = state.targetDistanceKm.toDouble(),
                 pace = state.pace?.apiValue,
                 requiredWaypoints = state.requiredWaypoints.map { RouteWaypoint(lat = it.lat, lng = it.lng) },
+                mode = state.mode,
+                endLat = state.destination?.lat,
+                endLng = state.destination?.lng,
             )
             val result = safeApiCall { routeApi.discoverRoute(request) }
 

@@ -112,7 +112,7 @@ data class RouteDrawConvertResponseBody(
     val distanceKm: Double,
 )
 
-// --- 8.2 POST /routes/discovery (requiredWaypoints: docs/02-api-spec.md 11.2) ---
+// --- 8.2 POST /routes/discovery (requiredWaypoints: docs/02-api-spec.md 11.2, point-to-point: 11.4) ---
 
 /** "꼭 지나갈 장소" 필수 경유지 하나 — 요청당 최대 3개(docs/02-api-spec.md 11.2). */
 @Serializable
@@ -127,6 +127,11 @@ data class RouteDiscoveryRequest(
     val pace: String? = null,
     /** 비어 있으면(기본값) 필드를 그냥 빈 배열로 보낸다 — 서버가 없는 것과 동일하게 처리한다. */
     val requiredWaypoints: List<RouteWaypoint> = emptyList(),
+    /** "LOOP"(기본값) | "POINT_TO_POINT" (docs/02-api-spec.md 11.4). */
+    val mode: String = "LOOP",
+    /** mode가 POINT_TO_POINT일 때만 둘 다 채운다. */
+    val endLat: Double? = null,
+    val endLng: Double? = null,
 )
 
 @Serializable

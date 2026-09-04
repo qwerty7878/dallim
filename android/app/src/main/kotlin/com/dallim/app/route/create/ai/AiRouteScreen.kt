@@ -75,6 +75,9 @@ fun AiRouteRoute(
         onPaceSelected = viewModel::onPaceSelected,
         onWaypointLongPress = viewModel::onWaypointLongPress,
         onWaypointClick = viewModel::onWaypointClick,
+        onModeSelected = viewModel::onModeSelected,
+        onDestinationLongPress = viewModel::onDestinationLongPress,
+        onDestinationClearClick = viewModel::onDestinationClearClick,
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
@@ -89,6 +92,9 @@ private fun AiRouteScreen(
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
     onWaypointClick: (GeoPoint) -> Unit,
+    onModeSelected: (String) -> Unit,
+    onDestinationLongPress: (GeoPoint) -> Unit,
+    onDestinationClearClick: () -> Unit,
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
@@ -135,11 +141,16 @@ private fun AiRouteScreen(
                     pace = uiState.pace,
                     initialCenter = uiState.initialCenter,
                     requiredWaypoints = uiState.requiredWaypoints,
+                    mode = uiState.mode,
+                    destination = uiState.destination,
                     enabled = !uiState.isGenerating,
                     onDistanceChange = onDistanceChange,
                     onPaceSelected = onPaceSelected,
                     onWaypointLongPress = onWaypointLongPress,
                     onWaypointClick = onWaypointClick,
+                    onModeSelected = onModeSelected,
+                    onDestinationLongPress = onDestinationLongPress,
+                    onDestinationClearClick = onDestinationClearClick,
                 )
 
                 ResultSection(uiState = uiState)
@@ -160,11 +171,16 @@ private fun InputSection(
     pace: ComfortablePace?,
     initialCenter: GeoPoint?,
     requiredWaypoints: List<GeoPoint>,
+    mode: String,
+    destination: GeoPoint?,
     enabled: Boolean,
     onDistanceChange: (Float) -> Unit,
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
     onWaypointClick: (GeoPoint) -> Unit,
+    onModeSelected: (String) -> Unit,
+    onDestinationLongPress: (GeoPoint) -> Unit,
+    onDestinationClearClick: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md)) {
         Text(text = "목표 거리", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
@@ -207,14 +223,83 @@ private fun InputSection(
             }
         }
 
-        if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
-            WaypointSection(
-                initialCenter = initialCenter,
-                requiredWaypoints = requiredWaypoints,
-                onWaypointLongPress = onWaypointLongPress,
-                onWaypointClick = onWaypointClick,
+        Text(
+            text = "코스 방식",
+            style = DallimTypography.Title2,
+            color = DallimColors.TextPrimary,
+            modifier = Modifier.padding(top = Spacing.lg),
+        )
+        Row(
+            modifier = Modifier.padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            DallimFilterChip(label = "순환 코스", selected = mode == "LOOP", onClick = { onModeSelected("LOOP") })
+            DallimFilterChip(
+                label = "목적지 지정",
+                selected = mode == "POINT_TO_POINT",
+                onClick = { onModeSelected("POINT_TO_POINT") },
             )
         }
+
+        if (BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
+            if (mode == "POINT_TO_POINT") {
+                DestinationSection(
+                    initialCenter = initialCenter,
+                    destination = destination,
+                    onDestinationLongPress = onDestinationLongPress,
+                    onDestinationClearClick = onDestinationClearClick,
+                )
+            } else {
+                WaypointSection(
+                    initialCenter = initialCenter,
+                    requiredWaypoints = requiredWaypoints,
+                    onWaypointLongPress = onWaypointLongPress,
+                    onWaypointClick = onWaypointClick,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * "목적지 지정" 모드(docs/02-api-spec.md 11.4) — 지도 롱프레스로 도착지를 한 곳만 지정한다.
+ * 다시 롱프레스하면 기존 지정을 덮어쓴다(여러 목적지는 개념적으로 말이 안 되므로 1개 고정).
+ */
+@Composable
+private fun DestinationSection(
+    initialCenter: GeoPoint?,
+    destination: GeoPoint?,
+    onDestinationLongPress: (GeoPoint) -> Unit,
+    onDestinationClearClick: () -> Unit,
+) {
+    Text(
+        text = "목적지",
+        style = DallimTypography.Title2,
+        color = DallimColors.TextPrimary,
+        modifier = Modifier.padding(top = Spacing.lg),
+    )
+    Text(
+        text = if (destination != null) "지도를 다시 길게 누르면 목적지가 바뀌어요" else "지도를 길게 눌러 목적지를 지정하세요",
+        style = DallimTypography.Caption,
+        color = DallimColors.TextSecondary,
+        modifier = Modifier.padding(top = Spacing.xs),
+    )
+    Box(
+        modifier = Modifier
+            .padding(top = Spacing.sm)
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(DallimShapes.CardCorner),
+    ) {
+        NaverRouteMapView(
+            plannedRoute = emptyList(),
+            actualRoute = emptyList(),
+            initialCenter = initialCenter,
+            waypoints = listOfNotNull(destination),
+            onMapLongClick = onDestinationLongPress,
+            onWaypointClick = { onDestinationClearClick() },
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
@@ -309,7 +394,11 @@ private fun ResultSection(uiState: AiRouteUiState) {
             }
             else -> DallimEmptyState(
                 title = "아래 버튼으로 코스를 만들어보세요",
-                description = "현재 위치에서 출발해 다시 돌아오는 코스를 만들어드려요.",
+                description = if (uiState.mode == "POINT_TO_POINT") {
+                    "현재 위치에서 출발해 지정한 목적지까지 가는 코스를 만들어드려요."
+                } else {
+                    "현재 위치에서 출발해 다시 돌아오는 코스를 만들어드려요."
+                },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
             )
         }
@@ -362,6 +451,9 @@ private fun AiRouteScreenPreview() {
             onPaceSelected = {},
             onWaypointLongPress = {},
             onWaypointClick = {},
+            onModeSelected = {},
+            onDestinationLongPress = {},
+            onDestinationClearClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
@@ -394,6 +486,9 @@ private fun AiRouteScreenResultPreview() {
             onPaceSelected = {},
             onWaypointLongPress = {},
             onWaypointClick = {},
+            onModeSelected = {},
+            onDestinationLongPress = {},
+            onDestinationClearClick = {},
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
