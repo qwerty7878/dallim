@@ -12,6 +12,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 DATA_DIR="$ROOT/osrm-data"
+PROFILE_DIR="$ROOT/scripts/osrm-profiles"
 PBF="$DATA_DIR/south-korea.osm.pbf"
 OSRM_FILE="$DATA_DIR/south-korea.osrm"
 # Geofabrik south-korea-latest.osm.pbf는 날짜가 박힌 실제 파일로 리다이렉트된다 — latest만 받으면 됨.
@@ -24,9 +25,12 @@ if [ ! -f "$PBF" ] || [ "${1:-}" = "--fresh" ]; then
   curl -L -o "$PBF" "$SOURCE_URL"
 fi
 
-echo "[osrm-build] osrm-extract (foot profile)..."
-docker run --rm -v "$DATA_DIR:/data" osrm/osrm-backend \
-  osrm-extract -p /opt/foot.lua /data/south-korea.osm.pbf
+# 표준 OSRM foot 프로필이 아니라, 도로 안전성 기준(docs/01-feature-spec.md 2.2.C)에 맞춰 인도/
+# 공원 보행로를 우대하고 인도 없는 큰길을 기피하도록 커스텀한 프로필을 쓴다
+# (scripts/osrm-profiles/dallim-foot.lua, docs/02-api-spec.md 8.2).
+echo "[osrm-build] osrm-extract (dallim-foot profile)..."
+docker run --rm -v "$DATA_DIR:/data" -v "$PROFILE_DIR:/profiles" osrm/osrm-backend \
+  osrm-extract -p /profiles/dallim-foot.lua /data/south-korea.osm.pbf
 
 echo "[osrm-build] osrm-partition (MLD)..."
 docker run --rm -v "$DATA_DIR:/data" osrm/osrm-backend \
