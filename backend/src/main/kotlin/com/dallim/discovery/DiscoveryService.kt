@@ -38,6 +38,10 @@ class DiscoveryService(
         // closeLoop treats the loop as already closed and skips the extra OSRM round trip.
         private const val CLOSE_LOOP_GAP_THRESHOLD_METERS = 15.0
 
+        // docs/02-api-spec.md 11.4 — jitter applied to the detour waypoint's perpendicular bearing
+        // in point-to-point mode, same purpose as BEARING_JITTER_DEGREES for the loop candidates.
+        private const val POINT_TO_POINT_BEARING_JITTER_DEGREES = 20.0
+
         // Matches the pace implied by the curated SketchRoute seed data
         // (db/migration/V2__seed_curated_routes.sql: distance_km/estimated_minutes ratios cluster
         // around 6.9-7.1 min/km), used here since docs/02-api-spec.md 8.2 has no explicit pace
@@ -86,7 +90,11 @@ class DiscoveryService(
         )
     }
 
-    /** POST /routes/discovery (docs/02-api-spec.md 8.2, requiredWaypoints option per 11.2). */
+    /**
+     * POST /routes/discovery (docs/02-api-spec.md 8.2/11.2/11.4). Validates `mode` and the fields
+     * it requires, then dispatches to the loop or point-to-point algorithm — both funnel through
+     * [respond] to build the final [DiscoveryResponse] the same way.
+     */
     suspend fun generateDiscoveryRoute(request: DiscoveryRequest): DiscoveryResponse {
         if (request.requiredWaypoints.size > MAX_REQUIRED_WAYPOINTS) {
             throw BadRequestException(
@@ -97,6 +105,44 @@ class DiscoveryService(
 
         val start = LatLng(lat = request.startLat, lng = request.startLng)
         val targetDistanceMeters = request.targetDistanceKm * 1000.0
+
+        val result = when (request.mode) {
+            "LOOP" -> generateLoopRoute(request, start, targetDistanceMeters)
+            "POINT_TO_POINT" -> {
+                if (request.requiredWaypoints.isNotEmpty()) {
+                    throw BadRequestException(
+                        ErrorCodes.VALIDATION_ERROR,
+                        "point-to-point 모드에서는 필수 경유지를 함께 지정할 수 없어요.",
+                    )
+                }
+                val end = requireEndPoint(request)
+                generatePointToPointRoute(start, end, targetDistanceMeters)
+            }
+            else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP 또는 POINT_TO_POINT만 허용됩니다.")
+        }
+
+        return respond(result)
+    }
+
+    /** docs/02-api-spec.md 11.4 — both endLat/endLng required together when mode == POINT_TO_POINT. */
+    private fun requireEndPoint(request: DiscoveryRequest): LatLng {
+        val lat = request.endLat
+        val lng = request.endLng
+        if (lat == null || lng == null) {
+            throw BadRequestException(
+                ErrorCodes.VALIDATION_ERROR,
+                "point-to-point 모드는 endLat/endLng가 모두 필요해요.",
+            )
+        }
+        return LatLng(lat = lat, lng = lng)
+    }
+
+    /** docs/02-api-spec.md 8.2 — the original always-loops-back-to-start algorithm, requiredWaypoints per 11.2. */
+    private suspend fun generateLoopRoute(
+        request: DiscoveryRequest,
+        start: LatLng,
+        targetDistanceMeters: Double,
+    ): OsrmRouteResult {
         var radius = targetDistanceMeters / (2 * PI)
 
         // Fixed vs radius-adjustable slots, decided once up front — 11.2: the retry loop below
@@ -120,15 +166,62 @@ class DiscoveryService(
             }
         }
 
-        val finalResult = lastResult
+        return lastResult
             ?: throw UnprocessableEntityException(
                 ErrorCodes.DISCOVERY_NO_ROUTE,
                 "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
             )
+    }
 
-        val distanceKm = finalResult.distanceMeters.toRoundedKm()
+    /**
+     * docs/02-api-spec.md 11.4 — routes from [start] to a fixed [end], detouring only if the
+     * direct route falls short of [targetDistanceMeters]. A too-long direct route (destination is
+     * simply farther than the target) is returned as-is — a fixed endpoint can't be shortened.
+     *
+     * The detour point sits perpendicular to the start-end bearing at a [radius] from [start],
+     * jittered/side-randomized so "다시 생성" gives a different bow each time; radius is adjusted
+     * by the same over/undershoot ratio as [generateLoopRoute]'s candidates.
+     */
+    private suspend fun generatePointToPointRoute(
+        start: LatLng,
+        end: LatLng,
+        targetDistanceMeters: Double,
+    ): OsrmRouteResult {
+        val direct = runCatching { osrmClient.route(listOf(start, end)) }.getOrNull()
+            ?: throw UnprocessableEntityException(
+                ErrorCodes.DISCOVERY_NO_ROUTE,
+                "요청하신 두 지점 사이에서 경로를 찾지 못했습니다.",
+            )
+
+        val lowerBound = targetDistanceMeters * (1 - TARGET_TOLERANCE)
+        if (direct.distanceMeters >= lowerBound) return direct
+
+        val baseBearing = GeoMath.bearingDegrees(start, end)
+        val side = if (Random.nextBoolean()) 1.0 else -1.0
+        val detourBearing = baseBearing + side * 90.0 + Random.nextDouble(-POINT_TO_POINT_BEARING_JITTER_DEGREES, POINT_TO_POINT_BEARING_JITTER_DEGREES)
+        var radius = targetDistanceMeters / 2.0
+
+        val upperBound = targetDistanceMeters * (1 + TARGET_TOLERANCE)
+        var lastResult: OsrmRouteResult = direct
+
+        for (attempt in 1..MAX_ATTEMPTS) {
+            val detour = GeoMath.destination(start, detourBearing, radius)
+            val result = runCatching { osrmClient.route(listOf(start, detour, end)) }.getOrNull() ?: continue
+            lastResult = result
+
+            if (result.distanceMeters in lowerBound..upperBound) break
+            if (result.distanceMeters > 0) {
+                radius *= targetDistanceMeters / result.distanceMeters
+            }
+        }
+
+        return lastResult
+    }
+
+    private fun respond(result: OsrmRouteResult): DiscoveryResponse {
+        val distanceKm = result.distanceMeters.toRoundedKm()
         return DiscoveryResponse(
-            geoJson = finalResult.geometry,
+            geoJson = result.geometry,
             distanceKm = distanceKm,
             estimatedMinutes = (distanceKm * ASSUMED_MINUTES_PER_KM).roundToInt(),
         )

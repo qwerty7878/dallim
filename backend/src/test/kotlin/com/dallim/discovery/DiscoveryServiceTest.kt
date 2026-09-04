@@ -381,4 +381,110 @@ class DiscoveryServiceTest {
         assertEquals(HttpStatusCode.BadRequest, ex.status)
         assertEquals(0, fake.routeCallCount, "should reject before ever calling OSRM")
     }
+
+    // ---------------------------------------------------------------------
+    // discovery point-to-point mode (11.4)
+    // ---------------------------------------------------------------------
+
+    private fun p2pRequest(targetDistanceKm: Double = 5.0) = DiscoveryRequest(
+        startLng = 126.9235,
+        startLat = 37.3905,
+        targetDistanceKm = targetDistanceKm,
+        mode = "POINT_TO_POINT",
+        endLat = 37.4200,
+        endLng = 126.9500,
+    )
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point returns the direct route unmodified when it already meets the target`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(5200.0))))
+        val service = DiscoveryService(fake)
+
+        val response = runBlocking { service.generateDiscoveryRoute(p2pRequest()) }
+
+        assertEquals(1, fake.routeCallCount, "a direct route already within tolerance should never trigger a detour call")
+        assertEquals(5.2, response.distanceKm)
+        // direct call is exactly [start, end], no detour point in the middle
+        assertEquals(2, fake.receivedWaypoints.single().size)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point adds a detour when the direct route falls short`() {
+        val fake = FakeOsrmClient(
+            routeResults = listOf(
+                Result.success(fakeResult(2000.0)), // direct: way under the 5km target
+                Result.success(fakeResult(4900.0)), // detour attempt: within tolerance -> stop
+            ),
+        )
+        val service = DiscoveryService(fake)
+
+        val response = runBlocking { service.generateDiscoveryRoute(p2pRequest()) }
+
+        assertEquals(2, fake.routeCallCount)
+        assertEquals(2, fake.receivedWaypoints[0].size, "first call is the direct [start, end] probe")
+        assertEquals(3, fake.receivedWaypoints[1].size, "detour call is [start, detour, end]")
+        assertEquals(4.9, response.distanceKm)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point without endLat-endLng is a 400 VALIDATION_ERROR`() {
+        val fake = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(fake)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(
+                    DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, mode = "POINT_TO_POINT"),
+                )
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, fake.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point combined with requiredWaypoints is a 400 VALIDATION_ERROR`() {
+        val fake = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(fake)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(
+                    p2pRequest().copy(requiredWaypoints = listOf(LatLngDto(lat = 37.40, lng = 126.93))),
+                )
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+        assertEquals(0, fake.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - unknown mode is a 400 VALIDATION_ERROR`() {
+        val fake = FakeOsrmClient(routeResults = emptyList())
+        val service = DiscoveryService(fake)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking {
+                service.generateDiscoveryRoute(
+                    DiscoveryRequest(startLng = 126.9235, startLat = 37.3905, targetDistanceKm = 5.0, mode = "BOGUS"),
+                )
+            }
+        }
+        assertEquals(ErrorCodes.VALIDATION_ERROR, ex.code)
+        assertEquals(HttpStatusCode.BadRequest, ex.status)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - point-to-point with no route between start and end is DISCOVERY_NO_ROUTE (422)`() {
+        val fake = FakeOsrmClient(routeResults = listOf(Result.failure(RuntimeException("no route"))))
+        val service = DiscoveryService(fake)
+
+        val ex = assertFailsWith<ApiException> {
+            runBlocking { service.generateDiscoveryRoute(p2pRequest()) }
+        }
+        assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
+        assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
+    }
 }
