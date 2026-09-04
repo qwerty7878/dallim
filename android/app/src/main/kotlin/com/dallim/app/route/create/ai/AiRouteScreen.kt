@@ -1,6 +1,7 @@
 package com.dallim.app.route.create.ai
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -19,6 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -43,11 +47,13 @@ import com.dallim.app.BuildConfig
 import com.dallim.app.onboarding.profile.ComfortablePace
 import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
+import com.dallim.network.route.PlaceSearchItem
 import com.dallim.network.route.RouteDiscoveryResponseBody
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteThumbnailView
@@ -75,6 +81,8 @@ fun AiRouteRoute(
         onPaceSelected = viewModel::onPaceSelected,
         onWaypointLongPress = viewModel::onWaypointLongPress,
         onWaypointClick = viewModel::onWaypointClick,
+        onPlaceSearchQueryChange = viewModel::onPlaceSearchQueryChange,
+        onPlaceSearchResultClick = viewModel::onPlaceSearchResultClick,
         onModeSelected = viewModel::onModeSelected,
         onDestinationLongPress = viewModel::onDestinationLongPress,
         onDestinationClearClick = viewModel::onDestinationClearClick,
@@ -92,6 +100,8 @@ private fun AiRouteScreen(
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
     onWaypointClick: (GeoPoint) -> Unit,
+    onPlaceSearchQueryChange: (String) -> Unit,
+    onPlaceSearchResultClick: (PlaceSearchItem) -> Unit,
     onModeSelected: (String) -> Unit,
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
@@ -141,6 +151,9 @@ private fun AiRouteScreen(
                     pace = uiState.pace,
                     initialCenter = uiState.initialCenter,
                     requiredWaypoints = uiState.requiredWaypoints,
+                    placeSearchQuery = uiState.placeSearchQuery,
+                    placeSearchResults = uiState.placeSearchResults,
+                    isSearchingPlaces = uiState.isSearchingPlaces,
                     mode = uiState.mode,
                     destination = uiState.destination,
                     enabled = !uiState.isGenerating,
@@ -148,6 +161,8 @@ private fun AiRouteScreen(
                     onPaceSelected = onPaceSelected,
                     onWaypointLongPress = onWaypointLongPress,
                     onWaypointClick = onWaypointClick,
+                    onPlaceSearchQueryChange = onPlaceSearchQueryChange,
+                    onPlaceSearchResultClick = onPlaceSearchResultClick,
                     onModeSelected = onModeSelected,
                     onDestinationLongPress = onDestinationLongPress,
                     onDestinationClearClick = onDestinationClearClick,
@@ -171,6 +186,9 @@ private fun InputSection(
     pace: ComfortablePace?,
     initialCenter: GeoPoint?,
     requiredWaypoints: List<GeoPoint>,
+    placeSearchQuery: String,
+    placeSearchResults: List<PlaceSearchItem>,
+    isSearchingPlaces: Boolean,
     mode: String,
     destination: GeoPoint?,
     enabled: Boolean,
@@ -178,6 +196,8 @@ private fun InputSection(
     onPaceSelected: (ComfortablePace?) -> Unit,
     onWaypointLongPress: (GeoPoint) -> Unit,
     onWaypointClick: (GeoPoint) -> Unit,
+    onPlaceSearchQueryChange: (String) -> Unit,
+    onPlaceSearchResultClick: (PlaceSearchItem) -> Unit,
     onModeSelected: (String) -> Unit,
     onDestinationLongPress: (GeoPoint) -> Unit,
     onDestinationClearClick: () -> Unit,
@@ -255,8 +275,13 @@ private fun InputSection(
             WaypointSection(
                 initialCenter = initialCenter,
                 requiredWaypoints = requiredWaypoints,
+                placeSearchQuery = placeSearchQuery,
+                placeSearchResults = placeSearchResults,
+                isSearchingPlaces = isSearchingPlaces,
                 onWaypointLongPress = onWaypointLongPress,
                 onWaypointClick = onWaypointClick,
+                onPlaceSearchQueryChange = onPlaceSearchQueryChange,
+                onPlaceSearchResultClick = onPlaceSearchResultClick,
             )
         }
     }
@@ -317,8 +342,13 @@ private fun DestinationSection(
 private fun WaypointSection(
     initialCenter: GeoPoint?,
     requiredWaypoints: List<GeoPoint>,
+    placeSearchQuery: String,
+    placeSearchResults: List<PlaceSearchItem>,
+    isSearchingPlaces: Boolean,
     onWaypointLongPress: (GeoPoint) -> Unit,
     onWaypointClick: (GeoPoint) -> Unit,
+    onPlaceSearchQueryChange: (String) -> Unit,
+    onPlaceSearchResultClick: (PlaceSearchItem) -> Unit,
 ) {
     Text(
         text = "꼭 지나갈 장소 (선택, 최대 3곳)",
@@ -328,7 +358,7 @@ private fun WaypointSection(
     )
     Text(
         text = when {
-            requiredWaypoints.isEmpty() -> "지도를 길게 눌러 지정하세요"
+            requiredWaypoints.isEmpty() -> "지도를 길게 누르거나, 장소를 검색해서 지정하세요"
             requiredWaypoints.size < 3 -> "지도를 길게 눌러 추가하거나, 마커를 눌러 삭제하세요"
             else -> "최대 개수에 도달했어요 — 마커를 눌러 삭제할 수 있어요"
         },
@@ -336,6 +366,18 @@ private fun WaypointSection(
         color = DallimColors.TextSecondary,
         modifier = Modifier.padding(top = Spacing.xs),
     )
+
+    // 지도 롱프레스를 대체하는 게 아니라 추가되는 입력 수단 — 선택한 결과는 그대로
+    // onWaypointLongPress로 흘러가 롱프레스와 동일한 3곳 상한/마커 렌더링을 그대로 탄다.
+    PlaceSearchField(
+        query = placeSearchQuery,
+        results = placeSearchResults,
+        isSearching = isSearchingPlaces,
+        onQueryChange = onPlaceSearchQueryChange,
+        onResultClick = onPlaceSearchResultClick,
+        modifier = Modifier.padding(top = Spacing.sm),
+    )
+
     Box(
         modifier = Modifier
             .padding(top = Spacing.sm)
@@ -352,6 +394,89 @@ private fun WaypointSection(
             onWaypointClick = onWaypointClick,
             modifier = Modifier.fillMaxSize(),
         )
+    }
+}
+
+/**
+ * "꼭 지나갈 장소" 검색창 (docs/02-api-spec.md 12장). debounce는 [AiRouteViewModel]에서
+ * 클라이언트 책임으로 처리하므로 여기서는 입력값을 그대로 흘려보내기만 한다. 검색 결과가 항상
+ * 빈 배열일 수 있으므로(백엔드 키 미설정 시에도) "검색했지만 결과 없음"을 별도 상태로 보여준다.
+ */
+@Composable
+private fun PlaceSearchField(
+    query: String,
+    results: List<PlaceSearchItem>,
+    isSearching: Boolean,
+    onQueryChange: (String) -> Unit,
+    onResultClick: (PlaceSearchItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        DallimTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = "장소 검색",
+            placeholder = "예: 안양역",
+        )
+
+        when {
+            isSearching -> Row(
+                modifier = Modifier.padding(top = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    color = DallimColors.Primary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "검색 중이에요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                )
+            }
+            query.isNotBlank() && results.isEmpty() -> Text(
+                text = "검색 결과가 없어요",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            results.isNotEmpty() -> Column(modifier = Modifier.padding(top = Spacing.sm)) {
+                results.forEach { item ->
+                    PlaceSearchResultRow(item = item, onClick = { onResultClick(item) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceSearchResultRow(item: PlaceSearchItem, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DallimShapes.CardCorner)
+            .background(DallimColors.Surface)
+            .clickable { onClick() }
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.LocationOn,
+            contentDescription = null,
+            tint = DallimColors.TextSecondary,
+            modifier = Modifier.size(24.dp),
+        )
+        Column(modifier = Modifier.padding(start = Spacing.sm)) {
+            Text(text = item.name, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            Text(
+                text = item.address,
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
     }
 }
 
@@ -453,6 +578,8 @@ private fun AiRouteScreenPreview() {
             onPaceSelected = {},
             onWaypointLongPress = {},
             onWaypointClick = {},
+            onPlaceSearchQueryChange = {},
+            onPlaceSearchResultClick = {},
             onModeSelected = {},
             onDestinationLongPress = {},
             onDestinationClearClick = {},
@@ -488,6 +615,8 @@ private fun AiRouteScreenResultPreview() {
             onPaceSelected = {},
             onWaypointLongPress = {},
             onWaypointClick = {},
+            onPlaceSearchQueryChange = {},
+            onPlaceSearchResultClick = {},
             onModeSelected = {},
             onDestinationLongPress = {},
             onDestinationClearClick = {},

@@ -6,15 +6,19 @@ import com.dallim.app.common.UiResult
 import com.dallim.app.common.safeApiCall
 import com.dallim.app.onboarding.firstroute.CurrentLocationProvider
 import com.dallim.app.onboarding.profile.ComfortablePace
+import com.dallim.network.route.PlaceSearchItem
 import com.dallim.network.route.RouteApi
 import com.dallim.network.route.RouteDiscoveryRequest
 import com.dallim.network.route.RouteDiscoveryResponseBody
 import com.dallim.network.route.RouteWaypoint
 import com.dallim.ui.components.GeoPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -44,6 +48,13 @@ data class AiRouteUiState(
     val errorMessage: String? = null,
     /** "저장" 탭 시 보여줄 스낵바 메시지 — 실제 저장 API는 이번 라운드 범위 밖(docs/02-api-spec.md 8.3). */
     val snackbarMessage: String? = null,
+    /**
+     * "꼭 지나갈 장소" 검색 입력값 (docs/02-api-spec.md 12장). `GET /routes/places/search`는 항상
+     * 200에 `items`만 내려주므로 "결과 없음"과 "업스트림 소프트 실패"는 화면에서 구분하지 않는다.
+     */
+    val placeSearchQuery: String = "",
+    val placeSearchResults: List<PlaceSearchItem> = emptyList(),
+    val isSearchingPlaces: Boolean = false,
 )
 
 /**
@@ -51,6 +62,7 @@ data class AiRouteUiState(
  * 순환 코스를 만든다 (docs/02-api-spec.md 8.2). 매 호출마다 서버가 반지름에 무작위 편차를 주므로
  * "다시 생성"을 누르면 같은 입력이라도 다른 코스가 나온다 — 이게 "수정" 체감을 준다.
  */
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class AiRouteViewModel @Inject constructor(
     private val routeApi: RouteApi,
@@ -60,12 +72,21 @@ class AiRouteViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AiRouteUiState())
     val uiState: StateFlow<AiRouteUiState> = _uiState.asStateFlow()
 
+    /** 장소 검색어 debounce 입력 — 매 키 입력마다 API를 호출하지 않기 위한 클라이언트 책임(12.3). */
+    private val placeSearchQueryInput = MutableStateFlow("")
+
     init {
         viewModelScope.launch {
             val location = locationProvider.getCurrentLocation()
             if (location != null) {
                 _uiState.update { it.copy(initialCenter = GeoPoint(lng = location.second, lat = location.first)) }
             }
+        }
+        viewModelScope.launch {
+            placeSearchQueryInput
+                .debounce(400)
+                .distinctUntilChanged()
+                .collect { query -> searchPlaces(query) }
         }
     }
 
@@ -87,6 +108,43 @@ class AiRouteViewModel @Inject constructor(
     /** 마커 탭 — 그 지점 하나만 삭제한다. */
     fun onWaypointClick(point: GeoPoint) {
         _uiState.update { it.copy(requiredWaypoints = it.requiredWaypoints - point) }
+    }
+
+    /** 검색창 입력 — 실제 API 호출은 [placeSearchQueryInput] debounce 이후에만 일어난다. */
+    fun onPlaceSearchQueryChange(query: String) {
+        _uiState.update { it.copy(placeSearchQuery = query) }
+        placeSearchQueryInput.value = query
+    }
+
+    private suspend fun searchPlaces(query: String) {
+        if (query.isBlank()) {
+            _uiState.update { it.copy(placeSearchResults = emptyList(), isSearchingPlaces = false) }
+            return
+        }
+
+        _uiState.update { it.copy(isSearchingPlaces = true) }
+        val center = _uiState.value.initialCenter
+        val result = safeApiCall { routeApi.searchPlaces(query = query, lat = center?.lat, lng = center?.lng) }
+
+        // Stale-response guard: 검색어가 그 사이 또 바뀌었으면 이 응답은 버린다.
+        if (_uiState.value.placeSearchQuery != query) return
+        _uiState.update { current ->
+            when (result) {
+                is UiResult.Success -> current.copy(isSearchingPlaces = false, placeSearchResults = result.data.items)
+                is UiResult.Error -> current.copy(isSearchingPlaces = false, placeSearchResults = emptyList())
+                UiResult.Loading -> current
+            }
+        }
+    }
+
+    /**
+     * 검색 결과 선택 — [onWaypointLongPress]와 동일한 로직(최대 [MAX_REQUIRED_WAYPOINTS]개 상한)을
+     * 그대로 재사용한다. 선택 후에는 검색창/결과 목록을 닫는다.
+     */
+    fun onPlaceSearchResultClick(item: PlaceSearchItem) {
+        onWaypointLongPress(GeoPoint(lng = item.lng, lat = item.lat))
+        placeSearchQueryInput.value = ""
+        _uiState.update { it.copy(placeSearchQuery = "", placeSearchResults = emptyList(), isSearchingPlaces = false) }
     }
 
     /**

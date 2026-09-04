@@ -41,6 +41,18 @@ interface RouteApi {
     /** S-45 AI 자동 생성 — 시작 위치 + 목표 거리로 순환 코스를 생성한다 (docs/02-api-spec.md 8.2). */
     @POST("routes/discovery")
     suspend fun discoverRoute(@Body request: RouteDiscoveryRequest): Response<ApiResponse<RouteDiscoveryResponseBody>>
+
+    /**
+     * S-45 "꼭 지나갈 장소" 검색 (docs/02-api-spec.md 12장). 인증 불필요, 항상 200 — 결과 없음과
+     * 업스트림 소프트 실패를 구분하지 않고 똑같이 빈 `items`로 취급한다. `lat`/`lng`는 위치 우선순위
+     * 힌트일 뿐 optional이다. debounce는 서버가 아닌 클라이언트(호출부) 책임.
+     */
+    @GET("routes/places/search")
+    suspend fun searchPlaces(
+        @Query("query") query: String,
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null,
+    ): Response<ApiResponse<PlaceSearchResponseBody>>
 }
 
 @Serializable
@@ -140,3 +152,16 @@ data class RouteDiscoveryResponseBody(
     val distanceKm: Double,
     val estimatedMinutes: Int,
 )
+
+// --- 12장 GET /routes/places/search ---
+
+@Serializable
+data class PlaceSearchItem(
+    val name: String,
+    val address: String,
+    val lat: Double,
+    val lng: Double,
+)
+
+@Serializable
+data class PlaceSearchResponseBody(val items: List<PlaceSearchItem>)
