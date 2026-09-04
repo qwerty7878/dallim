@@ -62,4 +62,7 @@ object DallimDestinations {
     fun dallimbookDetail(runId: String) = "$DALLIMBOOK_DETAIL_BASE/$runId"
 
     const val MY = "s42_my" // S-42
+
+    /** S-46 알림 목록 — 홈(S-10) 종 아이콘에서 진입 (docs/01-feature-spec.md §1.7). */
+    const val NOTIFICATIONS = "s46_notifications" // S-46
 }

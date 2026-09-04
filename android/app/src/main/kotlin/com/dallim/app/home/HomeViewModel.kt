@@ -7,6 +7,7 @@ import com.dallim.app.common.safeApiCall
 import com.dallim.app.onboarding.firstroute.CurrentLocationProvider
 import com.dallim.network.home.HomeApi
 import com.dallim.network.home.HomeResponseBody
+import com.dallim.network.notification.NotificationApi
 import com.dallim.network.user.SavedRouteItem
 import com.dallim.network.user.UserApi
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,12 @@ sealed interface HomeUiState {
          * null — 이 경우 화면은 인사말 없이 기존 "달림" 타이틀만 보여준다.
          */
         val nickname: String? = null,
+        /**
+         * 종 아이콘 배지용 안 읽은 알림 개수 (`GET /notifications/unread-count`,
+         * docs/02-api-spec.md 9.2). 조회 실패 시 0으로 흡수한다 — 배지가 안 보이는 것뿐이라
+         * 홈 화면 자체를 깨뜨릴 정도의 실패는 아니다(저장 코스/닉네임과 동일한 원칙).
+         */
+        val unreadNotificationCount: Int = 0,
     ) : HomeUiState
 
     data class Error(val message: String) : HomeUiState
@@ -49,11 +56,16 @@ sealed interface HomeUiState {
  * 조회가 실패하거나 닉네임이 빈 문자열이어도(온보딩 프로필 설정 미완료) 홈 화면 전체는 깨지지
  * 않고 [HomeUiState.Success.nickname]이 null로 흡수되어 인사말만 생략된다(저장 코스와 동일한
  * 원칙). `UserMeResponseBody`에는 gender가 없으므로(CLAUDE.md 규칙 2) 별도 처리는 필요 없다.
+ *
+ * 종 아이콘 배지(S-46 알림함 진입점)를 위해 `GET /notifications/unread-count`도 네 번째 병렬
+ * 요청으로 붙인다(docs/01-feature-spec.md §1.7, docs/02-api-spec.md 9.2) — 실패 시 0으로
+ * 흡수해 배지만 안 보일 뿐 홈 화면 자체는 깨지지 않는다.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val homeApi: HomeApi,
     private val userApi: UserApi,
+    private val notificationApi: NotificationApi,
     private val locationProvider: CurrentLocationProvider,
 ) : ViewModel() {
 
@@ -74,15 +86,18 @@ class HomeViewModel @Inject constructor(
                 safeApiCall { userApi.getSavedRoutes(page = 0, size = SAVED_PREVIEW_SIZE) }
             }
             val meDeferred = async { safeApiCall { userApi.getMe() } }
+            val unreadCountDeferred = async { safeApiCall { notificationApi.getUnreadCount() } }
             val homeResult = homeDeferred.await()
             val savedResult = savedDeferred.await()
             val meResult = meDeferred.await()
+            val unreadCountResult = unreadCountDeferred.await()
 
             _uiState.value = when (homeResult) {
                 is UiResult.Success -> HomeUiState.Success(
                     home = homeResult.data,
                     savedRoutesPreview = (savedResult as? UiResult.Success)?.data?.items ?: emptyList(),
                     nickname = (meResult as? UiResult.Success)?.data?.nickname?.takeIf { it.isNotBlank() },
+                    unreadNotificationCount = (unreadCountResult as? UiResult.Success)?.data?.unreadCount ?: 0,
                 )
                 is UiResult.Error -> HomeUiState.Error(homeResult.message)
                 UiResult.Loading -> HomeUiState.Loading

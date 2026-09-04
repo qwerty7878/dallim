@@ -13,6 +13,7 @@ import com.dallim.app.dallimbook.grid.DallimbookGridRoute
 import com.dallim.app.discover.DiscoverRoute
 import com.dallim.app.home.HomeRoute
 import com.dallim.app.my.MyRoute
+import com.dallim.app.notification.NotificationListRoute
 import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
 import com.dallim.app.onboarding.firstroute.FirstRouteSuggestionRoute
 import com.dallim.app.onboarding.login.LoginRoute
@@ -153,7 +154,14 @@ fun DallimNavHost(
             HomeRoute(
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onSeeAllSavedRoutesClick = { navController.navigate(DallimDestinations.SAVED_ROUTES) },
+                onNotificationClick = { navController.navigate(DallimDestinations.NOTIFICATIONS) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
+            )
+        }
+
+        composable(DallimDestinations.NOTIFICATIONS) {
+            NotificationListRoute(
+                onBackClick = { navController.popBackStack() },
             )
         }
 

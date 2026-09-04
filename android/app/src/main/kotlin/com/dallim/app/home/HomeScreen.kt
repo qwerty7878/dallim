@@ -16,8 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +73,7 @@ import java.time.format.DateTimeFormatter
 fun HomeRoute(
     onRouteClick: (routeId: String) -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
+    onNotificationClick: () -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
@@ -78,6 +84,7 @@ fun HomeRoute(
         uiState = uiState,
         onRouteClick = onRouteClick,
         onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
+        onNotificationClick = onNotificationClick,
         onTabSelected = onTabSelected,
         onRetryClick = viewModel::load,
         modifier = modifier,
@@ -89,6 +96,7 @@ private fun HomeScreen(
     uiState: HomeUiState,
     onRouteClick: (routeId: String) -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
+    onNotificationClick: () -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -109,22 +117,29 @@ private fun HomeScreen(
             // 프로필 설정을 마친 사용자만 닉네임을 받아온다 — 실패/미설정 시 null로 흡수돼
             // 인사말 없이 기존 "달림" 타이틀만 보인다 (HomeViewModel KDoc 참고).
             val nickname = (uiState as? HomeUiState.Success)?.nickname
+            val unreadNotificationCount = (uiState as? HomeUiState.Success)?.unreadNotificationCount ?: 0
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(
-                    start = Spacing.ScreenHorizontal,
-                    end = Spacing.ScreenHorizontal,
-                    top = Spacing.md,
-                    bottom = if (nickname != null) Spacing.xs else Spacing.md,
-                ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = Spacing.ScreenHorizontal,
+                        end = Spacing.sm,
+                        top = Spacing.md,
+                        bottom = if (nickname != null) Spacing.xs else Spacing.md,
+                    ),
             ) {
-                DallimMark(modifier = Modifier.size(28.dp))
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Text(
-                    text = "달림",
-                    style = DallimTypography.Title1,
-                    color = DallimColors.TextPrimary,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DallimMark(modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Text(
+                        text = "달림",
+                        style = DallimTypography.Title1,
+                        color = DallimColors.TextPrimary,
+                    )
+                }
+                NotificationBellButton(unreadCount = unreadNotificationCount, onClick = onNotificationClick)
             }
             if (nickname != null) {
                 Text(
@@ -172,6 +187,41 @@ private fun HomeScreen(
 
                     Box(modifier = Modifier.padding(bottom = Spacing.xxl))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 홈(S-10) 상단 종 모양 아이콘 + 안 읽은 개수 배지 — 탭하면 S-46 알림 목록으로 이동한다
+ * (docs/01-feature-spec.md §1.7). 배지는 안 읽은 알림이 있을 때만 보이고, 99개를 넘으면
+ * "99+"로 자른다.
+ */
+@Composable
+private fun NotificationBellButton(unreadCount: Int, onClick: () -> Unit) {
+    Box {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = Icons.Filled.Notifications,
+                contentDescription = "알림",
+                tint = DallimColors.TextPrimary,
+            )
+        }
+        if (unreadCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = Spacing.xs, end = Spacing.xs)
+                    .clip(CircleShape)
+                    .background(DallimColors.Error)
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                    style = DallimTypography.Caption,
+                    color = DallimColors.Surface,
+                )
             }
         }
     }
@@ -346,9 +396,11 @@ private fun HomeScreenPreview() {
                     SavedRouteItem(routeId = "rt_002", name = "물고기", emoji = "🐟", distanceKm = 4.2, hasRun = false),
                 ),
                 nickname = "달리는고래",
+                unreadNotificationCount = 3,
             ),
             onRouteClick = {},
             onSeeAllSavedRoutesClick = {},
+            onNotificationClick = {},
             onTabSelected = {},
             onRetryClick = {},
         )

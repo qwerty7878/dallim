@@ -13,6 +13,7 @@ import com.dallim.network.auth.TokenAuthenticator
 import com.dallim.network.auth.TokenProvider
 import com.dallim.network.dallimbook.DallimbookApi
 import com.dallim.network.home.HomeApi
+import com.dallim.network.notification.NotificationApi
 import com.dallim.network.route.RouteApi
 import com.dallim.network.run.RunApi
 import com.dallim.network.user.UserApi
@@ -158,4 +159,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideDallimbookApi(retrofit: Retrofit): DallimbookApi = retrofit.create(DallimbookApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationApi(retrofit: Retrofit): NotificationApi = retrofit.create(NotificationApi::class.java)
 }
