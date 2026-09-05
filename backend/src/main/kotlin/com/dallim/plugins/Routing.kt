@@ -4,6 +4,7 @@ import com.dallim.auth.authRoutes
 import com.dallim.common.ApiResponse
 import com.dallim.dallimbook.dallimbookRoutes
 import com.dallim.discovery.discoveryRoutes
+import com.dallim.meetup.meetupRoutes
 import com.dallim.notification.notificationRoutes
 import com.dallim.push.deviceTokenRoutes
 import com.dallim.route.homeRoutes
@@ -41,6 +42,7 @@ fun Application.configureRouting() {
             discoveryRoutes()
             notificationRoutes()
             deviceTokenRoutes()
+            meetupRoutes()
         }
     }
 }

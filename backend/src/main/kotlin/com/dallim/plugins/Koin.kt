@@ -4,6 +4,7 @@ import com.dallim.auth.authModule
 import com.dallim.common.HttpClientFactory
 import com.dallim.dallimbook.dallimbookModule
 import com.dallim.discovery.discoveryModule
+import com.dallim.meetup.meetupModule
 import com.dallim.notification.notificationModule
 import com.dallim.push.pushModule
 import com.dallim.route.routeModule
@@ -45,6 +46,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             discoveryModule,
             notificationModule,
             pushModule,
+            meetupModule,
         )
     }
 }

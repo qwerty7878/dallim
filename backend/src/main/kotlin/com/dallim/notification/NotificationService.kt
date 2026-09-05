@@ -74,6 +74,28 @@ class NotificationService(
     }
 
     /**
+     * docs/02-api-spec.md 14.5, docs/01-feature-spec.md 1.8.2 — fires at the meetup's host when
+     * someone else joins their recruiting post. There is no `related_meetup_id` column on
+     * `notifications` (only `related_run_id`, from the 9장 phase-1 schema) and SPEC doesn't ask
+     * for one here, so [relatedRunId] is left null for this notification type — same 10.2 FCM
+     * fan-out as every other notification, no additional wiring needed.
+     */
+    fun notifyMeetupJoined(hostUserId: String, joinerNickname: String, routeName: String) {
+        val title = "모집에 새 참가자가 있어요"
+        val body = "${joinerNickname}님이 [$routeName] 모집에 참가했어요"
+
+        notificationRepository.create(
+            userId = hostUserId,
+            type = NotificationType.MEETUP_JOINED,
+            title = title,
+            body = body,
+            relatedRunId = null,
+        )
+
+        pushToDevices(hostUserId, title, body)
+    }
+
+    /**
      * docs/02-api-spec.md 10.2 — fires strictly after the in-app record above is committed
      * (NotificationRepository.create's own `transaction {}` has already returned), and is
      * deliberately outside that transaction. A push failure here must never roll back or hide

@@ -12,6 +12,7 @@ import com.dallim.route.RouteStatusUpdateJob
 import com.dallim.route.untilNext3AmMillis
 import com.dallim.run.FinisherCountSync
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.log
 import io.ktor.server.netty.EngineMain
 import kotlinx.coroutines.delay
@@ -37,6 +38,18 @@ fun Application.module() {
     configureSecurity(config)
     configureDependencyInjection(config, dataSource, database)
     configureRouting()
+
+    // Release the HikariCP pool (and Redis client) on shutdown — previously missing, which is
+    // harmless for a single long-lived prod process but leaks Postgres connections across every
+    // `testApplication { }` block in the integration test suite (each one runs this same
+    // module()). With enough integration tests in one JVM run, the leaked connections eventually
+    // exceed Postgres's max_connections and unrelated later tests start failing with
+    // HikariPool$PoolInitializationException — see src/test/resources/application-test.conf's
+    // long-standing NOTE about this exact gap. Also applies in prod for a graceful redeploy.
+    environment.monitor.subscribe(ApplicationStopping) {
+        runCatching { (dataSource as? java.io.Closeable)?.close() }
+            .onFailure { log.warn("failed to close dataSource on shutdown", it) }
+    }
 
     startFinisherCountSyncJob()
     startRouteStatusUpdateJob()

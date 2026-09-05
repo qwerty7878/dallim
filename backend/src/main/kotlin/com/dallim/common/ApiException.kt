@@ -53,6 +53,13 @@ object ErrorCodes {
     // notification (docs/02-api-spec.md 9장)
     const val NOTIFICATION_NOT_FOUND = "NOTIFICATION_NOT_FOUND"
 
+    // meetup (docs/02-api-spec.md 14장, run-together recruiting)
+    const val MEETUP_NOT_FOUND = "MEETUP_NOT_FOUND"
+    const val ALREADY_JOINED = "ALREADY_JOINED"
+    const val MEETUP_FULL = "MEETUP_FULL"
+    const val MEETUP_ENDED = "MEETUP_ENDED"
+    const val MEETUP_NOT_HOST = "MEETUP_NOT_HOST"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"
@@ -64,6 +71,11 @@ class NotFoundException(code: String, message: String) :
 
 class ConflictException(code: String, message: String) :
     ApiException(HttpStatusCode.Conflict, code, message)
+
+/** 403 — the caller is authenticated but not allowed to perform this action (first use:
+ * DELETE /meetups/{meetupId} by a non-host, docs/02-api-spec.md 14.4 MEETUP_NOT_HOST). */
+class ForbiddenException(code: String, message: String) :
+    ApiException(HttpStatusCode.Forbidden, code, message)
 
 class BadRequestException(code: String, message: String) :
     ApiException(HttpStatusCode.BadRequest, code, message)

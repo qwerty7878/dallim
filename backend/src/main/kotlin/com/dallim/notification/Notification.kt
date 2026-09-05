@@ -8,14 +8,17 @@ import java.time.Instant
 /**
  * In-app notification (docs/02-api-spec.md 9장, docs/01-feature-spec.md 1.7 S-46).
  *
- * Phase 1 only ever creates RUN_COMPLETED notifications, from
- * com.dallim.run.RunService.finishRun right next to FinisherCountSync.recordFinisher
- * (docs/02-api-spec.md 9.4). Phone system push (FCM) and any other trigger (nearby new route,
- * marketing, ...) are explicitly out of scope for this round (9.5) — do not add more values here
+ * RUN_COMPLETED is created from com.dallim.run.RunService.finishRun right next to
+ * FinisherCountSync.recordFinisher (docs/02-api-spec.md 9.4). MEETUP_JOINED is created from
+ * com.dallim.meetup.MeetupService.join, fired at the host when someone joins their recruiting
+ * post (docs/02-api-spec.md 14.5, docs/01-feature-spec.md 1.8.2) — no other meetup action
+ * notifies anyone (14.6). Phone system push (FCM) is already wired generically at
+ * NotificationService.notifyRunCompleted/notifyMeetupJoined — do not add more trigger values here
  * without a corresponding SPEC update.
  */
 enum class NotificationType {
     RUN_COMPLETED,
+    MEETUP_JOINED,
 }
 
 object NotificationTable : Table("notifications") {
