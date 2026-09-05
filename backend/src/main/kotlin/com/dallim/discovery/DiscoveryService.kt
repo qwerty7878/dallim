@@ -2,6 +2,7 @@ package com.dallim.discovery
 
 import com.dallim.common.BadRequestException
 import com.dallim.common.ErrorCodes
+import com.dallim.common.FrechetDistance
 import com.dallim.common.GeoJsonLineString
 import com.dallim.common.GeoMath
 import com.dallim.common.LatLng
@@ -59,11 +60,6 @@ class DiscoveryService(
             "M" to 1500.0,
             "L" to 2200.0,
         )
-
-        // docs/02-api-spec.md 13.1.1 — SHAPE mode's scale is fixed by `size`, so the only thing
-        // left to retry on is a routing failure (no path found) — up to this many total attempts,
-        // each with a freshly randomized rotation.
-        private const val MAX_SHAPE_ROUTING_ATTEMPTS = 2
 
         // Meters per degree of latitude/longitude at the equator (2*PI*EARTH_RADIUS_METERS/360,
         // same EARTH_RADIUS_METERS as GeoMath) — used to convert a ShapeTemplate's tiny-degree
@@ -241,17 +237,20 @@ class DiscoveryService(
     }
 
     /**
-     * docs/02-api-spec.md 13.1/13.1.1/13.3 — mode: "SHAPE". Places [ShapeTemplate.POINT_COUNT]
-     * waypoints around [start] by scaling/rotating [shapeType]'s normalized template — its first
-     * point is always pinned to [start] itself (13.3: "시작 좌표로 평행이동, 시작=끝 고정") — then
-     * routes them in order through [osrmShapeClient] (13.2's dedicated arterial-sidewalk-preferring
-     * instance, never [osrmClient]).
+     * docs/02-api-spec.md 13.1/13.1.1/13.1.2/13.3 — mode: "SHAPE". Generates
+     * [N_SHAPE_CANDIDATES] differently-rotated placements of [shapeType]'s normalized template
+     * around [start] — each one's first point is always pinned to [start] itself (13.3: "시작
+     * 좌표로 평행이동, 시작=끝 고정") — routes every candidate in order through [osrmShapeClient]
+     * (13.2's dedicated arterial-sidewalk-preferring instance, never [osrmClient]), drops whichever
+     * candidates fail to route, and hands the survivors to [selectBestShapeCandidate] to pick the
+     * one whose routed geometry looks most like its own (rotated) template.
      *
      * [templateRadiusMeters] (from `size`, 13.1.1) fixes the scale directly — `scale =
      * templateRadiusMeters / template.maxRadiusMeters` — so unlike [generateLoopRoute] there is no
-     * distance-target retry loop at all. The only retry is on a routing failure itself (no path
-     * found): up to [MAX_SHAPE_ROUTING_ATTEMPTS] attempts, each with a freshly randomized rotation
-     * so a retry isn't just resubmitting the exact same failing waypoints.
+     * distance-target retry loop; every candidate uses the same scale, only the rotation differs.
+     *
+     * If every candidate's routing call fails, this throws the same `422 DISCOVERY_NO_ROUTE` as
+     * before the redesign.
      */
     private suspend fun generateShapeRoute(
         shapeType: ShapeType,
@@ -262,17 +261,21 @@ class DiscoveryService(
         val anchor = template.points.first()
         val scale = templateRadiusMeters / template.maxRadiusMeters
 
-        for (attempt in 1..MAX_SHAPE_ROUTING_ATTEMPTS) {
+        val candidates = (1..N_SHAPE_CANDIDATES).mapNotNull {
             val rotationRadians = Random.nextDouble(0.0, 2 * PI)
-            val waypoints = template.points.map { placeShapePoint(it, anchor, start, scale, rotationRadians) }
-            val result = runCatching { osrmShapeClient.route(waypoints) }.getOrNull()
-            if (result != null) return result
+            val templatePoints = template.points.map { point -> placeShapePoint(point, anchor, start, scale, rotationRadians) }
+            val routeResult = runCatching { osrmShapeClient.route(templatePoints) }.getOrNull() ?: return@mapNotNull null
+            ShapeRouteCandidate(templatePoints = templatePoints, routeResult = routeResult)
         }
 
-        throw UnprocessableEntityException(
-            ErrorCodes.DISCOVERY_NO_ROUTE,
-            "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
-        )
+        if (candidates.isEmpty()) {
+            throw UnprocessableEntityException(
+                ErrorCodes.DISCOVERY_NO_ROUTE,
+                "요청하신 위치 주변에서 경로를 찾지 못했습니다.",
+            )
+        }
+
+        return selectBestShapeCandidate(candidates).routeResult
     }
 
     /**
@@ -505,4 +508,56 @@ class DiscoveryService(
     }
 
     private fun Double.toRoundedKm(): Double = (this / 1000.0 * 100).roundToInt() / 100.0
+}
+
+// ---------------------------------------------------------------------------------------------
+// docs/02-api-spec.md 13.1.2 — SHAPE candidate-selection, split out as free (top-level) functions
+// so the "candidate list -> best candidate" decision is directly unit-testable with fake data,
+// without needing an OsrmClient/DiscoveryService instance at all.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * docs/02-api-spec.md 13.1.2 (redesign) — instead of one random-rotation attempt, generate this
+ * many differently-rotated candidates, route each, and keep the one whose routed geometry is
+ * closest (by Fréchet distance) to its own rotated template. A candidate whose routing call fails
+ * is simply dropped, not retried — with 6 candidates there's no need to retry an individual
+ * failure, only to fall through to DISCOVERY_NO_ROUTE if *every* candidate fails (see
+ * [DiscoveryService.generateShapeRoute] — private, but this constant is `internal` so tests can
+ * reference it directly instead of hardcoding 6).
+ */
+internal const val N_SHAPE_CANDIDATES = 6
+
+/** docs/02-api-spec.md 13.1.2 — "동일 개수(예: 40개) 점으로 재샘플링" before scoring two shapes against each other. */
+internal const val SHAPE_CANDIDATE_COMPARISON_POINTS = 40
+
+/**
+ * One routed SHAPE candidate (docs/02-api-spec.md 13.1.2): [templatePoints] is the
+ * rotated/scaled/placed template waypoint list that was *sent* to OSRM (the "planned" shape),
+ * [routeResult] is what OSRM actually returned for it (the "real road" shape). Kept as a pair so
+ * [selectBestShapeCandidate] can compare the two without re-deriving either.
+ */
+internal data class ShapeRouteCandidate(
+    val templatePoints: List<LatLng>,
+    val routeResult: OsrmRouteResult,
+)
+
+/**
+ * docs/02-api-spec.md 13.1.2 — picks whichever [candidates] entry's routed geometry looks most
+ * like its own rotated template, by resampling both to [SHAPE_CANDIDATE_COMPARISON_POINTS] evenly
+ * arc-length-spaced points ([GeoMath.resample]) and scoring the pair with
+ * [FrechetDistance.discreteMeters] (the same "shape similarity" metric
+ * `RunJudgementService` uses for the Sketch Match score) — smaller means "more similar," so the
+ * minimum wins.
+ *
+ * Pure and OSRM-free: every input is already-fetched data, so a unit test can drive this directly
+ * with hand-built "good" (template-shaped) vs. "mangled" (blob-shaped) route geometries and assert
+ * the former wins, with no fake network client involved.
+ */
+internal fun selectBestShapeCandidate(candidates: List<ShapeRouteCandidate>): ShapeRouteCandidate {
+    require(candidates.isNotEmpty()) { "selectBestShapeCandidate requires at least one candidate" }
+    return candidates.minBy { candidate ->
+        val plannedShape = GeoMath.resample(candidate.templatePoints, SHAPE_CANDIDATE_COMPARISON_POINTS)
+        val actualShape = GeoMath.resample(candidate.routeResult.geometry.toLatLngList(), SHAPE_CANDIDATE_COMPARISON_POINTS)
+        FrechetDistance.discreteMeters(plannedShape, actualShape)
+    }
 }

@@ -23,13 +23,32 @@ enum class ShapeType(private val svgPath: String) {
         "M100,0 C100,55.23 55.23,100 0,100 C-55.23,100 -100,55.23 -100,0 " +
             "C-100,-55.23 -55.23,-100 0,-100 C55.23,-100 100,-55.23 100,0 Z",
     ),
+
+    // docs/02-api-spec.md 13.1.3 — deliberately exaggerated past what looks "correct" up close: the
+    // cleft is a genuine sharp V (two straight `L` segments meeting at (0,-30), not a smooth curve)
+    // and it's deep (70 units out of the ~190-unit total height, versus a shallow ~25/120 curved
+    // dip in the pre-redesign path) — the same reasoning as a logo drawn with exaggerated details
+    // so it still reads correctly once shrunk/road-snapped.
     HEART(
-        "M0,25 C-40,-5 -70,-25 -70,-55 C-70,-80 -50,-95 -25,-95 C-10,-95 0,-85 0,-70 " +
-            "C0,-85 10,-95 25,-95 C50,-95 70,-80 70,-55 C70,-25 40,-5 0,25 Z",
+        "M0,90 C-50,40 -95,0 -95,-45 C-95,-80 -65,-100 -35,-100 L0,-30 L35,-100 " +
+            "C65,-100 95,-80 95,-45 C95,0 50,40 0,90 Z",
     ),
+
+    // docs/02-api-spec.md 13.1.3 — the tip is now two straight `L` segments meeting at (0,-110)
+    // (apex angle ~33 degrees) instead of a cubic curve leaving the tip on a wide, gentle tangent
+    // (~67 degrees before) — a narrower point that's more likely to still read as "pointy" after
+    // OSRM snaps it onto the road network. Deliberately kept close to the original's overall
+    // height/width (230x140 here vs. 220x140 before) rather than stretching the tip much further
+    // out — an earlier draft that extended the tip to (0,-140) sharpened the angle the same way but
+    // pushed `maxRadiusMeters` (measured from the shape's centroid to this now-much-more-distant
+    // tip) up disproportionately to the rest of the outline; since generateShapeRoute scales the
+    // whole template by templateRadiusMeters / maxRadiusMeters, that made the *entire* rounded
+    // body — where nearly all of the actual perimeter lives — noticeably smaller, and real-server
+    // verification confirmed it: DROP came back at 8-12km per call versus 17-22km for HEART/CIRCLE
+    // at the same `size: "M"`, a mismatch this narrower-but-not-longer tip avoids.
     DROP(
-        "M0,-100 C40,-40 70,10 70,50 C70,88 39,120 0,120 C-39,120 -70,88 -70,50 " +
-            "C-70,10 -40,-40 0,-100 Z",
+        "M0,-110 L15,-60 C35,-20 70,20 70,55 C70,90 39,120 0,120 " +
+            "C-39,120 -70,90 -70,55 C-70,20 -35,-20 -15,-60 L0,-110 Z",
     ),
     ;
 

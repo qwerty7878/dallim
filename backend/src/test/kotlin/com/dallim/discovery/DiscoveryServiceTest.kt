@@ -32,6 +32,10 @@ class DiscoveryServiceTest {
         private val matchResult: OsrmRouteResult? = null,
         private val matchShouldFail: Boolean = false,
         private val routeResults: List<Result<OsrmRouteResult>> = emptyList(),
+        // Alternative to routeResults for tests that need the response to depend on what was sent
+        // (e.g. echoing the waypoints back as the geometry) rather than just the call index. When
+        // set, this takes priority over routeResults.
+        private val routeResponder: ((callIndex: Int, waypoints: List<LatLng>) -> Result<OsrmRouteResult>)? = null,
     ) : OsrmClient(HttpClientFactory.create(), "http://unused") {
         var matchCallCount = 0
         var routeCallCount = 0
@@ -47,6 +51,7 @@ class DiscoveryServiceTest {
             val idx = routeCallCount
             routeCallCount++
             receivedWaypoints += waypoints
+            if (routeResponder != null) return routeResponder.invoke(idx, waypoints).getOrThrow()
             if (idx >= routeResults.size) error("route() called more times than the fake was programmed for (call #${idx + 1})")
             return routeResults[idx].getOrThrow()
         }
@@ -697,52 +702,57 @@ class DiscoveryServiceTest {
     }
 
     @Test
-    fun `generateDiscoveryRoute - SHAPE routes through the dedicated shape OSRM client only`() {
+    fun `generateDiscoveryRoute - SHAPE routes through the dedicated shape OSRM client only, once per candidate (13_1_2)`() {
         val normal = FakeOsrmClient(routeResults = emptyList())
-        val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
         val service = DiscoveryService(normal, shape)
 
         val response = runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
 
         assertEquals(0, normal.routeCallCount, "SHAPE mode must never call the default OSRM instance")
-        assertEquals(1, shape.routeCallCount)
+        // docs/02-api-spec.md 13.1.2 — always generates/routes N_SHAPE_CANDIDATES candidates, even
+        // when the very first one already succeeds (there's no early-stop-on-success anymore; the
+        // whole point is to compare all of them and pick the best).
+        assertEquals(N_SHAPE_CANDIDATES, shape.routeCallCount)
         assertEquals(4.9, response.distanceKm, 1e-9)
     }
 
     @Test
-    fun `generateDiscoveryRoute - SHAPE waypoints start and end at the request's start point`() {
+    fun `generateDiscoveryRoute - every SHAPE candidate's waypoints start and end at the request's start point`() {
         val normal = FakeOsrmClient(routeResults = emptyList())
-        val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
         val service = DiscoveryService(normal, shape)
 
         runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
 
-        val waypoints = shape.receivedWaypoints.single()
-        assertEquals(ShapeTemplate.POINT_COUNT, waypoints.size)
         val start = LatLng(lat = 37.3905, lng = 126.9235)
-        assertEquals(start, waypoints.first())
-        // The template's own first/last points coincide (ShapeTemplatesTest), so the whole mapped
-        // loop should start and end at `start` too.
-        assertEquals(start.lat, waypoints.last().lat, 1e-6)
-        assertEquals(start.lng, waypoints.last().lng, 1e-6)
+        assertEquals(N_SHAPE_CANDIDATES, shape.receivedWaypoints.size)
+        for (waypoints in shape.receivedWaypoints) {
+            assertEquals(ShapeTemplate.POINT_COUNT, waypoints.size)
+            assertEquals(start, waypoints.first())
+            // The template's own first/last points coincide (ShapeTemplatesTest), so every
+            // candidate's mapped loop should start and end at `start` too.
+            assertEquals(start.lat, waypoints.last().lat, 1e-6)
+            assertEquals(start.lng, waypoints.last().lng, 1e-6)
+        }
     }
 
     @Test
-    fun `generateDiscoveryRoute - SHAPE size S-M-L scale waypoint radius proportionally (13_1_1)`() {
+    fun `generateDiscoveryRoute - SHAPE size S-M-L scale every candidate's waypoint radius proportionally (13_1_1)`() {
         val start = LatLng(lat = 37.3905, lng = 126.9235)
         val radiusForSize = mutableMapOf<String, Double>()
 
         for (size in listOf("S", "M", "L")) {
             val normal = FakeOsrmClient(routeResults = emptyList())
-            val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+            val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
             val service = DiscoveryService(normal, shape)
 
             runBlocking { service.generateDiscoveryRoute(shapeRequest(size = size)) }
 
             // Waypoint distance-from-start is rotation-invariant (rotation only changes bearing,
-            // never magnitude), so even though rotationRadians is randomized per call, the ratio
-            // between sizes below is exact — no tolerance needed beyond floating-point error.
-            val waypoints = shape.receivedWaypoints.single()
+            // never magnitude), so even though rotationRadians is randomized per candidate, the
+            // ratio between sizes below is exact for every candidate — just check the first.
+            val waypoints = shape.receivedWaypoints.first()
             radiusForSize[size] = GeoMath.haversineMeters(start, waypoints[10])
         }
 
@@ -756,7 +766,7 @@ class DiscoveryServiceTest {
         val start = LatLng(lat = 37.3905, lng = 126.9235)
 
         val normalDefault = FakeOsrmClient(routeResults = emptyList())
-        val shapeDefault = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val shapeDefault = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
         val serviceDefault = DiscoveryService(normalDefault, shapeDefault)
         val defaultRequest = DiscoveryRequest(
             startLng = 126.9235,
@@ -766,38 +776,46 @@ class DiscoveryServiceTest {
             shapeType = "HEART",
         )
         runBlocking { serviceDefault.generateDiscoveryRoute(defaultRequest) }
-        val defaultRadius = GeoMath.haversineMeters(start, shapeDefault.receivedWaypoints.single()[10])
+        val defaultRadius = GeoMath.haversineMeters(start, shapeDefault.receivedWaypoints.first()[10])
 
         val normalExplicit = FakeOsrmClient(routeResults = emptyList())
-        val shapeExplicit = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+        val shapeExplicit = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
         val serviceExplicit = DiscoveryService(normalExplicit, shapeExplicit)
         runBlocking { serviceExplicit.generateDiscoveryRoute(shapeRequest(size = "M")) }
-        val explicitRadius = GeoMath.haversineMeters(start, shapeExplicit.receivedWaypoints.single()[10])
+        val explicitRadius = GeoMath.haversineMeters(start, shapeExplicit.receivedWaypoints.first()[10])
 
         assertEquals(1.0, defaultRadius / explicitRadius, 1e-6)
     }
 
     @Test
-    fun `generateDiscoveryRoute - SHAPE retries once with a new rotation after a routing failure, then succeeds`() {
+    fun `generateDiscoveryRoute - SHAPE drops failed candidates but still succeeds if at least one candidate routes (13_1_2)`() {
         val normal = FakeOsrmClient(routeResults = emptyList())
+        // Half the candidates fail to route (e.g. no road near that particular rotation's
+        // waypoints); the redesign tolerates this as long as at least one candidate survives — no
+        // per-candidate retry, unlike the pre-redesign single-attempt behavior.
         val shape = FakeOsrmClient(
             routeResults = listOf(
                 Result.failure(RuntimeException("no route")),
                 Result.success(fakeResult(15_000.0)),
+                Result.failure(RuntimeException("no route")),
+                Result.success(fakeResult(16_000.0)),
+                Result.failure(RuntimeException("no route")),
+                Result.success(fakeResult(17_000.0)),
             ),
         )
         val service = DiscoveryService(normal, shape)
 
         val response = runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
 
-        assertEquals(2, shape.routeCallCount)
-        assertEquals(15.0, response.distanceKm, 1e-9)
+        assertEquals(N_SHAPE_CANDIDATES, shape.routeCallCount)
+        // Exactly one of the 3 successful candidates' distances must be the response.
+        assertTrue(response.distanceKm in listOf(15.0, 16.0, 17.0))
     }
 
     @Test
-    fun `generateDiscoveryRoute - SHAPE with every route() attempt failing is DISCOVERY_NO_ROUTE (422)`() {
+    fun `generateDiscoveryRoute - SHAPE with every candidate's route() call failing is DISCOVERY_NO_ROUTE (422)`() {
         val normal = FakeOsrmClient(routeResults = emptyList())
-        val shape = FakeOsrmClient(routeResults = List(2) { Result.failure(RuntimeException("no route")) })
+        val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.failure(RuntimeException("no route")) })
         val service = DiscoveryService(normal, shape)
 
         val ex = assertFailsWith<ApiException> {
@@ -805,14 +823,48 @@ class DiscoveryServiceTest {
         }
         assertEquals(ErrorCodes.DISCOVERY_NO_ROUTE, ex.code)
         assertEquals(HttpStatusCode.UnprocessableEntity, ex.status)
-        assertEquals(2, shape.routeCallCount)
+        assertEquals(N_SHAPE_CANDIDATES, shape.routeCallCount)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE picks the candidate whose routed geometry is closest to its own template (13_1_2)`() {
+        val normal = FakeOsrmClient(routeResults = emptyList())
+
+        // callIndex 2 (arbitrary, not the first or last) echoes its own sent waypoints back
+        // verbatim as the "routed" geometry -> Fréchet distance ~0 (perfect shape match). Every
+        // other candidate gets a tiny, far-away, unrelated square -> huge Fréchet distance (mangled
+        // relative to a 1500m-radius heart). Distances are all distinct so we can tell which
+        // candidate the service actually picked.
+        val winningCallIndex = 2
+        val mangledGeometry = GeoJsonLineString(
+            coordinates = listOf(listOf(0.0, 0.0), listOf(0.0001, 0.0), listOf(0.0001, 0.0001), listOf(0.0, 0.0001), listOf(0.0, 0.0)),
+        )
+
+        val shape = FakeOsrmClient(
+            routeResponder = { callIndex, waypoints ->
+                val distanceMeters = 10_000.0 + callIndex * 1000.0 // 10.0km, 11.0km, 12.0km, ...
+                val geometry = if (callIndex == winningCallIndex) {
+                    GeoJsonLineString(coordinates = waypoints.map { listOf(it.lng, it.lat) })
+                } else {
+                    mangledGeometry
+                }
+                Result.success(OsrmRouteResult(distanceMeters = distanceMeters, geometry = geometry))
+            },
+        )
+        val service = DiscoveryService(normal, shape)
+
+        val response = runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
+
+        assertEquals(N_SHAPE_CANDIDATES, shape.routeCallCount)
+        val expectedDistanceKm = (10_000.0 + winningCallIndex * 1000.0) / 1000.0
+        assertEquals(expectedDistanceKm, response.distanceKm, 1e-9)
     }
 
     @Test
     fun `generateDiscoveryRoute - SHAPE accepts CIRCLE and DROP shapeTypes too`() {
         for (shapeType in listOf("CIRCLE", "DROP")) {
             val normal = FakeOsrmClient(routeResults = emptyList())
-            val shape = FakeOsrmClient(routeResults = listOf(Result.success(fakeResult(4900.0))))
+            val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
             val service = DiscoveryService(normal, shape)
 
             val response = runBlocking { service.generateDiscoveryRoute(shapeRequest(shapeType = shapeType)) }
