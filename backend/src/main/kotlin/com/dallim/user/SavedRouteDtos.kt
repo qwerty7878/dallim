@@ -10,8 +10,8 @@ data class SavedRouteItem(
     val name: String,
     val emoji: String,
     val distanceKm: Double,
-    // TODO(backend-dev, run domain round): should reflect whether the user has a COMPLETED
-    // RunRecord for this route; the run domain doesn't exist yet this round, so always false.
+    // Whether this user has at least one COMPLETED RunRecord against this route — see
+    // com.dallim.user.SavedRouteService.listSaved.
     val hasRun: Boolean,
 )
 

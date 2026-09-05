@@ -51,6 +51,21 @@ class RunRepository(
         val thumbnailGeoJson: GeoJsonLineString,
     )
 
+    /** GET /home `continueRoutes` — one row per route the user has an unfinished (PARTIAL) attempt at. */
+    data class ContinueRouteRow(
+        val routeId: String,
+        val routeName: String,
+        val status: RunStatus,
+        val lastCoveragePercent: Int,
+    )
+
+    /** GET /home `recentRuns` — one row per COMPLETED run. */
+    data class RecentRunRow(
+        val runId: String,
+        val distanceKm: Double,
+        val completedAt: Instant,
+    )
+
     /** POST /runs — creates the session row (IN_PROGRESS) and returns its generated id. */
     fun create(userId: String, routeId: String, mode: String, startedAt: Instant): String {
         val id = IdGenerator.run()
@@ -102,6 +117,63 @@ class RunRepository(
             }
             .limit(1)
             .count() > 0
+    }
+
+    /**
+     * GET /home `continueRoutes` — the user's most recent PARTIAL run per route, newest first
+     * (a route the user has stopped and restarted PARTIAL several times must only surface its
+     * latest attempt). Non-spatial (only run_records + sketch_routes.name), so plain Exposed.
+     */
+    fun findContinueRoutes(userId: String, limit: Int): List<ContinueRouteRow> = transaction(database) {
+        (RunRecordTable innerJoin SketchRouteTable)
+            .selectAll()
+            .where { (RunRecordTable.userId eq userId) and (RunRecordTable.status eq RunStatus.PARTIAL) }
+            .orderBy(RunRecordTable.finishedAt, SortOrder.DESC)
+            .map {
+                ContinueRouteRow(
+                    routeId = it[RunRecordTable.routeId],
+                    routeName = it[SketchRouteTable.name],
+                    status = it[RunRecordTable.status],
+                    lastCoveragePercent = it[RunRecordTable.routeCompletionPercent] ?: 0,
+                )
+            }
+            .distinctBy { it.routeId } // rows already ordered newest-first, so first occurrence wins
+            .take(limit)
+    }
+
+    /** GET /home `recentRuns` — the user's most recently finished COMPLETED runs. */
+    fun findRecentCompletedRuns(userId: String, limit: Int): List<RecentRunRow> = transaction(database) {
+        RunRecordTable.selectAll()
+            .where { (RunRecordTable.userId eq userId) and (RunRecordTable.status eq RunStatus.COMPLETED) }
+            .orderBy(RunRecordTable.finishedAt, SortOrder.DESC)
+            .limit(limit)
+            .map {
+                RecentRunRow(
+                    runId = it[RunRecordTable.id],
+                    distanceKm = it[RunRecordTable.distanceKm] ?: 0.0,
+                    completedAt = requireNotNull(it[RunRecordTable.finishedAt]) {
+                        "COMPLETED run ${it[RunRecordTable.id]} has no finishedAt"
+                    },
+                )
+            }
+    }
+
+    /**
+     * GET /users/me/saved-routes `hasRun` — of [routeIds], which ones [userId] has at least one
+     * COMPLETED RunRecord against. See com.dallim.user.SavedRouteService.
+     */
+    fun findCompletedRouteIds(userId: String, routeIds: Collection<String>): Set<String> {
+        if (routeIds.isEmpty()) return emptySet()
+        return transaction(database) {
+            RunRecordTable.select(RunRecordTable.routeId)
+                .where {
+                    (RunRecordTable.userId eq userId) and
+                        (RunRecordTable.status eq RunStatus.COMPLETED) and
+                        (RunRecordTable.routeId inList routeIds)
+                }
+                .map { it[RunRecordTable.routeId] }
+                .toSet()
+        }
     }
 
     // --- GPS points (gps_points has no geometry column -> plain Exposed) ---

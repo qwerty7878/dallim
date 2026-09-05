@@ -40,6 +40,9 @@ class SavedRouteRepository(private val database: Database) {
                         name = it[SketchRouteTable.name],
                         emoji = it[SketchRouteTable.emoji],
                         distanceKm = it[SketchRouteTable.distanceKm],
+                        // Filled in by SavedRouteService.listSaved (needs com.dallim.run.RunRepository,
+                        // which this repository intentionally doesn't depend on — see RouteModule.kt's
+                        // convention of cross-domain RunRepository access living at the service layer).
                         hasRun = false,
                     )
                 }

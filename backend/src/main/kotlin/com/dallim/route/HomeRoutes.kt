@@ -2,6 +2,7 @@ package com.dallim.route
 
 import com.dallim.common.ApiResponse
 import com.dallim.plugins.AUTH_JWT
+import com.dallim.plugins.currentUserId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
@@ -20,6 +21,7 @@ fun Route.homeRoutes() {
             val response = homeService.getHome(
                 lat = q["lat"]?.toDoubleOrNull(),
                 lng = q["lng"]?.toDoubleOrNull(),
+                userId = call.currentUserId()!!,
             )
             call.respond(HttpStatusCode.OK, ApiResponse.success(response))
         }

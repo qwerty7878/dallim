@@ -15,8 +15,10 @@ data class HomeTodaySketch(
     val thumbnailGeoJson: GeoJsonLineString,
 )
 
-/** TODO(backend-dev, run domain round): sourced from in-progress/PARTIAL RunRecord rows — not
- * implementable until that domain exists. See HomeService.getHome. */
+/**
+ * One route the user has a PARTIAL RunRecord against (most recent attempt per route only) —
+ * sourced from com.dallim.run.RunRepository.findContinueRoutes. See HomeService.getHome.
+ */
 @Serializable
 data class HomeContinueRoute(
     val routeId: String,
@@ -25,7 +27,10 @@ data class HomeContinueRoute(
     val lastCoveragePercent: Int,
 )
 
-/** TODO(backend-dev, run domain round): sourced from completed RunRecord rows — see HomeService.getHome. */
+/**
+ * One of the user's most recent COMPLETED runs — sourced from
+ * com.dallim.run.RunRepository.findRecentCompletedRuns. See HomeService.getHome.
+ */
 @Serializable
 data class HomeRecentRun(
     val runId: String,
