@@ -600,6 +600,7 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 | 202 | 비동기 접수됨(GPS 배치) |
 | 400 | 요청값 오류/데이터 부족 |
 | 401 | 인증 실패/토큰 만료 |
+| 403 | 권한 없음(내 것이 아닌 리소스에 대한 조작 — 14장에서 처음 사용) |
 | 404 | 리소스 없음 |
 | 409 | 상태 충돌(중복 닉네임, 이미 종료된 러닝 등) |
 | 500 | 서버 오류 |
@@ -682,9 +683,10 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
   OSM 태그 기반 1단계 근사치라, 태그가 부실한 지역은 정확도가 떨어질 수 있다.
 
 ### 8.3 이번에도 유보한 것
-- `POST /sessions` 이하 소셜 세션 전체
 - `GET /races` 이하 대회 캘린더 전체
 - 생성된 코스를 `sketch_routes`에 실제로 저장/공유하는 플로우(지금은 프리뷰 응답까지만)
+- ~~`POST /sessions` 이하 소셜 세션 전체~~ — 2026-09-05 사용자 요청으로 일부 재개, 14장 참고
+  (다만 지속적인 크루/클럽 형태는 여전히 유보, 14.5)
 
 ---
 
@@ -1144,3 +1146,137 @@ GET /routes/places/search?query=안양역&lat=37.3905&lng=126.9235
   - 결과 화면에서는 실제 `distanceKm`을 그대로 보여주고, 사용자가 미리 본 범위와 다를 수
     있다는 걸 별도로 사과하지 않는다(범위로 안내했으므로 정상 동작).
 - `STAR`는 이번 라운드에 아예 노출하지 않는다(서버가 지원하지 않음, 13.3).
+
+---
+
+## 14. 같이 달리기 모집 (2026-09-05 추가 — 범위 공식 확장)
+
+> 사용자 요청으로 8.3에서 "소셜 세션 전체"로 유보했던 것을 일부 재개한다. 지속적인 "크루"
+> (회원/권한/랭킹이 있는 클럽)가 아니라, **기존 코스(`sketch_routes`) 하나를 지정해 특정
+> 날짜·시간에 같이 뛸 사람을 모으는 일회성 게시글** 정도로 범위를 좁혔다
+> (`docs/01-feature-spec.md` 1.8).
+
+### 14.1 데이터 모델
+
+```
+run_meetups
+  id               varchar(32) PK
+  route_id         varchar(32) FK -> sketch_routes
+  host_user_id     varchar(32) FK -> users
+  scheduled_at     timestamptz      -- 미래 시각만 허용(생성 시점 기준)
+  max_participants int              -- 2~20
+  description      text null
+  status           varchar(16)      -- OPEN | CANCELLED (CLOSED는 별도 상태 없이 "정원 참, scheduled_at 지남"을 조회 시점에 판단)
+  created_at       timestamptz
+
+run_meetup_participants
+  meetup_id        varchar(32) FK -> run_meetups
+  user_id          varchar(32) FK -> users
+  joined_at        timestamptz
+  PRIMARY KEY (meetup_id, user_id)
+```
+- host는 생성과 동시에 `run_meetup_participants`에 자동으로 추가된다.
+- "마감"(정원 참)과 "종료"(예정 시각이 지남)는 별도 배치 작업 없이 조회 시점에
+  `count(participants) >= max_participants` / `scheduled_at < now()`로 판단한다 — 상태를
+  갱신하는 스케줄러를 새로 두지 않는다.
+
+### 14.2 `GET /routes/{routeId}/meetups` — 코스의 모집 목록
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "meetupId": "mt_001",
+        "hostNickname": "달림이",
+        "scheduledAt": "2026-09-13T22:00:00Z",
+        "maxParticipants": 6,
+        "currentParticipants": 3,
+        "status": "OPEN",
+        "isFull": false,
+        "isPast": false
+      }
+    ]
+  },
+  "error": null
+}
+```
+- 정렬: `scheduledAt` 오름차순(가까운 일정이 먼저). 페이지네이션 없음(코스 하나당 모집 개수가
+  많지 않을 것으로 예상 — 필요해지면 다음 라운드에 추가).
+- `isFull`/`isPast`는 14.1의 판단 규칙을 서버가 미리 계산해 내려준다(클라이언트가 시각 비교를
+  중복 구현하지 않도록).
+- 인증 불필요(다른 `/routes` 하위 조회 엔드포인트와 동일).
+
+### 14.3 `POST /routes/{routeId}/meetups` — 모집 생성 🔒
+
+```json
+// Request
+{
+  "scheduledAt": "2026-09-13T22:00:00Z",
+  "maxParticipants": 6,
+  "description": "천천히 페이스로 완주 목표예요"
+}
+```
+```json
+// Response 201
+{ "success": true, "data": { "meetupId": "mt_001" }, "error": null }
+```
+- `scheduledAt`이 현재 시각보다 과거면 `400 VALIDATION_ERROR`.
+- `maxParticipants`가 2~20 범위 밖이면 `400 VALIDATION_ERROR`.
+- `routeId`가 존재하지 않으면 `404 ROUTE_NOT_FOUND`(4장과 동일한 코드 재사용).
+- 생성 즉시 host가 참가자로 등록된다(별도 `join` 호출 불필요).
+
+### 14.4 `GET /meetups/{meetupId}` / `POST /meetups/{meetupId}/join` / `POST /meetups/{meetupId}/leave` / `DELETE /meetups/{meetupId}` 🔒
+
+```json
+// GET /meetups/{meetupId} Response 200
+{
+  "success": true,
+  "data": {
+    "meetupId": "mt_001",
+    "routeId": "rt_002",
+    "routeName": "물고기",
+    "hostUserId": "usr_1",
+    "hostNickname": "달림이",
+    "scheduledAt": "2026-09-13T22:00:00Z",
+    "maxParticipants": 6,
+    "description": "천천히 페이스로 완주 목표예요",
+    "status": "OPEN",
+    "isFull": false,
+    "isPast": false,
+    "isHost": false,
+    "isJoined": true,
+    "participants": [
+      { "userId": "usr_1", "nickname": "달림이", "isHost": true },
+      { "userId": "usr_2", "nickname": "러너B", "isHost": false }
+    ]
+  },
+  "error": null
+}
+```
+- `isHost`/`isJoined`는 요청한 유저(`Authorization` 토큰) 기준 계산값.
+- `join`: 이미 참가 중(host 포함)이면 `409 ALREADY_JOINED`. 정원이 찼으면 `409 MEETUP_FULL`.
+  예정 시각이 지났거나 `status: CANCELLED`면 `409 MEETUP_ENDED`. 성공 시 `200`.
+- `leave`: host가 호출하면 `400 VALIDATION_ERROR`("모집을 취소하려면 삭제를 사용하세요" 같은
+  메시지) — host는 참가 취소가 아니라 모집 자체를 취소해야 한다. 애초에 참가 중이 아닌
+  유저가 호출하면 에러 없이 그냥 `200`으로 처리한다(멱등 — 이미 안 나간 상태에서 나가기를
+  눌러도 에러로 취급할 이유가 없음).
+- `DELETE`: host가 아니면 `403 MEETUP_NOT_HOST`. 실제 행을 지우지 않고 `status`만
+  `CANCELLED`로 바꾼다(참가자들이 갑자기 글이 사라진 걸로 오인하지 않도록, 1.8.2).
+- `meetupId`가 존재하지 않으면 어떤 액션이든 `404 MEETUP_NOT_FOUND`.
+
+### 14.5 서버 내부 동작 — 알림 연동
+- 누군가 `join`하면 host에게 인앱 알림 1건을 생성한다("OO님이 [코스명] 모집에 참가했어요") —
+  9장의 `NotificationService`를 그대로 재사용, 새 알림 타입 하나만 추가한다. FCM 푸시(10장)는
+  알림 생성 지점에 이미 공통 연동돼 있어 추가 작업이 필요 없다.
+- host 본인이나 시스템이 만든 알림이 아니므로, host가 자기 자신에게 알림이 가는 경우는 없다
+  (host는 join 대상이 될 수 없음 — 이미 참가 중이라 `ALREADY_JOINED`로 막힘).
+
+### 14.6 이번에도 유보한 것
+- 지속적인 "크루"/클럽(회원 목록, 가입 승인, 랭킹) — 코스 1건짜리 일회성 모집까지만
+- 모집 게시글/참가자 간 채팅
+- 코스와 무관하게 모집 글을 가로질러 검색/둘러보는 통합 목록(지역/날짜 필터 등)
+- 정원 초과 시 대기열(waitlist) — 지금은 꽉 차면 그냥 막는다
+- 모집 취소/마감 시 참가자에게 별도 알림 — 이번 라운드는 host에게 가는 참가 알림만
