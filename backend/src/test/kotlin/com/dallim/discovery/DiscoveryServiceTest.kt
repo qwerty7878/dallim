@@ -871,4 +871,90 @@ class DiscoveryServiceTest {
             assertEquals(4.9, response.distanceKm, 1e-9, "shapeType=$shapeType")
         }
     }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE size S-M-L scale proportionally for CIRCLE and DROP too, not just HEART (13_1_1)`() {
+        // The existing "SHAPE size S-M-L scale..." test only exercises the default shapeType
+        // (HEART) — templateRadiusMeters/maxRadiusMeters scaling is per-ShapeType (each template
+        // has its own maxRadiusMeters), so this must be checked for every registered shape.
+        val start = LatLng(lat = 37.3905, lng = 126.9235)
+
+        for (shapeType in listOf("CIRCLE", "DROP")) {
+            val radiusForSize = mutableMapOf<String, Double>()
+
+            for (size in listOf("S", "M", "L")) {
+                val normal = FakeOsrmClient(routeResults = emptyList())
+                val shape = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
+                val service = DiscoveryService(normal, shape)
+
+                runBlocking { service.generateDiscoveryRoute(shapeRequest(shapeType = shapeType, size = size)) }
+
+                val waypoints = shape.receivedWaypoints.first()
+                radiusForSize[size] = GeoMath.haversineMeters(start, waypoints[10])
+            }
+
+            assertEquals(1500.0 / 1000.0, radiusForSize.getValue("M") / radiusForSize.getValue("S"), 1e-6, "shapeType=$shapeType")
+            assertEquals(2200.0 / 1000.0, radiusForSize.getValue("L") / radiusForSize.getValue("S"), 1e-6, "shapeType=$shapeType")
+        }
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE ignores targetDistanceKm entirely, only size determines scale (13_1)`() {
+        // docs/02-api-spec.md 13.1 — "targetDistanceKm은... SHAPE 모드에서는 무시된다." Two
+        // requests differing only by a wildly different targetDistanceKm (0.1km vs 999km) must
+        // still place every waypoint at the exact same distance from start.
+        val start = LatLng(lat = 37.3905, lng = 126.9235)
+
+        val normalTiny = FakeOsrmClient(routeResults = emptyList())
+        val shapeTiny = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
+        val serviceTiny = DiscoveryService(normalTiny, shapeTiny)
+        runBlocking { serviceTiny.generateDiscoveryRoute(shapeRequest(targetDistanceKm = 0.1)) }
+
+        val normalHuge = FakeOsrmClient(routeResults = emptyList())
+        val shapeHuge = FakeOsrmClient(routeResults = List(N_SHAPE_CANDIDATES) { Result.success(fakeResult(4900.0)) })
+        val serviceHuge = DiscoveryService(normalHuge, shapeHuge)
+        runBlocking { serviceHuge.generateDiscoveryRoute(shapeRequest(targetDistanceKm = 999.0)) }
+
+        val radiusWithTinyTarget = GeoMath.haversineMeters(start, shapeTiny.receivedWaypoints.first()[10])
+        val radiusWithHugeTarget = GeoMath.haversineMeters(start, shapeHuge.receivedWaypoints.first()[10])
+
+        assertEquals(radiusWithTinyTarget, radiusWithHugeTarget, 1e-6)
+    }
+
+    @Test
+    fun `generateDiscoveryRoute - SHAPE picks the best of only the survivors when some candidates fail to route (13_1_2 edge case)`() {
+        // docs/02-api-spec.md 13.1.2 — a partial-failure mix where the survivors themselves differ
+        // noticeably in shape quality: only odd-indexed candidates (1,3,5) survive; among those,
+        // callIndex 3 echoes its own waypoints back (near-zero Frechet distance) while 1 and 5 get
+        // an unrelated, far-away mangled geometry. The service must select 3 specifically, not
+        // merely "any survivor" (the existing "drops failed candidates" test only checks that
+        // *some* survivor's distance comes back, since all three of its survivors share the same
+        // mangled-vs-good ambiguity; this test makes the quality difference among survivors
+        // unambiguous).
+        val normal = FakeOsrmClient(routeResults = emptyList())
+        val winningCallIndex = 3
+        val mangledGeometry = GeoJsonLineString(
+            coordinates = listOf(listOf(50.0, 50.0), listOf(50.0001, 50.0), listOf(50.0001, 50.0001), listOf(50.0, 50.0001), listOf(50.0, 50.0)),
+        )
+
+        val shape = FakeOsrmClient(
+            routeResponder = { callIndex, waypoints ->
+                if (callIndex % 2 == 0) return@FakeOsrmClient Result.failure(RuntimeException("no route for candidate $callIndex"))
+                val distanceMeters = 20_000.0 + callIndex * 1000.0
+                val geometry = if (callIndex == winningCallIndex) {
+                    GeoJsonLineString(coordinates = waypoints.map { listOf(it.lng, it.lat) })
+                } else {
+                    mangledGeometry
+                }
+                Result.success(OsrmRouteResult(distanceMeters = distanceMeters, geometry = geometry))
+            },
+        )
+        val service = DiscoveryService(normal, shape)
+
+        val response = runBlocking { service.generateDiscoveryRoute(shapeRequest()) }
+
+        assertEquals(N_SHAPE_CANDIDATES, shape.routeCallCount)
+        val expectedDistanceKm = (20_000.0 + winningCallIndex * 1000.0) / 1000.0
+        assertEquals(expectedDistanceKm, response.distanceKm, 1e-9)
+    }
 }

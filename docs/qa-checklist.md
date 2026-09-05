@@ -5,6 +5,115 @@
 
 ---
 
+## 라운드 3 — 모양 선택 AI 생성 `mode: "SHAPE"` (2026-09-05)
+
+대상: `docs/02-api-spec.md` 13장(3차 재설계 후 최종 확정본) — `DiscoveryService.generateShapeRoute`/
+`selectBestShapeCandidate`, `ShapeTemplates.kt`. 커밋 히스토리(`deb4e21` 최초 스펙 →
+`e5a251f` 거리 기반 스케일+`priority` 토글 → `f437a26`/`9d68f88` S/M/L 고정 크기(STAR 제외) →
+`3137ba1`/`b01127a` 회전 6후보 + Fréchet 최적 선택)를 먼저 확인해 최종 동작(13.1~13.5)만
+기준으로 검증했다 — 중간 버전(거리 기반 스케일, `priority` 필드)은 이미 폐기된 동작이라
+테스트 대상에서 제외.
+
+### 자동화된 테스트
+
+| 파일 | 유형 | 개수(신규) | 결과 |
+|---|---|---|---|
+| `backend/src/test/kotlin/com/dallim/discovery/DiscoveryServiceTest.kt` | 단위 | 47 (SHAPE 관련 17, 신규 4) | 통과 |
+| `backend/src/test/kotlin/com/dallim/discovery/ShapeTemplatesTest.kt` | 단위 | 8 (신규 1) | 통과 |
+| `backend/src/test/kotlin/com/dallim/discovery/SelectBestShapeCandidateTest.kt` | 단위 | 4 (기존, 회귀만 확인) | 통과 |
+
+`./gradlew test` 전체 실행 결과: 165개 테스트 전부 통과, 실패/에러 0건(로컬 docker-compose
+Postgres/PostGIS + Redis, OSRM 두 인스턴스 `dallim-osrm`(5001)/`dallim-osrm-shape`(5002) 기준).
+빌드 중 동일 저장소를 동시에 건드리던 다른(백엔드) 작업 세션 때문에 `compileKotlin`이
+일시적으로 두 번 깨졌다 관찰됐으나(홈/유저 도메인 DI 배선 변경 진행 중이었음, discovery와
+무관), 재시도 후 안정적으로 통과 — discovery 쪽 변경과는 무관한 일시적 경합이었음.
+
+### 검증 내용
+
+1. **검증 로직** — 전부 스펙과 정확히 일치, 실 서버(HTTP)로도 재확인:
+   - `shapeType` 누락 → 400 VALIDATION_ERROR. `"STAR"`(과거 지원, 이번에 제외)도 미등록 값과
+     동일하게 400 — 회귀 테스트로 고정(`generateDiscoveryRoute - SHAPE with shapeType STAR is
+     a 400...`, `ShapeTemplatesTest`의 `fromRequestValue`도 `STAR` → null 확인).
+   - `size` 누락 시 `"M"` 기본값 적용, `"XL"` 등 잘못된 값은 400 — 기존 테스트로 이미 커버.
+   - `requiredWaypoints`/`endLat`/`endLng`를 SHAPE와 함께 보내면 400 — 기존 테스트로 이미 커버.
+   - `targetDistanceKm`이 SHAPE에서 완전히 무시되는지: **신규 테스트 추가**
+     (`SHAPE ignores targetDistanceKm entirely...`) — `0.1`과 `999.0`처럼 극단적으로 다른 값을
+     보내도 웨이포인트 반지름이 완전히 동일함을 확인. 기존 테스트들은 응답 `distanceKm`이
+     fake OSRM 응답값 그대로 나오는 것만 확인했을 뿐 "정말 스케일에 영향이 없는지"까지는
+     직접 재보지 않았던 갭.
+2. **스케일 정확성** — 기존 테스트는 기본 `shapeType`(HEART)만으로 S:M:L = 1000:1500:2200
+   비율을 검증했음. **신규 테스트**로 CIRCLE/DROP에도 동일 비율이 성립하는지 확인(각 모양의
+   `maxRadiusMeters`가 다르므로 스케일 팩터 자체는 모양마다 다르지만, 같은 모양 내에서
+   S/M/L 반지름 비율은 항상 1000:1500:2200이어야 함 — 실제로 그렇게 확인됨).
+3. **후보 선택 로직** — 기존 테스트가 "6개 후보 전부 라우팅"(고정 6회 재확인), "전부 실패 시
+   422", "회전 후보 중 Fréchet 최소값 선택"은 이미 커버. "일부만 실패했을 때 성공한 것들
+   *중에서만* 정상 선택되는지"는 기존 테스트(`SHAPE drops failed candidates but still
+   succeeds...`)가 "3개 생존 중 아무거나(15/16/17km 중 하나)"만 확인해 실제 Fréchet 비교
+   로직까지는 검증하지 않던 갭 — **신규 테스트** 추가(`SHAPE picks the best of only the
+   survivors when some candidates fail to route`): 짝수 인덱스 3개는 라우팅 실패, 홀수 인덱스
+   3개 중 정확히 하나(callIndex 3)만 원본 템플릿과 정확히 일치하는 지오메트리를 반환하도록
+   설정해, 생존자 중에서도 진짜 최적값이 선택되는지 확인. `SelectBestShapeCandidateTest.kt`
+   (기존, `com.dallim.discovery` 패키지 — 최초 탐색 시 파일명 패턴에 안 걸려 놓칠 뻔함)도
+   순수 함수 레벨에서 동일 시나리오를 이미 커버하고 있어 회귀만 재확인.
+4. **전용 OSRM 인스턴스 라우팅** — 기존 테스트(`SHAPE routes through the dedicated shape OSRM
+   client only...`)가 `osrmClient.routeCallCount == 0`을 명시적으로 확인. 이미 충분.
+5. **`ShapeTemplates`** — HEART/CIRCLE/DROP 모두 단일 서브패스, POINT_COUNT(40)개 점, 닫힌
+   윤곽선(첫점=끝점)임을 기존 테스트가 확인. `fromRequestValue`의 대소문자/공백 처리는
+   테스트가 없어서 **신규 테스트** 추가(`fromRequestValue does not trim whitespace or fold
+   case...`) — `" HEART"`/`"HEART "`/`"Heart"`/`"HEART\n"` 전부 미등록(null, 즉 400)으로
+   처리됨을 확인(트리밍/대소문자 정규화가 코드 어디에도 없다는 걸 코드 리딩으로 먼저 확인한
+   뒤 그 동작을 고정).
+6. **통합 스모크 테스트** — 로컬에 이미 떠 있던 백엔드(`:8080`) + `dallim-osrm-shape`(`:5002`,
+   docker) 조합으로 HEART/CIRCLE/DROP × S/M/L 9개 조합 전부 실 호출:
+
+   | shape\size | S | M | L |
+   |---|---|---|---|
+   | HEART | 12.93km | 21.49km | 22.42km |
+   | CIRCLE | 11.23km | 21.07km | 29.3km |
+   | DROP | 8.04km | 13.1km | 14.36km |
+
+   9개 전부 200 응답, 에러 없음. `DROP`을 3회 추가 반복 호출(`L` 사이즈 14.13~17.94km,
+   `S` 사이즈 9.37~11.24km)해 변동폭도 확인 — 회전 후보에 따른 정상적인 변동 범위로 보임.
+   검증 스크립트(1회성, 저장 안 함): 9개 조합에 대해 `curl -X POST localhost:8080/v1/routes/
+   discovery -d '{"startLng":126.9235,"startLat":37.3905,"targetDistanceKm":5.0,"mode":"SHAPE",
+   "shapeType":"<HEART|CIRCLE|DROP>","size":"<S|M|L>"}'` 반복 호출.
+   에러 케이스(`STAR`, `size` 누락 후 기본값, 잘못된 `size`, `requiredWaypoints`/`endLat`+
+   `endLng` 동시 사용)도 실 서버 응답으로 재확인 — 전부 스펙과 정확히 일치하는 메시지/코드.
+
+### 발견된 버그
+
+없음 — 검증 로직/스케일/후보 선택/전용 OSRM 라우팅/템플릿 파싱 모두 13장 최종 스펙과
+정확히 일치했다. 코드 자체에 13장 각 조항을 가리키는 주석이 잘 달려 있어 스펙-구현
+매핑을 검증하기 수월했음.
+
+### 참고 관찰 (버그는 아님 — 13.1.1의 "범위는 참고치일 뿐" 조항 적용 대상)
+
+- `DROP`이 세 모양 중 유독 13.1.1 표 범위(S 9~10km/M 14~18km/L 20~25km) 하단이나 그 아래로
+  치우치는 경향을 보였다(S 8.04km, M 13.1km, L 3회 반복 평균 ~15.5km — L만 범위 하단인
+  20km에 한 번도 도달하지 못함). HEART/CIRCLE은 반대로 표 상단이나 그 이상으로도 종종
+  튀었다(CIRCLE/L 29.3km). 스펙 자체가 "±25% 내외, 드물게 그 이상"이라고 명시하고 범위를
+  참고치로만 규정하고 있어 이건 에러가 아니지만, `DROP`이 매번 같은 방향(과소)으로
+  치우치는 것처럼 보여 우연한 변동이 아니라 `DROP` 템플릿의 `maxRadiusMeters` 대비 실제
+  둘레 비율이 다른 두 모양과 체계적으로 다를 가능성이 있다 — 표본이 4~7회로 적어 확정할
+  수 없으므로, 실사용자 트래픽이 쌓이면 `DROP`만 별도로 재검토해볼 것을 제안한다(수정은
+  하지 않음 — 범위는 스펙상 참고치이고, 지금 표본으로 "고쳐야 할 버그"라 단정하기엔
+  근거가 부족함).
+
+### 수동 QA 체크리스트 추가 (자동화 불가 — 사람이 직접 확인)
+
+**Android S-45 (모양 선택 AI 생성 화면)**
+- [ ] "모양 선택" 코스 방식 선택 시 목표 거리 슬라이더가 실제로 숨겨지는지(13.5)
+- [ ] `STAR`가 아이콘 그리드에 노출되지 않는지(하트/원/물방울 3개만)
+- [ ] S/M/L 각 옵션 옆 거리 범위 안내 문구가 13.1.1 표와 일치하는지, L에 "하프마라톤급,
+      상급자용" 보조 카피가 붙어 있는지
+- [ ] 결과 화면에서 실제 `distanceKm`이 미리 본 범위와 달라도 별도 사과 문구 없이 그대로
+      노출되는지(정상 동작이므로 사과 문구가 있으면 오히려 버그)
+- [ ] 실제 기기에서 하트/물방울 모양이 지도 위에서 육안으로도 "그 모양처럼" 보이는지 —
+      Fréchet 거리가 작다는 것이 사람 눈에도 인식 가능하다는 것과 완전히 동일하진 않으므로
+      최종 확인은 사람 눈으로
+
+---
+
 ## 라운드 2 — 알림(notification) 도메인 + RunService 연동 (2026-09-04)
 
 대상: `RunService.finishRun`의 `NotificationService.notifyRunCompleted` 호출(생성자에

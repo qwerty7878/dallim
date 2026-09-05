@@ -57,6 +57,20 @@ class ShapeTemplatesTest {
     }
 
     @Test
+    fun `fromRequestValue does not trim whitespace or fold case - padded and mixed-case variants are unregistered`() {
+        // fromRequestValue is a plain exact-match `entries.find { it.name == value }` — there's no
+        // trim()/uppercase() normalization anywhere in the request path, so a client sending
+        // whitespace or different casing gets the same 400 VALIDATION_ERROR as a genuinely unknown
+        // shape name, not a silently-accepted match.
+        assertNull(ShapeType.fromRequestValue(" HEART"))
+        assertNull(ShapeType.fromRequestValue("HEART "))
+        assertNull(ShapeType.fromRequestValue(" HEART "))
+        assertNull(ShapeType.fromRequestValue("Heart"))
+        assertNull(ShapeType.fromRequestValue("heart"))
+        assertNull(ShapeType.fromRequestValue("HEART\n"))
+    }
+
+    @Test
     fun `a single closed subpath parses without error`() {
         val template = ShapeTemplate.fromSvgPath("M0,0 L100,0 L100,100 L0,100 Z")
         assertEquals(ShapeTemplate.POINT_COUNT, template.points.size)
