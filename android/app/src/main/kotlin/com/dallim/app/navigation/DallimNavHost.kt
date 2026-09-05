@@ -8,12 +8,19 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.dallim.app.career.edit.RaceRecordEditRoute
+import com.dallim.app.career.shelf.MedalShelfRoute
 import com.dallim.app.dallimbook.detail.DallimbookDetailRoute
 import com.dallim.app.dallimbook.grid.DallimbookGridRoute
 import com.dallim.app.discover.DiscoverRoute
 import com.dallim.app.home.HomeRoute
+import com.dallim.app.meetup.create.MeetupCreateRoute
+import com.dallim.app.meetup.detail.MeetupDetailRoute
+import com.dallim.app.meetup.list.MeetupListRoute
+import com.dallim.app.meetup.list.MeetupListViewModel
 import com.dallim.app.my.MyRoute
 import com.dallim.app.notification.NotificationListRoute
+import com.dallim.app.onboarding.career.CareerEntryRoute
 import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
 import com.dallim.app.onboarding.firstroute.FirstRouteSuggestionRoute
 import com.dallim.app.onboarding.login.LoginRoute
@@ -130,6 +137,18 @@ fun DallimNavHost(
         composable(DallimDestinations.PROFILE_SETUP) {
             ProfileSetupRoute(
                 onNavigatePermission = { navController.navigate(DallimDestinations.PERMISSION) },
+                onNavigateCareerEntry = { comfortablePace ->
+                    navController.navigate(DallimDestinations.careerEntry(comfortablePace))
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.CAREER_ENTRY,
+            arguments = listOf(navArgument(DallimDestinations.ARG_COMFORTABLE_PACE) { type = NavType.StringType }),
+        ) {
+            CareerEntryRoute(
+                onFinished = { navController.navigate(DallimDestinations.PERMISSION) },
             )
         }
 
@@ -211,6 +230,7 @@ fun DallimNavHost(
         composable(DallimDestinations.MY) {
             MyRoute(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
+                onMedalShelfClick = { navController.navigate(DallimDestinations.MEDAL_SHELF) },
                 onLoggedOut = {
                     // 로그아웃 — S-02(로그인) 아래 전체 백스택(홈/탭 포함)을 비운다
                     // (docs/01-feature-spec.md §1.5). SplashViewModel의 로그인 성공 시
@@ -222,6 +242,34 @@ fun DallimNavHost(
             )
         }
 
+        composable(DallimDestinations.MEDAL_SHELF) {
+            MedalShelfRoute(
+                onBackClick = { navController.popBackStack() },
+                onAddClick = { navController.navigate(DallimDestinations.raceRecordCreate()) },
+                onItemClick = { raceRecordId -> navController.navigate(DallimDestinations.raceRecordEdit(raceRecordId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.RACE_RECORD_EDIT,
+            arguments = listOf(
+                navArgument(DallimDestinations.ARG_RACE_RECORD_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) {
+            // S-91(메달 선반)로 돌아가면 그 destination의 content 람다가 다시 컴포지션에
+            // 들어오면서 `LaunchedEffect(Unit)`이 목록을 다시 불러온다(MedalShelfRoute 참고) —
+            // 별도의 SavedStateHandle 결과 플래그 relay가 필요 없다.
+            RaceRecordEditRoute(
+                onBackClick = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() },
+                onDeleted = { navController.popBackStack() },
+            )
+        }
+
         composable(
             route = DallimDestinations.ROUTE_DETAIL,
             arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
@@ -229,6 +277,55 @@ fun DallimNavHost(
             RouteDetailRoute(
                 onBackClick = { navController.popBackStack() },
                 onStartRunClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
+                onMeetupsClick = { routeId -> navController.navigate(DallimDestinations.meetupList(routeId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.MEETUP_LIST,
+            arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
+        ) {
+            MeetupListRoute(
+                onBackClick = { navController.popBackStack() },
+                onMeetupClick = { meetupId -> navController.navigate(DallimDestinations.meetupDetail(meetupId)) },
+                onCreateClick = { routeId -> navController.navigate(DallimDestinations.meetupCreate(routeId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.MEETUP_CREATE,
+            arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
+        ) {
+            MeetupCreateRoute(
+                onBackClick = { navController.popBackStack() },
+                onCreated = {
+                    // S-47(모집 목록) back stack entry의 SavedStateHandle에 결과 플래그를 심어
+                    // 돌아갔을 때 목록이 자동으로 새로고침되게 한다(MeetupListViewModel.init 참고).
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(MeetupListViewModel.RESULT_MEETUP_CREATED, true)
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.MEETUP_DETAIL,
+            arguments = listOf(navArgument(DallimDestinations.ARG_MEETUP_ID) { type = NavType.StringType }),
+        ) {
+            // S-49에서 참가/나가기로 상태가 바뀌었을 수 있으니, 뒤로가기든 모집 취소 성공이든
+            // 항상 S-47(모집 목록) back stack entry에 새로고침 플래그를 심는다 — S-48의 onCreated와
+            // 같은 결과 전달 패턴(MeetupListViewModel.RESULT_MEETUP_CREATED)을 재사용한다.
+            fun goBackAndRefreshList() {
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(MeetupListViewModel.RESULT_MEETUP_CREATED, true)
+                navController.popBackStack()
+            }
+
+            MeetupDetailRoute(
+                onBackClick = { goBackAndRefreshList() },
+                onCancelled = { goBackAndRefreshList() },
             )
         }
 

@@ -24,4 +24,5 @@ object IdGenerator {
     fun gpsPoint(): String = next("gps")
     fun savedRoute(): String = next("sav")
     fun meetup(): String = next("mt")
+    fun raceRecord(): String = next("race")
 }

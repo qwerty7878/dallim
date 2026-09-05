@@ -7,6 +7,7 @@ import com.dallim.discovery.discoveryModule
 import com.dallim.meetup.meetupModule
 import com.dallim.notification.notificationModule
 import com.dallim.push.pushModule
+import com.dallim.racerecord.raceRecordModule
 import com.dallim.route.routeModule
 import com.dallim.run.runModule
 import com.dallim.user.userModule
@@ -47,6 +48,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             notificationModule,
             pushModule,
             meetupModule,
+            raceRecordModule,
         )
     }
 }

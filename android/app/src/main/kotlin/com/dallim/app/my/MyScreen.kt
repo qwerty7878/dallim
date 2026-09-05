@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -45,10 +48,14 @@ import com.dallim.ui.theme.Spacing
  * 비어있으면(온보딩 프로필 설정 미완료 계정) 해당 행을 "미설정"으로 대체한다.
  * 홈(S-10)과 마찬가지로 오직 하단 탭바로만 진입하는 최상위 화면이라 상단 뒤로가기 버튼은 두지
  * 않는다. 닉네임/아바타 수정 기능은 없다(스코프 밖 — `PATCH /users/me`가 SPEC에 없음).
+ *
+ * S-91(완주 메달 선반) 진입점을 카드 하나로 둔다(2026-09-06 신규) — 새 탭을 만들지 않고 기존
+ * 4탭 구조를 유지한다는 원칙에 따라, 마이 안에서만 진입 가능하게 한다.
  */
 @Composable
 fun MyRoute(
     onTabSelected: (DallimTab) -> Unit,
+    onMedalShelfClick: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MyViewModel = hiltViewModel(),
@@ -66,6 +73,7 @@ fun MyRoute(
     MyScreen(
         uiState = uiState,
         onTabSelected = onTabSelected,
+        onMedalShelfClick = onMedalShelfClick,
         onLogoutClick = viewModel::onLogoutClick,
         onRetryClick = viewModel::load,
         modifier = modifier,
@@ -76,6 +84,7 @@ fun MyRoute(
 private fun MyScreen(
     uiState: MyUiState,
     onTabSelected: (DallimTab) -> Unit,
+    onMedalShelfClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -114,6 +123,8 @@ private fun MyScreen(
                         .padding(horizontal = Spacing.ScreenHorizontal),
                 ) {
                     ProfileCard(user = uiState.user)
+
+                    MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.lg))
 
                     DallimSecondaryButton(
                         text = if (uiState.isLoggingOut) "로그아웃 중…" else "로그아웃",
@@ -197,6 +208,28 @@ private fun AvatarBadge(avatarId: String) {
     }
 }
 
+/**
+ * S-91(완주 메달 선반) 진입점 — 새 탭을 만들지 않고 마이(S-42)에 카드 하나로 추가한다
+ * (docs/달림_화면별_상세기획서_v1.3.md PART 3-H, 작업 브리핑 "새 탭 만들지 말 것" 원칙).
+ */
+@Composable
+private fun MedalShelfEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Filled.EmojiEvents, contentDescription = null, tint = DallimColors.Primary)
+            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
+                Text(text = "완주 메달 선반", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "대회 완주 이력을 모아보세요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
+            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        }
+    }
+}
+
 @Composable
 private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
@@ -227,6 +260,7 @@ private fun MyScreenPreview() {
                 ),
             ),
             onTabSelected = {},
+            onMedalShelfClick = {},
             onLogoutClick = {},
             onRetryClick = {},
         )

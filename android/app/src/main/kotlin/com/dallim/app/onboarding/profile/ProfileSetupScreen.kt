@@ -45,6 +45,7 @@ import com.dallim.ui.theme.Spacing
 @Composable
 fun ProfileSetupRoute(
     onNavigatePermission: () -> Unit,
+    onNavigateCareerEntry: (comfortablePaceApiValue: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProfileSetupViewModel = hiltViewModel(),
 ) {
@@ -54,6 +55,7 @@ fun ProfileSetupRoute(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 ProfileSetupNavigationEvent.GoToPermission -> onNavigatePermission()
+                is ProfileSetupNavigationEvent.GoToCareerEntry -> onNavigateCareerEntry(event.comfortablePaceApiValue)
             }
         }
     }

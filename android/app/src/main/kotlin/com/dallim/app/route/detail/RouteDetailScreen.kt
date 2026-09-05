@@ -18,10 +18,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -49,6 +52,7 @@ import com.dallim.ui.components.RouteStatusBadge
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.toRouteStatus
 import com.dallim.ui.theme.DallimColors
+import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
@@ -65,12 +69,15 @@ import com.dallim.ui.theme.Spacing
  * 하단 [FinishersRow]의 88dp 완주자 GPS 그림 아바타는 지도가 아니라 스타일라이즈드 썸네일이므로
  * 이 폴백 정책과 무관하게 항상 [RouteThumbnailView]를 쓴다 — "제네릭 아이콘 금지" 원칙 유지.
  *
- * MVP1은 소셜/대회를 범위에서 제외하므로(CLAUDE.md) 하단 CTA는 "혼자 달리기" 하나만 둔다.
+ * MVP1은 소셜/대회를 범위에서 제외하므로(CLAUDE.md) 하단 CTA는 "혼자 달리기" 하나만 둔다 — 단,
+ * "같이 달리기 모집"(§1.8)만은 2026-09-05부로 예외로 범위에 포함돼 [MeetupEntryRow] 섹션으로
+ * 별도 노출한다(하단 고정 CTA가 아니라 스크롤 본문 안의 진입 섹션, §1.8.1).
  */
 @Composable
 fun RouteDetailRoute(
     onBackClick: () -> Unit,
     onStartRunClick: (routeId: String) -> Unit,
+    onMeetupsClick: (routeId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RouteDetailViewModel = hiltViewModel(),
 ) {
@@ -81,6 +88,7 @@ fun RouteDetailRoute(
         onBackClick = onBackClick,
         onToggleSaveClick = viewModel::onToggleSave,
         onStartRunClick = onStartRunClick,
+        onMeetupsClick = onMeetupsClick,
         onRetryClick = viewModel::load,
         modifier = modifier,
     )
@@ -92,6 +100,7 @@ private fun RouteDetailScreen(
     onBackClick: () -> Unit,
     onToggleSaveClick: () -> Unit,
     onStartRunClick: (String) -> Unit,
+    onMeetupsClick: (String) -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -201,6 +210,21 @@ private fun RouteDetailScreen(
                             FinishersRow(finishers = uiState.finishers)
                         }
 
+                        // S-47 진입점 (docs/01-feature-spec.md §1.8.1) — "그 코스에 열려 있는
+                        // 모집(OPEN, 미래 시각) 개수를 보여주고 탭하면 S-47로 이동". 개수와
+                        // 무관하게 섹션 자체는 항상 노출한다(0건이어도 "모집 만들기"로 이어지는
+                        // 진입로 역할).
+                        Text(
+                            text = "같이 뛸 사람 모집",
+                            style = DallimTypography.Title2,
+                            color = DallimColors.TextPrimary,
+                            modifier = Modifier.padding(top = Spacing.xl, bottom = Spacing.sm),
+                        )
+                        MeetupEntryRow(
+                            openCount = uiState.openMeetupCount,
+                            onClick = { onMeetupsClick(uiState.route.routeId) },
+                        )
+
                         if (uiState.saveErrorMessage != null) {
                             Text(
                                 text = uiState.saveErrorMessage,
@@ -303,6 +327,33 @@ private fun FinishersRow(finishers: List<FinisherThumbnail>) {
     }
 }
 
+/** S-47(모집 목록) 진입 섹션 — docs/01-feature-spec.md §1.8.1. */
+@Composable
+private fun MeetupEntryRow(openCount: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(DallimShapes.CardCorner)
+            .background(DallimColors.Surface)
+            .clickable { onClick() }
+            .padding(Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = Icons.Filled.Groups, contentDescription = null, tint = DallimColors.Primary)
+        Text(
+            text = if (openCount > 0) "지금 열려 있는 모집 ${openCount}건" else "아직 열려 있는 모집이 없어요",
+            style = DallimTypography.Body,
+            color = DallimColors.TextPrimary,
+            modifier = Modifier.weight(1f).padding(start = Spacing.md),
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = DallimColors.TextSecondary,
+        )
+    }
+}
+
 private fun String.toDifficultyLabel(): String = when (this) {
     "EASY" -> "쉬움"
     "MEDIUM" -> "보통"
@@ -352,10 +403,12 @@ private fun RouteDetailScreenPreview() {
                         ),
                     ),
                 ),
+                openMeetupCount = 2,
             ),
             onBackClick = {},
             onToggleSaveClick = {},
             onStartRunClick = {},
+            onMeetupsClick = {},
             onRetryClick = {},
         )
     }

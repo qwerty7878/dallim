@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.dallim.app.common.UiResult
 import com.dallim.app.common.safeApiCall
 import com.dallim.app.navigation.DallimDestinations
+import com.dallim.network.meetup.MeetupApi
 import com.dallim.network.route.FinisherThumbnail
 import com.dallim.network.route.RouteApi
 import com.dallim.network.route.RouteDetailResponseBody
@@ -25,6 +26,13 @@ sealed interface RouteDetailUiState {
         val finishers: List<FinisherThumbnail> = emptyList(),
         val isSaving: Boolean = false,
         val saveErrorMessage: String? = null,
+        /**
+         * 이 코스에 열려 있는(OPEN 상태 & 예정 시각이 아직 안 지난) 모집 개수 —
+         * docs/01-feature-spec.md §1.8.1 "그 코스에 열려 있는 모집(OPEN, 미래 시각) 개수를
+         * 보여주고 탭하면 S-47로 이동". `GET /routes/{routeId}/meetups`(14.2)는 개수 필드를
+         * 따로 내려주지 않으므로 목록을 받아 클라이언트에서 직접 센다.
+         */
+        val openMeetupCount: Int = 0,
     ) : RouteDetailUiState
 
     data class Error(val message: String) : RouteDetailUiState
@@ -41,6 +49,7 @@ sealed interface RouteDetailUiState {
 class RouteDetailViewModel @Inject constructor(
     private val routeApi: RouteApi,
     private val userApi: UserApi,
+    private val meetupApi: MeetupApi,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -61,7 +70,21 @@ class RouteDetailViewModel @Inject constructor(
                 is UiResult.Success -> {
                     val finishersResult = safeApiCall { routeApi.getFinishers(routeId) }
                     val finishers = (finishersResult as? UiResult.Success)?.data?.items ?: emptyList()
-                    _uiState.value = RouteDetailUiState.Success(route = detailResult.data, finishers = finishers)
+
+                    // best-effort: 모집 목록 호출이 실패해도(예: 오프라인) Route 상세 자체는
+                    // 정상 표시한다 — finishers와 동일한 방식.
+                    val meetupsResult = safeApiCall { meetupApi.getMeetups(routeId) }
+                    val openMeetupCount = (meetupsResult as? UiResult.Success)
+                        ?.data
+                        ?.items
+                        ?.count { it.status == "OPEN" && !it.isPast }
+                        ?: 0
+
+                    _uiState.value = RouteDetailUiState.Success(
+                        route = detailResult.data,
+                        finishers = finishers,
+                        openMeetupCount = openMeetupCount,
+                    )
                 }
                 is UiResult.Error -> _uiState.value = RouteDetailUiState.Error(detailResult.message)
                 UiResult.Loading -> Unit

@@ -41,6 +41,13 @@ data class ProfileSetupUiState(
 
 sealed interface ProfileSetupNavigationEvent {
     data object GoToPermission : ProfileSetupNavigationEvent
+
+    /**
+     * `runningExperience == OVER_1_YEAR`일 때만 S-04b(러닝 커리어 입력)로 보낸다 —
+     * docs/달림_화면별_상세기획서_v1.3.md PART 3-A "S-04b" 노출 조건. [ComfortablePace.apiValue]를
+     * 함께 실어 보내 S-04b가 페이스 제안과 비교할 수 있게 한다.
+     */
+    data class GoToCareerEntry(val comfortablePaceApiValue: String) : ProfileSetupNavigationEvent
 }
 
 /**
@@ -144,7 +151,13 @@ class ProfileSetupViewModel @Inject constructor(
                 val body = response.body()
                 if (response.isSuccessful && body?.success == true) {
                     _uiState.value = _uiState.value.copy(isSubmitting = false)
-                    _navigationEvents.emit(ProfileSetupNavigationEvent.GoToPermission)
+                    _navigationEvents.emit(
+                        if (experience == RunningExperience.OVER_1_YEAR) {
+                            ProfileSetupNavigationEvent.GoToCareerEntry(pace.apiValue)
+                        } else {
+                            ProfileSetupNavigationEvent.GoToPermission
+                        },
+                    )
                 } else {
                     val message = if (response.code() == 409) "이미 사용 중인 닉네임이에요." else "프로필 저장에 실패했어요."
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitError = message)

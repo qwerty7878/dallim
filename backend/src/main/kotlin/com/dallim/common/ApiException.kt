@@ -60,6 +60,9 @@ object ErrorCodes {
     const val MEETUP_ENDED = "MEETUP_ENDED"
     const val MEETUP_NOT_HOST = "MEETUP_NOT_HOST"
 
+    // race record (docs/02-api-spec.md 15장, 러닝 커리어/완주 이력)
+    const val RACE_RECORD_NOT_FOUND = "RACE_RECORD_NOT_FOUND"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"

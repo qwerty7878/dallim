@@ -1280,3 +1280,161 @@ run_meetup_participants
 - 코스와 무관하게 모집 글을 가로질러 검색/둘러보는 통합 목록(지역/날짜 필터 등)
 - 정원 초과 시 대기열(waitlist) — 지금은 꽉 차면 그냥 막는다
 - 모집 취소/마감 시 참가자에게 별도 알림 — 이번 라운드는 host에게 가는 참가 알림만
+
+---
+
+## 15. 러닝 커리어(완주 이력) (2026-09-06 — `docs/달림_화면별_상세기획서_v1.3.md` SPEC 편입)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` PART 3-A "S-04b 러닝 커리어 입력", PART 3-H
+> "S-82 내 대회(메달 선반)" / "S-83 완주 이력 등록/편집" 근거. 이번 라운드는 **완주 이력
+> CRUD + PB 계산 + 페이스 제안**만 구현한다 — 대회 캘린더(S-80/81), 코스 미리달리기(S-85),
+> 훈련플랜(S-86), 기록 인증(S-84)은 범위 밖(SPEC에 없어 보류).
+>
+> 자기신고 이력이므로 응답에 항상 `verified: false`가 명시된다 — 인증 승격 경로(S-84)가
+> 없어 향후 배지/랭킹 등에서 신뢰 소스로 함부로 쓰이지 않도록 하기 위함.
+
+### 15.1 데이터 모델
+
+```
+race_records
+  id               varchar(32) PK
+  user_id          varchar(32) FK -> users
+  race_name        varchar(100)     -- 자유 입력(대회 DB 검색은 이번 범위 밖 — 직접 입력만)
+  category         5K | 10K | HALF | FULL | ULTRA | TRAIL | OTHER
+  distance_km      double null      -- OTHER는 필수(양수). 5K/10K/HALF/FULL은 카테고리 기준
+                                     -- 고정값을 서버가 채우되 클라이언트가 보내면 그 값을 신뢰.
+                                     -- ULTRA/TRAIL은 대회마다 거리가 달라 고정값이 없어 null 허용
+  year             int              -- 1990 ~ 현재연도+1
+  record_seconds   int null         -- hh:mm:ss를 초 단위로 저장, 선택 입력
+  record_type      NET | GROSS | null
+  bib_number       varchar(32) null
+  memo             text null
+  verified         boolean          -- 이번 라운드는 항상 false(자기신고, 인증 승격 경로 없음)
+  created_at       timestamptz
+```
+- **PB(personal best)**: 같은 `category` 내 `recordSeconds`가 있는 이력 중 최솟값. 별도
+  배치/캐시 없이 **매 조회 시 실시간 계산**한다(사용자당 이력 수가 적어 성능 문제 없음).
+- 본인 이력만 조회/수정/삭제 가능 — 다른 유저의 `id`로 `PATCH`/`DELETE`를 시도하면
+  `404 RACE_RECORD_NOT_FOUND`로 응답한다(5장 `RunService`의 관례와 동일하게, 남의 개인
+  리소스 존재 여부를 403으로 굳이 알려주지 않는다 — 7장 상태 코드표의 403 정의와 별개로,
+  "내 것이 아닌 리소스" 중에서도 조회 자체가 안 되는 개인 기록은 404를 쓴다).
+
+### 15.2 `GET /users/me/race-records` 🔒
+내 완주 이력 목록 — 연도 내림차순(동일 연도 내에서는 최신 등록순)
+
+**Response 200**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "race_a1b2c3d4",
+        "raceName": "2026 서울 하프마라톤",
+        "category": "HALF",
+        "distanceKm": 21.0975,
+        "year": 2026,
+        "recordSeconds": 6300,
+        "recordType": "NET",
+        "bibNumber": "A1234",
+        "memo": "첫 하프",
+        "verified": false,
+        "isPb": true,
+        "paceSuggestion": "PACE_6_7",
+        "createdAt": "2026-09-06T09:00:00Z"
+      }
+    ]
+  },
+  "error": null
+}
+```
+- `isPb`: 15.1의 규칙으로 매 요청마다 계산.
+- `paceSuggestion`: `category`가 `HALF`/`FULL`이고 `recordSeconds`가 있을 때만 채워진다
+  (15.5 계산 로직 재사용). 그 외에는 `null`.
+- 페이지네이션 없음(코스당 모집과 마찬가지로 유저 1인당 이력 수가 많지 않을 것으로 예상 —
+  필요해지면 다음 라운드에 추가).
+
+### 15.3 `POST /users/me/race-records` 🔒
+완주 이력 등록
+
+**Request**
+```json
+{
+  "raceName": "2026 서울 하프마라톤",
+  "category": "HALF",
+  "distanceKm": null,
+  "year": 2026,
+  "recordSeconds": 6300,
+  "recordType": "NET",
+  "bibNumber": "A1234",
+  "memo": "첫 하프"
+}
+```
+- `raceName`: 필수, 공백만으로는 안 됨.
+- `category`: `5K` / `10K` / `HALF` / `FULL` / `ULTRA` / `TRAIL` / `OTHER` 중 하나가 아니면
+  `400 VALIDATION_ERROR`.
+- `distanceKm`: `category`가 `OTHER`면 필수(양수) — 없거나 0 이하면 `400 VALIDATION_ERROR`.
+  그 외 카테고리는 생략 가능(생략 시 카테고리 기준 고정값을 서버가 채움: 5K=5.0,
+  10K=10.0, HALF=21.0975, FULL=42.195, ULTRA/TRAIL은 null). 값을 보내면 0 이하일 때만 에러.
+- `year`: `1990` ~ `현재연도+1` 범위를 벗어나면 `400 VALIDATION_ERROR`.
+- `recordSeconds`: 보내는 경우 0보다 커야 함.
+- `recordType`: 보내는 경우 `NET`/`GROSS`만 허용.
+
+**Response 201** — 15.2의 아이템 하나와 동일한 형태(생성 직후 `isPb`/`paceSuggestion`까지
+바로 계산해서 내려준다 — S-83 "자동 처리: 종목별 PB 자동 갱신 / 기록 → 예상 페이스 환산"
+요구를 응답 한 번으로 충족).
+```json
+{ "success": true, "data": { "id": "race_a1b2c3d4", "...": "..." }, "error": null }
+```
+
+### 15.4 `PATCH /users/me/race-records/{id}` 🔒
+완주 이력 수정 — 부분 수정. 요청에 없는 필드는 기존 값 유지(명시적으로 값을 지우는 기능은
+이번 범위 밖). 검증 규칙은 15.3과 동일(수정 후 값 기준). 본인 이력이 아니거나 존재하지
+않으면 `404 RACE_RECORD_NOT_FOUND`.
+
+**Response 200** — 15.2의 아이템 하나와 동일한 형태(수정 반영된 최신 값).
+
+### 15.5 `DELETE /users/me/race-records/{id}` 🔒
+완주 이력 삭제. 본인 이력이 아니거나 존재하지 않으면 `404 RACE_RECORD_NOT_FOUND`.
+
+**Response 200**
+```json
+{ "success": true, "data": null, "error": null }
+```
+
+### 15.6 `POST /users/me/race-records/pace-suggestion` 🔒
+S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실제로 저장하기 전에 미리보기로도
+쓸 수 있도록 별도 엔드포인트로 노출 — 15.3 응답의 `paceSuggestion`과 계산 로직 공유).
+
+**Request**
+```json
+{ "category": "HALF", "recordSeconds": 6300 }
+```
+**Response 200**
+```json
+{ "success": true, "data": { "suggestedPace": "PACE_6_7" }, "error": null }
+```
+- `category`가 `HALF`/`FULL`이 아니면 `400 VALIDATION_ERROR`("페이스 제안은 하프 또는 풀
+  기록에서만 가능합니다").
+- `recordSeconds`가 0 이하면 `400 VALIDATION_ERROR`.
+
+**계산 방식** (SPEC에 정확한 공식이 없어 다음과 같이 근사 — `PaceSuggestionCalculator` 참고):
+1. **Riegel 공식** `T2 = T1 × (D2/D1)^1.06`으로 입력 기록(하프 또는 풀)을 풀코스 상당
+   기록으로 투영해, 하프/풀 두 입력을 하나의 기준 거리로 정규화한다.
+2. 그 풀코스 상당 페이스(초/km)에 보정 배율 **1.15**를 곱해 "편안한 러닝 페이스"로 늦춘다 —
+   대회 기록 자체는 전력(레이스) 페이스이고, 일상적으로 편하게 뛰는 페이스는 그보다 느리기
+   때문. 1.15~1.2배 범위 중 보수적인 쪽을 채택했다(정확한 배율은 SPEC에 없는 임의 근사치).
+3. 위 초/km 값을 `comfortablePace`와 동일한 5단계(`PACE_UNDER_5`/`PACE_5_6`/`PACE_6_7`/
+   `PACE_7_8`/`PACE_OVER_8`, 2장 참고)로 매핑한다. 경계값은 android
+   `ProfileOptions.ComfortablePace` 라벨(`5'00" 이하` 등)에서 역산한 분/km 구간이다.
+4. 이 값은 온보딩(S-04b)의 페이스 제안 UX에도, 마이 탭 "완주 이력 관리"에서 이력 등록/수정
+   시에도 동일하게 재사용된다 — 별도 온보딩 전용 API는 만들지 않았다.
+
+### 15.7 이번 라운드에 만들지 않은 것
+- 대회 캘린더/대회 상세/참가 예정 대회 담기(S-80/81, S-82 상단·중단 섹션)
+- 코스 미리달리기(S-85), 훈련플랜(S-86)
+- 기록 인증(사진/링크 제출 → 운영 검토 → `인증` 배지, S-84) — 그래서 `verified`는 항상 `false`
+- 대회 DB 검색(현재는 `raceName` 자유 입력만) — S-83이 "없으면 직접 입력 허용"이라고 명시한
+  경로만 우선 구현
+- "완주 이력 3건 이상 시 배지" 같은 마일스톤/배지 부여 로직(S-83) — 배지 시스템 자체가 이번
+  범위 밖이라 판단, 향후 배지 도메인이 생기면 이 API의 `items.length`로 계산 가능
