@@ -1,5 +1,8 @@
 package com.dallim.app.route.create.ai
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +35,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,8 +52,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.BuildConfig
@@ -62,6 +68,7 @@ import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
@@ -85,6 +92,7 @@ fun AiRouteRoute(
     viewModel: AiRouteViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val activity = LocalContext.current.findActivity()
 
     AiRouteScreen(
         uiState = uiState,
@@ -103,7 +111,16 @@ fun AiRouteRoute(
         onGenerateClick = viewModel::onGenerateClick,
         onSaveClick = viewModel::onSaveClick,
         onSnackbarShown = viewModel::onSnackbarShown,
+        onQuotaExceededModalDismiss = viewModel::onQuotaExceededModalDismiss,
+        onWatchAdClick = { viewModel.onWatchAdClick(activity) },
     )
+}
+
+/** 리워드 광고(`RewardedAd.show`)는 SDK 제약상 Activity Context가 있어야 한다. */
+private tailrec fun Context.findActivity(): Activity = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> error("AiRouteScreen은 Activity Context 내에서만 사용할 수 있어요.")
 }
 
 @Composable
@@ -124,6 +141,8 @@ private fun AiRouteScreen(
     onGenerateClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSnackbarShown: () -> Unit,
+    onQuotaExceededModalDismiss: () -> Unit,
+    onWatchAdClick: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -157,6 +176,16 @@ private fun AiRouteScreen(
                     )
                 }
                 Text(text = "AI로 자동 생성", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+            }
+
+            // v1.3 문서 257행 "남은 무료 탐색 횟수 표시" — 아직 못 불러왔으면(null) 배너 자체를 숨긴다.
+            uiState.quotaRemainingToday?.let { remaining ->
+                Text(
+                    text = "오늘 남은 무료 탐색 ${remaining}회",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
+                )
             }
 
             Column(
@@ -196,6 +225,55 @@ private fun AiRouteScreen(
                 onGenerateClick = onGenerateClick,
                 onSaveClick = onSaveClick,
             )
+        }
+    }
+
+    if (uiState.showQuotaExceededModal) {
+        QuotaExceededDialog(
+            isWatchingAd = uiState.isWatchingAd,
+            onWatchAdClick = onWatchAdClick,
+            onDismiss = onQuotaExceededModalDismiss,
+        )
+    }
+}
+
+/**
+ * v1.3 문서 259행 "일 무료 횟수 소진" 모달 — `[광고 보고 1회 더]` 버튼과 닫기만 있다. RUN+(구독)
+ * 옵션은 아직 구현된 적 없는 기능이라 SPEC 임의 확장 금지 원칙상 만들지 않는다
+ * (docs/02-api-spec.md 8.4).
+ */
+@Composable
+private fun QuotaExceededDialog(
+    isWatchingAd: Boolean,
+    onWatchAdClick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = { if (!isWatchingAd) onDismiss() }) {
+        Surface(shape = DallimShapes.CardCorner, color = DallimColors.Surface) {
+            Column(modifier = Modifier.padding(Spacing.lg)) {
+                Text(
+                    text = "오늘의 무료 탐색을 모두 사용했어요",
+                    style = DallimTypography.Title2,
+                    color = DallimColors.TextPrimary,
+                )
+                Text(
+                    text = "광고를 보면 오늘 코스 생성 횟수를 2회 더 받을 수 있어요.",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.End),
+                ) {
+                    DallimTextButton(text = "닫기", onClick = onDismiss, enabled = !isWatchingAd)
+                    DallimTextButton(
+                        text = if (isWatchingAd) "불러오는 중..." else "광고 보고 1회 더",
+                        onClick = onWatchAdClick,
+                        enabled = !isWatchingAd,
+                    )
+                }
+            }
         }
     }
 }
@@ -826,6 +904,8 @@ private fun AiRouteScreenPreview() {
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
+            onQuotaExceededModalDismiss = {},
+            onWatchAdClick = {},
         )
     }
 }
@@ -865,6 +945,8 @@ private fun AiRouteScreenResultPreview() {
             onGenerateClick = {},
             onSaveClick = {},
             onSnackbarShown = {},
+            onQuotaExceededModalDismiss = {},
+            onWatchAdClick = {},
         )
     }
 }

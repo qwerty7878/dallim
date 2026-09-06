@@ -1,5 +1,6 @@
 package com.dallim.app.route.create.ai
 
+import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dallim.app.common.UiResult
@@ -22,6 +23,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** `POST /routes/discovery`가 일일 무료 횟수 소진 시 돌려주는 에러코드 (docs/02-api-spec.md 8.4). */
+private const val DISCOVERY_QUOTA_EXCEEDED = "DISCOVERY_QUOTA_EXCEEDED"
 
 data class AiRouteUiState(
     val targetDistanceKm: Float = 5f,
@@ -62,6 +66,16 @@ data class AiRouteUiState(
     val placeSearchQuery: String = "",
     val placeSearchResults: List<PlaceSearchItem> = emptyList(),
     val isSearchingPlaces: Boolean = false,
+    /**
+     * 오늘 남은 무료(+보너스) 생성 횟수 (docs/02-api-spec.md 8.4). 화면 진입 시
+     * `GET /routes/discovery/quota`로 채우고, 생성 성공 시 그 응답의 `remainingToday`로 갱신한다.
+     * null이면 아직 못 불러온 상태 — 이때는 배너 자체를 숨긴다(실패해도 별도 에러 UI 없음).
+     */
+    val quotaRemainingToday: Int? = null,
+    /** v1.3 S-12 "일 무료 횟수 소진" 모달 표시 여부 — 403 DISCOVERY_QUOTA_EXCEEDED 응답 시 켠다. */
+    val showQuotaExceededModal: Boolean = false,
+    /** 리워드 광고 로드/표시 중 — 모달의 "[광고 보고 1회 더]" 버튼 중복 탭 방지용. */
+    val isWatchingAd: Boolean = false,
 )
 
 /**
@@ -74,6 +88,7 @@ data class AiRouteUiState(
 class AiRouteViewModel @Inject constructor(
     private val routeApi: RouteApi,
     private val locationProvider: CurrentLocationProvider,
+    private val rewardedAdController: DiscoveryRewardedAdController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AiRouteUiState())
@@ -94,6 +109,18 @@ class AiRouteViewModel @Inject constructor(
                 .debounce(400)
                 .distinctUntilChanged()
                 .collect { query -> searchPlaces(query) }
+        }
+        viewModelScope.launch { loadQuota() }
+    }
+
+    /**
+     * 화면 진입 시 "오늘 남은 무료 탐색 n회" 배너용 (docs/02-api-spec.md 8.4). 실패해도 배너를
+     * 그냥 숨기면 되는 부가 정보라 별도 에러 UI 없이 조용히 무시한다.
+     */
+    private suspend fun loadQuota() {
+        val result = safeApiCall { routeApi.getDiscoveryQuota() }
+        if (result is UiResult.Success) {
+            _uiState.update { it.copy(quotaRemainingToday = result.data.remainingToday) }
         }
     }
 
@@ -230,18 +257,77 @@ class AiRouteViewModel @Inject constructor(
                 endLat = state.destination?.lat,
                 endLng = state.destination?.lng,
                 shapeType = if (state.mode == "SHAPE") state.shapeType else null,
-                size = if (state.mode == "SHAPE") state.shapeSize else null,
+                // 백엔드 DiscoveryRequest.size는 non-null(default "M")이라 null을 명시적으로 보내면
+                // (Json encodeDefaults=true라 항상 필드 자체는 실림) 역직렬화가 400으로 깨진다
+                // (docs/02-api-spec.md 13.1.1 — SHAPE가 아닐 때는 어차피 무시되는 필드이므로 기본값을
+                // 그대로 채워 보낸다). 이번 라운드(S-56) 범위 밖의 기존 버그 수정.
+                size = if (state.mode == "SHAPE") state.shapeSize else "M",
             )
             val result = safeApiCall { routeApi.discoverRoute(request) }
 
             _uiState.update { current ->
                 when (result) {
-                    is UiResult.Success -> current.copy(isGenerating = false, result = result.data, errorMessage = null)
-                    is UiResult.Error -> current.copy(isGenerating = false, errorMessage = result.message)
+                    is UiResult.Success -> current.copy(
+                        isGenerating = false,
+                        result = result.data,
+                        errorMessage = null,
+                        quotaRemainingToday = result.data.remainingToday,
+                    )
+                    is UiResult.Error -> if (result.code == DISCOVERY_QUOTA_EXCEEDED) {
+                        // v1.3 S-12 "일 무료 횟수 소진" 모달로 안내 — 화면 상단 에러 텍스트는 띄우지 않는다.
+                        current.copy(isGenerating = false, showQuotaExceededModal = true)
+                    } else {
+                        current.copy(isGenerating = false, errorMessage = result.message)
+                    }
                     UiResult.Loading -> current
                 }
             }
         }
+    }
+
+    fun onQuotaExceededModalDismiss() {
+        _uiState.update { it.copy(showQuotaExceededModal = false) }
+    }
+
+    /**
+     * 모달의 `[광고 보고 1회 더]` — 리워드 광고를 로드/표시하고, 끝까지 봐서 리워드를 받으면
+     * `unlockDiscoveryReward()`로 쿼터를 +2 채운 뒤 같은 입력으로 [onGenerateClick]을 재시도한다.
+     * 로드 실패/중간에 닫음/충전 API 실패는 전부 스낵바 한 줄로만 안내하고 모달은 그대로 유지한다
+     * (과한 에러 UI 금지 — 사용자가 다시 탭하면 된다).
+     */
+    fun onWatchAdClick(activity: Activity) {
+        if (_uiState.value.isWatchingAd) return
+        _uiState.update { it.copy(isWatchingAd = true) }
+
+        rewardedAdController.showAd(
+            activity = activity,
+            onRewardEarned = {
+                viewModelScope.launch {
+                    val result = safeApiCall { routeApi.unlockDiscoveryReward() }
+                    when (result) {
+                        is UiResult.Success -> {
+                            _uiState.update {
+                                it.copy(
+                                    isWatchingAd = false,
+                                    showQuotaExceededModal = false,
+                                    quotaRemainingToday = result.data.remainingToday,
+                                )
+                            }
+                            onGenerateClick()
+                        }
+                        is UiResult.Error -> _uiState.update {
+                            it.copy(isWatchingAd = false, snackbarMessage = "쿼터 충전에 실패했어요. 다시 시도해주세요.")
+                        }
+                        UiResult.Loading -> Unit
+                    }
+                }
+            },
+            onFailedOrDismissed = {
+                _uiState.update {
+                    it.copy(isWatchingAd = false, snackbarMessage = "광고를 불러오지 못했어요. 잠시 후 다시 시도해주세요.")
+                }
+            },
+        )
     }
 
     /** "저장" — 코스를 실제로 저장하는 API는 이번 라운드 범위 밖(docs/02-api-spec.md 8.3). */

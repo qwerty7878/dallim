@@ -79,16 +79,17 @@ fun DallimTextButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
             .height(DallimShapes.MinTapTarget)
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Text(
             text = text,
-            color = DallimColors.TextSecondary,
+            color = if (enabled) DallimColors.TextSecondary else DallimColors.TextSecondary.copy(alpha = 0.4f),
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
         )

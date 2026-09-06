@@ -38,9 +38,22 @@ interface RouteApi {
     @POST("routes/draw-convert")
     suspend fun convertDrawnPath(@Body request: RouteDrawConvertRequest): Response<ApiResponse<RouteDrawConvertResponseBody>>
 
-    /** S-45 AI 자동 생성 — 시작 위치 + 목표 거리로 순환 코스를 생성한다 (docs/02-api-spec.md 8.2). */
+    /**
+     * S-45 AI 자동 생성 — 시작 위치 + 목표 거리로 순환 코스를 생성한다 (docs/02-api-spec.md 8.2).
+     * 2026-09-06부로 🔒 인증 필수(일일 무료 횟수 쿼터가 사용자별이라, docs/02-api-spec.md 8.4) —
+     * `AuthInterceptor`가 자동으로 토큰을 붙이므로 이 시그니처 자체는 바뀌지 않는다. 쿼터 소진 시
+     * 403 `DISCOVERY_QUOTA_EXCEEDED`.
+     */
     @POST("routes/discovery")
     suspend fun discoverRoute(@Body request: RouteDiscoveryRequest): Response<ApiResponse<RouteDiscoveryResponseBody>>
+
+    /** S-45 진입 시 "오늘 남은 무료 탐색 n회" 표시용 (docs/02-api-spec.md 8.4). */
+    @GET("routes/discovery/quota")
+    suspend fun getDiscoveryQuota(): Response<ApiResponse<DiscoveryQuotaStatusBody>>
+
+    /** 리워드 광고 시청 완료 콜백 — 오늘의 bonus를 +2 해서 갱신된 쿼터 상태를 돌려준다 (docs/02-api-spec.md 8.4). */
+    @POST("routes/discovery/reward-unlock")
+    suspend fun unlockDiscoveryReward(): Response<ApiResponse<DiscoveryQuotaStatusBody>>
 
     /**
      * S-45 "꼭 지나갈 장소" 검색 (docs/02-api-spec.md 12장). 인증 불필요, 항상 200 — 결과 없음과
@@ -163,6 +176,16 @@ data class RouteDiscoveryResponseBody(
     val geoJson: GeoJsonLineString,
     val distanceKm: Double,
     val estimatedMinutes: Int,
+    /** 2026-09-06 추가 — 이 호출로 사용량이 반영된 뒤, 오늘 남은 생성 가능 횟수 (docs/02-api-spec.md 8.4). */
+    val remainingToday: Int = 0,
+)
+
+/** `GET /routes/discovery/quota`, `POST /routes/discovery/reward-unlock` 공용 응답 (docs/02-api-spec.md 8.4). */
+@Serializable
+data class DiscoveryQuotaStatusBody(
+    val usedToday: Int,
+    val limit: Int,
+    val remainingToday: Int,
 )
 
 // --- 12장 GET /routes/places/search ---

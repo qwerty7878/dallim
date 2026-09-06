@@ -35,9 +35,15 @@ val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_I
 // 테스트 ID로 배포하면 심사 반려/수익 미발생 사유가 된다.
 val admobAppIdFallback = "ca-app-pub-3940256099942544~3347511713" // Google 공식 테스트 App ID
 val admobNativeHomeAdUnitIdFallback = "ca-app-pub-3940256099942544/2247696110" // Google 공식 Native Advanced 테스트 유닛 ID
+// S-56 2단계 — AI Discovery 일일 무료 횟수 소진 시 "광고 보고 1회 더"(docs/02-api-spec.md 8.4)가
+// 띄우는 리워드 광고 유닛. 위와 동일한 폴백 패턴.
+val admobRewardedDiscoveryAdUnitIdFallback = "ca-app-pub-3940256099942544/5224354917" // Google 공식 Rewarded 테스트 유닛 ID
 val admobAppId: String = localProperties.getProperty("ADMOB_APP_ID", "").trim().ifEmpty { admobAppIdFallback }
 val admobNativeHomeAdUnitId: String =
     localProperties.getProperty("ADMOB_NATIVE_HOME_AD_UNIT_ID", "").trim().ifEmpty { admobNativeHomeAdUnitIdFallback }
+val admobRewardedDiscoveryAdUnitId: String =
+    localProperties.getProperty("ADMOB_REWARDED_DISCOVERY_AD_UNIT_ID", "").trim()
+        .ifEmpty { admobRewardedDiscoveryAdUnitIdFallback }
 
 android {
     namespace = "com.dallim.app"
@@ -65,6 +71,8 @@ android {
         manifestPlaceholders["admobAppId"] = admobAppId
         // HomeNativeAdBanner(S-56)가 로드할 네이티브 광고 유닛 ID.
         buildConfigField("String", "ADMOB_NATIVE_HOME_AD_UNIT_ID", "\"$admobNativeHomeAdUnitId\"")
+        // DiscoveryRewardedAdController(S-56 2단계)가 로드할 리워드 광고 유닛 ID.
+        buildConfigField("String", "ADMOB_REWARDED_DISCOVERY_AD_UNIT_ID", "\"$admobRewardedDiscoveryAdUnitId\"")
     }
 
     buildTypes {
