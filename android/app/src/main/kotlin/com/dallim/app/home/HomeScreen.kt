@@ -170,6 +170,14 @@ private fun HomeScreen(
                 ) {
                     HeroSection(todaySketch = uiState.home.todaySketch, onRouteClick = onRouteClick)
 
+                    // S-56 홈 네이티브 광고 배너 (docs/달림_화면별_상세기획서_v1.3.md 236행 "5번째
+                    // 블록 아래에만"). v1.3 문서의 홈 블록 순서는 [..., 진행 중 미션(5), 최근 달림(6),
+                    // Native Ad(7)]이지만 이 화면엔 아직 진행 중 미션 블록이 없다 — 광고가 "최근 달림
+                    // 바로 위"라는 v1.3의 상대 위치를 그대로 지켜, 현재 구현에서 최근 달림 바로 앞
+                    // 블록인 오늘의 달림(Hero)과 최근 달림 사이에 넣는다. 로드 실패 시 자리를
+                    // 전혀 차지하지 않으므로 실패해도 이 위 여백이 중복되지 않는다.
+                    HomeNativeAdBanner(modifier = Modifier.padding(top = Spacing.xl))
+
                     SectionHeader(title = "최근 달림", modifier = Modifier.padding(top = Spacing.xl))
                     RecentRunsSection(recentRuns = uiState.home.recentRuns.take(3))
 

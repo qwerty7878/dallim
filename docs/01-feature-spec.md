@@ -83,6 +83,21 @@
 - `RouteThumbnailView`: 서버가 내려주는 GPS LineString(GeoJSON)을 Canvas로 렌더링해 실루엣 썸네일 생성(제네릭 아이콘 금지 원칙 구현)
 - Map SDK: 네이버맵 or 카카오맵 SDK(국내 서비스이므로 Google Maps 대비 도로 정밀도 우위)
 
+**S-56 홈 네이티브 광고 배너 (결제/굿즈 없이 광고 수익만으로 시작하는 첫 조각)**
+- S-10 홈 화면에 AdMob 네이티브 광고 1개를 노출한다. 위치는 v1.3 기획서(236행 "5번째 블록
+  아래에만")가 정의한 "진행 중 미션 → 최근 달림" 사이지만, 이 화면엔 아직 진행 중 미션 블록이
+  없어 그 상대 위치(최근 달림 바로 위)를 그대로 지켜 Hero 카드(오늘의 달림)와 최근 달림 섹션
+  사이에 넣었다.
+- `HomeNativeAdBanner`(`android/app/.../home/HomeNativeAdBanner.kt`)가 `AdLoader`로 네이티브
+  광고를 로드해 `NativeAdView`(View 시스템)를 `AndroidView`로 감싸 그린다. 카드 껍데기와 "광고"
+  배지는 `DallimCard`/`DallimColors` 토큰을 그대로 쓴다.
+- 로드 실패 시 블록 전체를 조용히 숨긴다(에러 UI/재시도 없음). 로딩 중에는 레이아웃이 튀지
+  않도록 빈 자리만 유지한다.
+- AdMob App ID/네이티브 광고 유닛 ID는 `local.properties`(`ADMOB_APP_ID`,
+  `ADMOB_NATIVE_HOME_AD_UNIT_ID`)로 오버라이드하며, 비어 있으면 구글 공식 테스트 ID로 폴백한다 —
+  실제 배포 전 반드시 진짜 값으로 교체해야 한다.
+- 리워드 광고(다른 화면의 "광고 보고 +N회" 게이팅) 등 S-56의 나머지 부분은 이번 라운드 범위 밖.
+
 ### 1.3 러닝 모듈 (핵심 중 핵심)
 
 | 화면 ID | 화면명 | 기능 | 안드로이드 구성요소 |

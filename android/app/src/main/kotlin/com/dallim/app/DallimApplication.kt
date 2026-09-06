@@ -3,6 +3,7 @@ package com.dallim.app
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.google.android.gms.ads.MobileAds
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -21,4 +22,12 @@ class DallimApplication : Application(), Configuration.Provider {
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
+
+    override fun onCreate() {
+        super.onCreate()
+        // S-56 홈 네이티브 광고 배너. 초기화는 앱 프로세스당 한 번만 필요하고 결과를 기다릴
+        // 필요가 없어(HomeNativeAdBanner의 AdLoader가 알아서 초기화를 기다린 뒤 로드) 콜백 없이
+        // fire-and-forget으로 호출한다.
+        MobileAds.initialize(this)
+    }
 }

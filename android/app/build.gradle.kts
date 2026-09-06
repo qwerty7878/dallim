@@ -28,6 +28,17 @@ val naverMapClientId: String = localProperties.getProperty("NAVER_MAP_CLIENT_ID"
 // fallback해 키가 아직 발급되지 않은 상태에서도 빌드/설치가 절대 실패하지 않도록 한다.
 val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "").trim()
 
+// AdMob (S-56 홈 네이티브 광고 배너) — 아직 실제 AdMob 계정/앱이 없으므로 local.properties에
+// 값이 없으면 구글이 공식 문서에 공개한 "테스트 전용" ID로 폴백한다. 이 폴백값들은 구글이 배포
+// 안전하다고 명시한 테스트 ID라 하드코딩해도 무방하지만, 실제 프로덕션 배포 전에는 반드시
+// local.properties의 ADMOB_APP_ID / ADMOB_NATIVE_HOME_AD_UNIT_ID를 진짜 값으로 채워야 한다 —
+// 테스트 ID로 배포하면 심사 반려/수익 미발생 사유가 된다.
+val admobAppIdFallback = "ca-app-pub-3940256099942544~3347511713" // Google 공식 테스트 App ID
+val admobNativeHomeAdUnitIdFallback = "ca-app-pub-3940256099942544/2247696110" // Google 공식 Native Advanced 테스트 유닛 ID
+val admobAppId: String = localProperties.getProperty("ADMOB_APP_ID", "").trim().ifEmpty { admobAppIdFallback }
+val admobNativeHomeAdUnitId: String =
+    localProperties.getProperty("ADMOB_NATIVE_HOME_AD_UNIT_ID", "").trim().ifEmpty { admobNativeHomeAdUnitIdFallback }
+
 android {
     namespace = "com.dallim.app"
     compileSdk = 35
@@ -49,6 +60,11 @@ android {
         // Google Sign-In(Credential Manager)의 serverClientId. RealSocialLoginLauncher가
         // 비어있으면 즉시 Result.failure로 가드한다.
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+
+        // AndroidManifest.xml의 com.google.android.gms.ads.APPLICATION_ID meta-data에 연결된다.
+        manifestPlaceholders["admobAppId"] = admobAppId
+        // HomeNativeAdBanner(S-56)가 로드할 네이티브 광고 유닛 ID.
+        buildConfigField("String", "ADMOB_NATIVE_HOME_AD_UNIT_ID", "\"$admobNativeHomeAdUnitId\"")
     }
 
     buildTypes {
@@ -118,6 +134,10 @@ dependencies {
     // FCM 폰 시스템 푸시 (docs/01-feature-spec.md §1.7 2단계, docs/02-api-spec.md 10장).
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
+
+    // S-56 홈 네이티브 광고 배너 (docs/01-feature-spec.md 홈 모듈). 결제/굿즈 없이 광고 수익만으로
+    // 시작하기로 한 첫 조각 — AdMob SDK.
+    implementation(libs.play.services.ads)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
