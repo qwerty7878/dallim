@@ -77,10 +77,16 @@ class RouteService(
             repeatSegmentPercent = row.repeatSegmentPercent,
             runability = row.runability,
             isSaved = isSaved,
-            // TODO: docs/02-api-spec.md 4장 shows a `topFeedbackTags` example, but no feedback
-            // collection feature/table exists anywhere in SPEC yet — left empty rather than
-            // fabricating data. Revisit once a feedback-tagging feature is actually specified.
-            topFeedbackTags = emptyList(),
+            // Top-3 most-submitted tags from POST /runs/{runId}/feedback-tags (docs/01-feature-spec.md
+            // 2.2.G). Counted in Kotlin rather than a SQL GROUP BY, matching this codebase's existing
+            // convention for small aggregate counts (see RunRepository.findFeedbackTagsByRoute).
+            topFeedbackTags = runRepository.findFeedbackTagsByRoute(routeId)
+                .groupingBy { it }
+                .eachCount()
+                .entries
+                .sortedByDescending { it.value }
+                .take(3)
+                .map { it.key },
         )
     }
 

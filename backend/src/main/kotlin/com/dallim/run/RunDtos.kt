@@ -96,3 +96,17 @@ data class RunDetailResponse(
     // FinishRunRequest.stepCount.
     val stepCount: Int? = null,
 )
+
+/**
+ * POST /runs/{runId}/feedback-tags — 0~3 tags from the fixed [RouteFeedbackTags.ALLOWED]
+ * vocabulary. Empty list is valid (skip == no-op, per docs/02-api-spec.md 5장). Anything outside
+ * the allowed vocabulary or more than [RouteFeedbackTags.MAX_TAGS_PER_SUBMISSION] entries is a
+ * 400 VALIDATION_ERROR — see RunService.submitFeedbackTags.
+ */
+@Serializable
+data class FeedbackTagsRequest(val tags: List<String> = emptyList())
+
+/** `tags` echoes the run's final stored set — on a resubmission this is whatever was stored the
+ * first time (idempotent no-op), not necessarily this request's own `tags`. */
+@Serializable
+data class FeedbackTagsResponse(val runId: String, val tags: List<String>)

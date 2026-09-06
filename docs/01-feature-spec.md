@@ -327,7 +327,7 @@ com.dallim
  ├─ auth        (소셜/이메일 로그인, JWT 발급/갱신, BCrypt)
  ├─ user        (프로필, 저장 코스)
  ├─ route       (SketchRoute, Route 상태 전이)
- ├─ run         (RunRecord, GpsPoint, 완주 판정)
+ ├─ run         (RunRecord, GpsPoint, 완주 판정, 코스 평가 태그 — 2026-09-07 SPEC 편입)
  ├─ discovery   (AI Sketch Discovery — MVP2 예정, MVP1은 스텁)
  ├─ meetup      (같이 달리기 모집 — 2026-09-05 범위 편입, docs/02-api-spec.md 14장)
  ├─ racerecord  (러닝 커리어/완주 이력 CRUD + PB 계산 + 페이스 제안 — 2026-09-06 SPEC 편입,
@@ -417,6 +417,28 @@ com.dallim
 - 본인 이력만 조회/수정/삭제 가능(타 유저 리소스 접근 시 `404 RACE_RECORD_NOT_FOUND`).
 - 온보딩(S-04b)과 마이 탭 "완주 이력 관리" 화면이 API를 그대로 공유한다 — 온보딩 전용
   API는 별도로 만들지 않았다.
+
+#### G. 코스 평가 태그(feedback tags) — 2026-09-07 SPEC 편입 (MVP2 로드맵 "코스 평가/투표" 中 절반)
+- `docs/달림_화면별_상세기획서_v1.3.md` 301행(S-16 코스 상세: "러너 평가 태그 상위 3개")/
+  395행(S-25 결과 화면: "코스 평가 요청(태그 선택 3초 컷)")/483~484행("긍정 행동 태그만
+  선택(별점 없음)", "부정 평가는 태그가 아니라 신고 경로로만 처리") 근거. 같은 로드맵 항목의
+  나머지 절반인 "커뮤니티 투표"(모양 맞추기 투표)는 별도 라운드 — 이번 범위 아님.
+- 완주 결과 화면에서 러너가 고정 어휘 중 0~3개를 선택해 제출(`POST /runs/{runId}/feedback-tags`,
+  `docs/02-api-spec.md` 5장). 허용 어휘: `그림이 잘 보여요`, `달리기 편해요`, `신호가 적어요`,
+  `평지예요`, `가로등이 밝아요`, `경치가 좋아요` — 전부 중립/긍정 서술형이며, 별점이나 부정적
+  뉘앙스 태그는 만들지 않는다(부정 평가는 신고 경로로만 — 보복 평가 방지 원칙을 코스 태그에도
+  그대로 적용).
+- 같은 run에 대한 재제출은 idempotent 무시(덮어쓰지 않음, 에러도 아님) — "3초 컷" 저마찰 UX가
+  목적이라 수정/재제출 플로우를 따로 두지 않았다. 완주 판정(RunJudgementService)과는 무관하며,
+  run이 `COMPLETED`가 아니어도 제출을 막지 않는다.
+- `GET /routes/{routeId}`의 `topFeedbackTags`는 이 태그를 route_id 기준으로 집계해 개수 상위
+  3개를 매 요청 실시간 계산해 반환한다(`RouteService.getDetail` — 과거 항상 빈 배열을 반환하던
+  스텁을 대체). 캐싱/구체화 뷰 없음 — 이 규모에서는 불필요.
+- 저장 구조: `route_feedback_tags(id, run_id, route_id, user_id, tag, created_at)`,
+  `(run_id, tag)` UNIQUE로 중복 삽입 방지(`V9__route_feedback_tags.sql`).
+- 태그 제출 UI(안드로이드, 새 화면)는 별도 라운드에서 구현 — 결과 화면의 태그 *표시* UI
+  (`RouteDetailScreen.kt`의 `FeedbackTagRow`)는 이미 완성돼 있었고 이번 라운드는 그 표시 데이터를
+  채우는 백엔드 작업만 다룬다.
 
 ### 2.3 배치/스케줄러
 

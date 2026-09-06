@@ -182,6 +182,33 @@ class RunService(
         )
     }
 
+    /**
+     * POST /runs/{runId}/feedback-tags — 0~3 tags from [RouteFeedbackTags.ALLOWED]. Does not
+     * require the run to be COMPLETED (SPEC places no such constraint — this is a low-friction
+     * "3초 컷" prompt, not gated on judgement outcome) and is unrelated to RunJudgementService.
+     * A resubmission for a run that already has stored tags is a no-op (see
+     * RunRepository.submitFeedbackTagsIfAbsent) rather than an error or an overwrite.
+     */
+    fun submitFeedbackTags(userId: String, runId: String, request: FeedbackTagsRequest): FeedbackTagsResponse {
+        val run = findOwnedRun(userId, runId)
+
+        if (request.tags.size > RouteFeedbackTags.MAX_TAGS_PER_SUBMISSION) {
+            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "태그는 최대 ${RouteFeedbackTags.MAX_TAGS_PER_SUBMISSION}개까지 선택할 수 있습니다.")
+        }
+        val invalidTags = request.tags.filterNot { it in RouteFeedbackTags.ALLOWED }
+        if (invalidTags.isNotEmpty()) {
+            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "허용되지 않은 태그입니다: ${invalidTags.joinToString()}")
+        }
+
+        val storedTags = runRepository.submitFeedbackTagsIfAbsent(
+            runId = runId,
+            routeId = run.routeId,
+            userId = userId,
+            tags = request.tags.distinct(),
+        )
+        return FeedbackTagsResponse(runId = runId, tags = storedTags)
+    }
+
     /** Looks up a run and enforces ownership, hiding existence (404 RUN_NOT_FOUND either way)
      * rather than leaking a distinct "forbidden" signal for another user's run id. */
     private fun findOwnedRun(userId: String, runId: String): RunRepository.RunRow {

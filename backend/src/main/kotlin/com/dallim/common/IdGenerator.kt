@@ -25,4 +25,5 @@ object IdGenerator {
     fun savedRoute(): String = next("sav")
     fun meetup(): String = next("mt")
     fun raceRecord(): String = next("race")
+    fun feedbackTag(): String = next("fbt")
 }

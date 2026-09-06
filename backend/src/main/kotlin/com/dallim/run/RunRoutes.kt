@@ -17,7 +17,8 @@ import org.koin.ktor.ext.inject
 
 /**
  * Run endpoints — POST /runs, PATCH /runs/{runId}/status, POST /runs/{runId}/gps-batch,
- * POST /runs/{runId}/finish, GET /runs/{runId} (docs/02-api-spec.md 5장). All 🔒 (JWT required) —
+ * POST /runs/{runId}/finish, GET /runs/{runId}, POST /runs/{runId}/feedback-tags
+ * (docs/02-api-spec.md 5장). All 🔒 (JWT required) —
  * no endpoint here is reachable without `authenticate(AUTH_JWT)`. Handlers are thin: parse the
  * request, delegate to RunService, wrap in ApiResponse; StatusPages translates any thrown
  * ApiException into the common error envelope.
@@ -62,6 +63,14 @@ fun Route.runRoutes() {
                 val userId = call.currentUserId()!!
                 val runId = call.parameters["runId"]!!
                 val result = runService.getRunDetail(userId, runId)
+                call.respond(HttpStatusCode.OK, ApiResponse.success(result))
+            }
+
+            post("/{runId}/feedback-tags") {
+                val userId = call.currentUserId()!!
+                val runId = call.parameters["runId"]!!
+                val request = call.receive<FeedbackTagsRequest>()
+                val result = runService.submitFeedbackTags(userId, runId, request)
                 call.respond(HttpStatusCode.OK, ApiResponse.success(result))
             }
         }

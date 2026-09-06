@@ -340,6 +340,45 @@ class RunRepository(
         }
     }
 
+    // --- Route feedback tags (route_feedback_tags has no geometry column -> plain Exposed) ---
+
+    /**
+     * POST /runs/{runId}/feedback-tags. Idempotent at the *run* level, not per-tag: if this run
+     * already has any stored tags (from an earlier submission), [tags] is ignored entirely and
+     * the existing set is returned unchanged — a resubmission (even with a different selection)
+     * is a pure no-op, matching the "3초 컷" low-friction UX (no edit/overwrite flow needed).
+     * Returns the run's final stored tag set either way.
+     */
+    fun submitFeedbackTagsIfAbsent(runId: String, routeId: String, userId: String, tags: List<String>): List<String> =
+        transaction(database) {
+            val existing = RouteFeedbackTagTable.select(RouteFeedbackTagTable.tag)
+                .where { RouteFeedbackTagTable.runId eq runId }
+                .map { it[RouteFeedbackTagTable.tag] }
+            if (existing.isNotEmpty()) return@transaction existing
+
+            tags.forEach { tag ->
+                RouteFeedbackTagTable.insert {
+                    it[RouteFeedbackTagTable.id] = IdGenerator.feedbackTag()
+                    it[RouteFeedbackTagTable.runId] = runId
+                    it[RouteFeedbackTagTable.routeId] = routeId
+                    it[RouteFeedbackTagTable.userId] = userId
+                    it[RouteFeedbackTagTable.tag] = tag
+                }
+            }
+            tags
+        }
+
+    /** GET /routes/{routeId} `topFeedbackTags` — every tag ever submitted for this route, for the
+     * caller to rank (see RouteService.getDetail). No SQL-side GROUP BY/COUNT: matches this
+     * codebase's existing convention (e.g. MeetupRepository.countParticipantsByMeetup) of doing
+     * the count in Kotlin via groupingBy/eachCount rather than a DB aggregate, which is simpler
+     * and plenty fast at this table's expected size. */
+    fun findFeedbackTagsByRoute(routeId: String): List<String> = transaction(database) {
+        RouteFeedbackTagTable.select(RouteFeedbackTagTable.tag)
+            .where { RouteFeedbackTagTable.routeId eq routeId }
+            .map { it[RouteFeedbackTagTable.tag] }
+    }
+
     private fun ResultRow.toRunRow() = RunRow(
         id = this[RunRecordTable.id],
         userId = this[RunRecordTable.userId],
