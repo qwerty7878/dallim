@@ -31,6 +31,16 @@ interface RouteApi {
     @GET("routes/{routeId}")
     suspend fun getRouteDetail(@Path("routeId") routeId: String): Response<ApiResponse<RouteDetailResponseBody>>
 
+    /**
+     * S-16 커뮤니티 투표(모양 맞추기) 제출 (docs/02-api-spec.md 4장). 🔒 인증 필수 —
+     * `AuthInterceptor`가 자동으로 토큰을 붙인다. 코스당 사용자 1표만 유지되며 재제출 시 교체(upsert).
+     */
+    @POST("routes/{routeId}/shape-votes")
+    suspend fun submitShapeVote(
+        @Path("routeId") routeId: String,
+        @Body request: ShapeVoteRequestBody,
+    ): Response<ApiResponse<ShapeVoteSubmitResponseBody>>
+
     @GET("routes/{routeId}/finishers")
     suspend fun getFinishers(@Path("routeId") routeId: String): Response<ApiResponse<FinishersResponseBody>>
 
@@ -107,6 +117,27 @@ data class RouteDetailResponseBody(
     val runability: Double,
     val isSaved: Boolean,
     val topFeedbackTags: List<String> = emptyList(),
+    /**
+     * 커뮤니티 투표(모양 맞추기) 집계 — 득표율 상위 5개, 투표 없으면 빈 배열
+     * (docs/02-api-spec.md 4장, v1.3 문서 297행). `name`(공식 이름)과 별개의 자유 텍스트 집계.
+     */
+    val shapeVotes: List<ShapeVoteTallyBody> = emptyList(),
+    /** 비로그인이거나 아직 투표 안 했으면 null, 투표했으면 그 라벨. */
+    val myShapeVote: String? = null,
+)
+
+/** 커뮤니티 투표 득표 한 항목 — `GET /routes/{routeId}`와 `POST .../shape-votes` 응답 공용. */
+@Serializable
+data class ShapeVoteTallyBody(val label: String, val percent: Int)
+
+/** `POST /routes/{routeId}/shape-votes` 요청 — `label`은 공백 제외 1~10자(서버가 400 VALIDATION_ERROR로 검증). */
+@Serializable
+data class ShapeVoteRequestBody(val label: String)
+
+@Serializable
+data class ShapeVoteSubmitResponseBody(
+    val shapeVotes: List<ShapeVoteTallyBody>,
+    val myLabel: String,
 )
 
 @Serializable

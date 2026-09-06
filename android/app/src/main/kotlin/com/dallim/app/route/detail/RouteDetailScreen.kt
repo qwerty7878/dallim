@@ -27,15 +27,24 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.BuildConfig
@@ -43,9 +52,12 @@ import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.FinisherThumbnail
 import com.dallim.network.route.RouteDetailResponseBody
+import com.dallim.network.route.ShapeVoteTallyBody
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTextButton
+import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteStatusBadge
@@ -90,6 +102,10 @@ fun RouteDetailRoute(
         onStartRunClick = onStartRunClick,
         onMeetupsClick = onMeetupsClick,
         onRetryClick = viewModel::load,
+        onVoteClick = viewModel::onVoteClick,
+        onVoteDialogDismiss = viewModel::onVoteDialogDismiss,
+        onVoteSubmit = viewModel::onVoteSubmit,
+        onVoteErrorShown = viewModel::onVoteErrorShown,
         modifier = modifier,
     )
 }
@@ -102,12 +118,31 @@ private fun RouteDetailScreen(
     onStartRunClick: (String) -> Unit,
     onMeetupsClick: (String) -> Unit,
     onRetryClick: () -> Unit,
+    onVoteClick: () -> Unit,
+    onVoteDialogDismiss: () -> Unit,
+    onVoteSubmit: (String) -> Unit,
+    onVoteErrorShown: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val voteErrorMessage = (uiState as? RouteDetailUiState.Success)?.voteErrorMessage
+
+    LaunchedEffect(voteErrorMessage) {
+        val message = voteErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        onVoteErrorShown()
+    }
+
+    Scaffold(
+        modifier = modifier,
+        containerColor = DallimColors.Background,
+        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+    ) { innerPadding ->
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(DallimColors.Background)
+            .padding(innerPadding)
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
@@ -188,6 +223,13 @@ private fun RouteDetailScreen(
                             )
                         }
 
+                        ShapeVoteSection(
+                            shapeVotes = uiState.route.shapeVotes,
+                            myShapeVote = uiState.route.myShapeVote,
+                            onVoteClick = onVoteClick,
+                            modifier = Modifier.padding(top = Spacing.lg),
+                        )
+
                         SpecGrid(route = uiState.route, modifier = Modifier.padding(top = Spacing.xl))
 
                         if (uiState.route.topFeedbackTags.isNotEmpty()) {
@@ -243,8 +285,18 @@ private fun RouteDetailScreen(
                     onClick = { onStartRunClick(uiState.route.routeId) },
                     modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
                 )
+
+                if (uiState.isVoteDialogOpen) {
+                    ShapeVoteDialog(
+                        initialLabel = uiState.route.myShapeVote.orEmpty(),
+                        isSubmitting = uiState.isSubmittingVote,
+                        onDismiss = onVoteDialogDismiss,
+                        onSubmit = onVoteSubmit,
+                    )
+                }
             }
         }
+    }
     }
 }
 
@@ -285,6 +337,90 @@ private fun SpecCell(label: String, value: String, modifier: Modifier = Modifier
             color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.xs),
         )
+    }
+}
+
+/**
+ * 커뮤니티 투표(모양 맞추기) — "이 코스, 나한텐 이렇게 보여요"를 자유 텍스트로 집계
+ * (docs/02-api-spec.md 4장, v1.3 문서 297행 "고래 73% · 물고기 19% / [나도 투표]"). 막대 그래프 없이
+ * 상위 후보를 텍스트로만 나열한다(과설계 금지).
+ */
+@Composable
+private fun ShapeVoteSection(
+    shapeVotes: List<ShapeVoteTallyBody>,
+    myShapeVote: String?,
+    onVoteClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = "커뮤니티 투표",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+        )
+        Text(
+            text = if (shapeVotes.isNotEmpty()) {
+                shapeVotes.joinToString(" · ") { "${it.label} ${it.percent}%" }
+            } else {
+                "아직 투표가 없어요"
+            },
+            style = DallimTypography.Body,
+            color = DallimColors.TextPrimary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        DallimTextButton(
+            text = if (myShapeVote != null) "내 투표: $myShapeVote (변경하기)" else "나도 투표",
+            onClick = onVoteClick,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/** [ShapeVoteSection]의 "[나도 투표]"/"변경하기" 다이얼로그 — 라벨 1~10자 입력 후 확인. */
+@Composable
+private fun ShapeVoteDialog(
+    initialLabel: String,
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    var label by remember { mutableStateOf(initialLabel) }
+    val trimmedLength = label.trim().length
+    val isValid = trimmedLength in 1..10
+
+    Dialog(onDismissRequest = { if (!isSubmitting) onDismiss() }) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(DallimShapes.CardCorner)
+                .background(DallimColors.Surface)
+                .padding(Spacing.lg),
+        ) {
+            Text(
+                text = "이 코스, 뭘로 보여요?",
+                style = DallimTypography.Title2,
+                color = DallimColors.TextPrimary,
+            )
+            DallimTextField(
+                value = label,
+                onValueChange = { if (it.length <= 10) label = it },
+                label = "예: 물고기",
+                errorText = if (label.isNotEmpty() && !isValid) "1~10자로 입력해주세요" else null,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                DallimTextButton(text = "취소", onClick = onDismiss, enabled = !isSubmitting)
+                DallimTextButton(
+                    text = "확인",
+                    onClick = { onSubmit(label) },
+                    enabled = isValid && !isSubmitting,
+                    modifier = Modifier.padding(start = Spacing.md),
+                )
+            }
+        }
     }
 }
 
@@ -393,6 +529,11 @@ private fun RouteDetailScreenPreview() {
                     runability = 0.87,
                     isSaved = false,
                     topFeedbackTags = listOf("그림이 잘 보여요", "러닝하기 편해요"),
+                    shapeVotes = listOf(
+                        ShapeVoteTallyBody(label = "고래", percent = 73),
+                        ShapeVoteTallyBody(label = "물고기", percent = 19),
+                    ),
+                    myShapeVote = "고래",
                 ),
                 finishers = listOf(
                     FinisherThumbnail(
@@ -410,6 +551,10 @@ private fun RouteDetailScreenPreview() {
             onStartRunClick = {},
             onMeetupsClick = {},
             onRetryClick = {},
+            onVoteClick = {},
+            onVoteDialogDismiss = {},
+            onVoteSubmit = {},
+            onVoteErrorShown = {},
         )
     }
 }

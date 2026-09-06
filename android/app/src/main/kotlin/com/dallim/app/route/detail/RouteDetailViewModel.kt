@@ -10,6 +10,7 @@ import com.dallim.network.meetup.MeetupApi
 import com.dallim.network.route.FinisherThumbnail
 import com.dallim.network.route.RouteApi
 import com.dallim.network.route.RouteDetailResponseBody
+import com.dallim.network.route.ShapeVoteRequestBody
 import com.dallim.network.user.UserApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,11 @@ sealed interface RouteDetailUiState {
          * 따로 내려주지 않으므로 목록을 받아 클라이언트에서 직접 센다.
          */
         val openMeetupCount: Int = 0,
+        /** "나도 투표" 다이얼로그 표시 여부 (docs/02-api-spec.md 4장 POST .../shape-votes). */
+        val isVoteDialogOpen: Boolean = false,
+        val isSubmittingVote: Boolean = false,
+        /** 제출 실패(401 비로그인, 400 검증 등) 시 스낵바 한 줄 안내용. */
+        val voteErrorMessage: String? = null,
     ) : RouteDetailUiState
 
     data class Error(val message: String) : RouteDetailUiState
@@ -112,5 +118,48 @@ class RouteDetailViewModel @Inject constructor(
                 UiResult.Loading -> current
             }
         }
+    }
+
+    /** "[나도 투표]"/"내 투표: {label} (변경하기)" 버튼 탭 — 라벨 입력 다이얼로그를 연다. */
+    fun onVoteClick() {
+        val current = _uiState.value as? RouteDetailUiState.Success ?: return
+        _uiState.value = current.copy(isVoteDialogOpen = true, voteErrorMessage = null)
+    }
+
+    fun onVoteDialogDismiss() {
+        val current = _uiState.value as? RouteDetailUiState.Success ?: return
+        if (current.isSubmittingVote) return
+        _uiState.value = current.copy(isVoteDialogOpen = false)
+    }
+
+    /** 다이얼로그 확인 — `label`은 공백 제외 1~10자(docs/02-api-spec.md 4장, 서버가 최종 검증). */
+    fun onVoteSubmit(label: String) {
+        val current = _uiState.value as? RouteDetailUiState.Success ?: return
+        if (current.isSubmittingVote) return
+        val trimmed = label.trim()
+        if (trimmed.isEmpty() || trimmed.length > 10) return
+
+        viewModelScope.launch {
+            _uiState.value = current.copy(isSubmittingVote = true, voteErrorMessage = null)
+            val result = safeApiCall { routeApi.submitShapeVote(routeId, ShapeVoteRequestBody(label = trimmed)) }
+            val latest = _uiState.value as? RouteDetailUiState.Success ?: return@launch
+            _uiState.value = when (result) {
+                is UiResult.Success -> latest.copy(
+                    route = latest.route.copy(
+                        shapeVotes = result.data.shapeVotes,
+                        myShapeVote = result.data.myLabel,
+                    ),
+                    isSubmittingVote = false,
+                    isVoteDialogOpen = false,
+                )
+                is UiResult.Error -> latest.copy(isSubmittingVote = false, voteErrorMessage = result.message)
+                UiResult.Loading -> latest
+            }
+        }
+    }
+
+    fun onVoteErrorShown() {
+        val current = _uiState.value as? RouteDetailUiState.Success ?: return
+        _uiState.value = current.copy(voteErrorMessage = null)
     }
 }
