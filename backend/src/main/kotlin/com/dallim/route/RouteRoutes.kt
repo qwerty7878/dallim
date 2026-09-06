@@ -6,9 +6,11 @@ import com.dallim.plugins.currentUserId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import org.koin.ktor.ext.inject
 
@@ -45,6 +47,18 @@ fun Route.routeRoutes() {
                 lng = q["lng"]?.toDoubleOrNull(),
             )
             call.respond(HttpStatusCode.OK, ApiResponse.success(response))
+        }
+
+        // docs/02-api-spec.md 4장 -- 🔒 required: voting needs identity (upsert keyed by
+        // (routeId, userId)), but is unrelated to whether the caller has run the route.
+        authenticate(AUTH_JWT) {
+            post("/{routeId}/shape-votes") {
+                val routeId = call.parameters["routeId"]!!
+                val userId = call.currentUserId()!!
+                val request = call.receive<ShapeVoteRequest>()
+                val response = routeService.submitShapeVote(routeId, userId, request.label)
+                call.respond(HttpStatusCode.OK, ApiResponse.success(response))
+            }
         }
 
         authenticate(AUTH_JWT, optional = true) {

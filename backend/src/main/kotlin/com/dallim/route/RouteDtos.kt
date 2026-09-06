@@ -46,7 +46,28 @@ data class RouteDetailResponse(
     val runability: Double,
     val isSaved: Boolean,
     val topFeedbackTags: List<String>,
+    // 커뮤니티 투표(모양 맞추기) -- docs/달림_화면별_상세기획서_v1.3.md 297행. `name`(공식 이름)과
+    // 별개인 자유 텍스트 집계, 상위 5개까지 득표수 내림차순. 투표가 하나도 없으면 빈 배열.
+    val shapeVotes: List<ShapeVoteTally>,
+    // 비로그인이거나 아직 투표 안 했으면 null, 투표했으면 그 라벨(RouteShapeVoteTable.label).
+    val myShapeVote: String?,
 )
+
+/** GET /routes/{routeId} `shapeVotes` item / POST /routes/{routeId}/shape-votes response item.
+ * `percent` is rounded to the nearest integer against the route's total vote count -- rounding
+ * error across all items summing slightly off 100 is acceptable (docs 명시: 과설계 금지). */
+@Serializable
+data class ShapeVoteTally(val label: String, val percent: Int)
+
+/** POST /routes/{routeId}/shape-votes request body. `label` is trimmed server-side; 1~10 chars
+ * after trimming, else 400 VALIDATION_ERROR (see RouteService.submitShapeVote). */
+@Serializable
+data class ShapeVoteRequest(val label: String)
+
+/** POST /routes/{routeId}/shape-votes response -- the updated aggregate (same shape as
+ * RouteDetailResponse.shapeVotes) plus the caller's just-submitted label. */
+@Serializable
+data class ShapeVoteSubmitResponse(val shapeVotes: List<ShapeVoteTally>, val myLabel: String)
 
 @Serializable
 data class RouteFinisherItem(

@@ -406,15 +406,60 @@ Refresh Token으로 Access Token 재발급
     "repeatSegmentPercent": 5,
     "runability": 0.87,
     "isSaved": false,
-    "topFeedbackTags": ["그림이 잘 보여요", "달리기 편해요"]
+    "topFeedbackTags": ["그림이 잘 보여요", "달리기 편해요"],
+    "shapeVotes": [
+      { "label": "고래", "percent": 73 },
+      { "label": "물고기", "percent": 19 }
+    ],
+    "myShapeVote": null
   }
 }
 ```
 > `topFeedbackTags`: 이 코스로 제출된 `POST /runs/{runId}/feedback-tags`(5장) 태그를 집계해
 > 개수 상위 3개까지 반환(2026-09-07부터 실제 집계 — 그 이전엔 항상 빈 배열을 반환하는 스텁이었음).
 > 태그가 하나도 없으면 빈 배열.
+> `shapeVotes`(2026-09-07 추가): 커뮤니티 투표(모양 맞추기, v1.3 문서 297행/271행) 집계.
+> `name`(공식 이름)과 별개로 "다른 사람들 눈엔 이게 뭘로 보여요?"에 자유 텍스트로 제출된 라벨을
+> 집계한 것 — 다수 의견이 공식 이름과 다를 수 있음. 득표수 내림차순 상위 5개까지, `percent`는
+> 전체 투표 수 대비 반올림(합이 100에서 소폭 벗어날 수 있음). 투표가 하나도 없으면 빈 배열.
+> `myShapeVote`: 비로그인이거나 아직 투표하지 않았으면 `null`, 투표했으면 그 라벨.
+> (`POST /routes/{routeId}/shape-votes` 참고)
 
 **Error**
+- `404 ROUTE_NOT_FOUND`
+
+---
+
+### `POST /routes/{routeId}/shape-votes` 🔒
+커뮤니티 투표(모양 맞추기) 제출 — "이 코스, 나한텐 이렇게 보여요"를 자유 텍스트로 제출.
+`sketch_routes.name`(생성 시점에 고정된 공식 이름)과는 별개의 집계이며, 반드시 일치할 필요
+없음. 완주 여부와 무관하게 코스를 본 사람 누구나 투표 가능(로그인만 필요).
+
+**Request**
+```json
+{ "label": "물고기" }
+```
+> `label`: trim 후 1~10자. 같은 (routeId, 내 계정)에 기존 투표가 있으면 교체(upsert) — 한
+> 사용자는 코스당 최신 투표 1개만 유지, 재투표해도 누적되지 않음.
+
+**Response 200**
+```json
+{
+  "success": true,
+  "data": {
+    "shapeVotes": [
+      { "label": "고래", "percent": 73 },
+      { "label": "물고기", "percent": 20 }
+    ],
+    "myLabel": "물고기"
+  }
+}
+```
+> `shapeVotes`: 이 제출 이후 갱신된 집계 상태(`GET /routes/{routeId}`의 `shapeVotes`와 동일한
+> 모양). `myLabel`: 방금 제출한 라벨.
+
+**Error**
+- `400 VALIDATION_ERROR` — `label`이 공백이거나 10자 초과
 - `404 ROUTE_NOT_FOUND`
 
 ---

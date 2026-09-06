@@ -326,7 +326,7 @@ com.dallim
  ├─ plugins     (Ktor 플러그인 설정: Routing, Serialization, Auth, StatusPages, DI)
  ├─ auth        (소셜/이메일 로그인, JWT 발급/갱신, BCrypt)
  ├─ user        (프로필, 저장 코스)
- ├─ route       (SketchRoute, Route 상태 전이)
+ ├─ route       (SketchRoute, Route 상태 전이, 커뮤니티 투표(모양 맞추기) — 2026-09-07 SPEC 편입)
  ├─ run         (RunRecord, GpsPoint, 완주 판정, 코스 평가 태그 — 2026-09-07 SPEC 편입)
  ├─ discovery   (AI Sketch Discovery — MVP2 예정, MVP1은 스텁)
  ├─ meetup      (같이 달리기 모집 — 2026-09-05 범위 편입, docs/02-api-spec.md 14장)
@@ -439,6 +439,27 @@ com.dallim
 - 태그 제출 UI(안드로이드, 새 화면)는 별도 라운드에서 구현 — 결과 화면의 태그 *표시* UI
   (`RouteDetailScreen.kt`의 `FeedbackTagRow`)는 이미 완성돼 있었고 이번 라운드는 그 표시 데이터를
   채우는 백엔드 작업만 다룬다.
+
+#### H. 커뮤니티 투표(모양 맞추기, shape votes) — 2026-09-07 SPEC 편입 (MVP2 로드맵 "코스 평가/투표" 中 나머지 절반)
+- `docs/달림_화면별_상세기획서_v1.3.md` 297행(S-16 Route 상세: "이름 + 이모지 + 커뮤니티 투표
+  상태(`고래 73% · 물고기 19%` / [나도 투표])")/271행("'무엇처럼 보이는지 모르겠음' 결과도
+  정직하게 노출... 이게 오히려 S-16 커뮤니티 투표의 콘텐츠가 됩니다") 근거. G절(코스 평가 태그)과
+  는 별개 기능 — 이번 라운드가 그 로드맵 항목의 나머지 절반을 마무리한다.
+- 코스는 생성 시점에 고정된 공식 이름(`SketchRouteTable.name`, non-null)이 있지만, 이 기능은
+  그것과 별개로 "다른 사람들 눈엔 이게 뭘로 보이는지"를 자유 텍스트로 모으는 집계다 — 반드시
+  공식 이름과 일치할 필요 없음(다수 의견이 공식 이름과 다를 수 있다는 게 v1.3 문서 예시의 요지).
+  고정 후보 목록이 아니라 자유 텍스트 제출 + 동일 문자열 자동 집계 방식(`POST
+  /routes/{routeId}/shape-votes`, `docs/02-api-spec.md` 4장).
+- 라벨은 trim 후 1~10자, 빈 문자열/10자 초과는 `400 VALIDATION_ERROR`. 인증만 있으면 되고
+  완주 여부는 무관 — 코스를 본 사람 누구나 투표 가능.
+- 한 사용자는 코스당 최신 투표 1개만 유지 — 같은 (routeId, userId)에 기존 투표가 있으면 라벨을
+  교체(upsert)하고, 여러 개 누적되지 않는다.
+- `GET /routes/{routeId}`가 `shapeVotes`(득표수 내림차순 상위 5개, `{label, percent}`, 투표
+  없으면 빈 배열)와 `myShapeVote`(비로그인/미투표 시 `null`)를 함께 내려준다. `percent`는 전체
+  투표 수 대비 반올림 — 합이 100에서 소폭 벗어날 수 있음(과설계 금지).
+- 저장 구조: `route_shape_votes(id, route_id, user_id, label, created_at, updated_at)`,
+  `(route_id, user_id)` UNIQUE(`V10__route_shape_votes.sql`).
+- 투표 제출 UI(안드로이드)는 별도 라운드 — 이번은 백엔드(마이그레이션/엔드포인트/집계)만 다룬다.
 
 ### 2.3 배치/스케줄러
 

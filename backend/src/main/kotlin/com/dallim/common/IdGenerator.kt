@@ -26,4 +26,5 @@ object IdGenerator {
     fun meetup(): String = next("mt")
     fun raceRecord(): String = next("race")
     fun feedbackTag(): String = next("fbt")
+    fun shapeVote(): String = next("sv")
 }

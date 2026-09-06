@@ -1,8 +1,10 @@
 package com.dallim.route
 
+import com.dallim.common.BadRequestException
 import com.dallim.common.ErrorCodes
 import com.dallim.common.NotFoundException
 import com.dallim.run.RunRepository
+import kotlin.math.roundToInt
 
 /**
  * Route domain business logic — docs/02-api-spec.md 4장, docs/01-feature-spec.md 2.2.C.
@@ -87,7 +89,42 @@ class RouteService(
                 .sortedByDescending { it.value }
                 .take(3)
                 .map { it.key },
+            shapeVotes = tallyShapeVotes(routeId),
+            myShapeVote = userId?.let { routeRepository.findMyShapeVote(routeId, it) },
         )
+    }
+
+    /**
+     * POST /routes/{routeId}/shape-votes -- free-text label, trimmed to 1~10 chars. Upserts
+     * (route_id, user_id) so a re-vote replaces rather than accumulates (docs/02-api-spec.md
+     * 4장). Anyone authenticated may vote regardless of whether they've run the route.
+     */
+    fun submitShapeVote(routeId: String, userId: String, rawLabel: String): ShapeVoteSubmitResponse {
+        if (!routeRepository.exists(routeId)) {
+            throw NotFoundException(ErrorCodes.ROUTE_NOT_FOUND, "코스를 찾을 수 없습니다.")
+        }
+        val label = rawLabel.trim()
+        if (label.isEmpty() || label.length > 10) {
+            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "label은 공백 제외 1~10자여야 합니다.")
+        }
+
+        routeRepository.upsertShapeVote(routeId, userId, label)
+        return ShapeVoteSubmitResponse(shapeVotes = tallyShapeVotes(routeId), myLabel = label)
+    }
+
+    /** Top-5 labels by vote count, as rounded percentages of the route's total vote count.
+     * Empty when the route has no votes yet. Rounding is per-item against the total, so the sum
+     * across items may land slightly off 100 -- acceptable per SPEC ("과설계 금지"). */
+    private fun tallyShapeVotes(routeId: String): List<ShapeVoteTally> {
+        val labels = routeRepository.findShapeVoteLabels(routeId)
+        if (labels.isEmpty()) return emptyList()
+        val total = labels.size
+        return labels.groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .take(5)
+            .map { (label, count) -> ShapeVoteTally(label = label, percent = (count * 100.0 / total).roundToInt()) }
     }
 
     /** GET /routes/{routeId}/finishers — recent COMPLETED runs against this route (docs/02-api-spec.md 4장). */

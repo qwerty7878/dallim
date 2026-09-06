@@ -1,14 +1,18 @@
 package com.dallim.route
 
 import com.dallim.common.GeoJsonLineString
+import com.dallim.common.IdGenerator
 import com.dallim.common.PostGis
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import java.sql.PreparedStatement
 import java.sql.ResultSet
+import java.time.Instant
 import javax.sql.DataSource
 
 /**
@@ -171,6 +175,54 @@ class RouteRepository(
                 .where { (SavedRouteTable.userId eq userId) and (SavedRouteTable.routeId inList routeIds) }
                 .mapTo(mutableSetOf()) { it[SavedRouteTable.routeId] }
         }
+    }
+
+    // --- Shape votes (route_shape_votes has no geometry column -> plain Exposed) ---
+
+    /**
+     * POST /routes/{routeId}/shape-votes -- upsert keyed by (route_id, user_id): a re-vote
+     * replaces the existing label rather than accumulating a second row (same
+     * exists-then-update-or-insert style as com.dallim.push.DeviceTokenRepository.upsert).
+     */
+    fun upsertShapeVote(routeId: String, userId: String, label: String) {
+        transaction(database) {
+            val exists = RouteShapeVoteTable.selectAll()
+                .where { (RouteShapeVoteTable.routeId eq routeId) and (RouteShapeVoteTable.userId eq userId) }
+                .limit(1)
+                .count() > 0
+
+            if (exists) {
+                RouteShapeVoteTable.update({ (RouteShapeVoteTable.routeId eq routeId) and (RouteShapeVoteTable.userId eq userId) }) {
+                    it[RouteShapeVoteTable.label] = label
+                    it[RouteShapeVoteTable.updatedAt] = Instant.now()
+                }
+            } else {
+                RouteShapeVoteTable.insert {
+                    it[RouteShapeVoteTable.id] = IdGenerator.shapeVote()
+                    it[RouteShapeVoteTable.routeId] = routeId
+                    it[RouteShapeVoteTable.userId] = userId
+                    it[RouteShapeVoteTable.label] = label
+                }
+            }
+        }
+    }
+
+    /** Every label ever submitted for [routeId], for the caller to tally (see
+     * RouteService.tallyShapeVotes). No SQL-side GROUP BY/COUNT -- same convention as
+     * findFeedbackTagsByRoute above. */
+    fun findShapeVoteLabels(routeId: String): List<String> = transaction(database) {
+        RouteShapeVoteTable.select(RouteShapeVoteTable.label)
+            .where { RouteShapeVoteTable.routeId eq routeId }
+            .map { it[RouteShapeVoteTable.label] }
+    }
+
+    /** GET /routes/{routeId} `myShapeVote` -- null when [userId] is null or hasn't voted. */
+    fun findMyShapeVote(routeId: String, userId: String): String? = transaction(database) {
+        RouteShapeVoteTable.select(RouteShapeVoteTable.label)
+            .where { (RouteShapeVoteTable.routeId eq routeId) and (RouteShapeVoteTable.userId eq userId) }
+            .limit(1)
+            .map { it[RouteShapeVoteTable.label] }
+            .firstOrNull()
     }
 
     private fun bindArgs(stmt: PreparedStatement, args: List<Any>) {
