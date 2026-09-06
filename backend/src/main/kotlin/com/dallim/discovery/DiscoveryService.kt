@@ -2,6 +2,7 @@ package com.dallim.discovery
 
 import com.dallim.common.BadRequestException
 import com.dallim.common.ErrorCodes
+import com.dallim.common.ForbiddenException
 import com.dallim.common.FrechetDistance
 import com.dallim.common.GeoJsonLineString
 import com.dallim.common.GeoMath
@@ -32,6 +33,12 @@ class DiscoveryService(
     // requiredWaypoints all stay on [osrmClient]. Defaults to [osrmClient] so every pre-existing
     // call site/test (none of which exercise SHAPE mode) keeps working unchanged.
     private val osrmShapeClient: OsrmClient = osrmClient,
+    // docs/02-api-spec.md 8.4 — daily free-generation quota (v1.3 S-12/13). Nullable, defaulting
+    // to null, purely so every pre-existing unit test call site (none of which exercises the
+    // quota) keeps constructing `DiscoveryService(fake)` unchanged; production wiring
+    // (DiscoveryModule) always supplies a real instance since the authenticated
+    // POST /routes/discovery route always passes a non-null `userId` to [generateDiscoveryRoute].
+    private val quotaService: DiscoveryQuotaService? = null,
 ) {
     companion object {
         private const val MIN_DRAW_POINTS = 10
@@ -116,12 +123,31 @@ class DiscoveryService(
     }
 
     /**
-     * POST /routes/discovery (docs/02-api-spec.md 8.2/11.2/11.4/11.6). Validates `mode` and the
-     * fields it requires, then dispatches to the loop or point-to-point algorithm — the latter
-     * further split by whether `requiredWaypoints` is present (11.6) or not (11.4) — both funnel
-     * through [respond] to build the final [DiscoveryResponse] the same way.
+     * POST /routes/discovery (docs/02-api-spec.md 8.2/8.4/11.2/11.4/11.6). Validates `mode` and
+     * the fields it requires, then dispatches to the loop or point-to-point algorithm — the
+     * latter further split by whether `requiredWaypoints` is present (11.6) or not (11.4) — both
+     * funnel through [respond] to build the final [DiscoveryResponse] the same way.
+     *
+     * [userId] (docs/02-api-spec.md 8.4, daily quota — v1.3 S-12/13): when non-null, this call is
+     * gated by [quotaService] — checked BEFORE spending an OSRM round trip on generation, and only
+     * recorded as "used" AFTER generation actually succeeds (a validation/routing failure never
+     * consumes a day's quota). Left null by every pre-existing unit test call site, which skips
+     * the quota entirely; the real POST /routes/discovery route always passes the authenticated
+     * caller's id.
      */
-    suspend fun generateDiscoveryRoute(request: DiscoveryRequest): DiscoveryResponse {
+    suspend fun generateDiscoveryRoute(request: DiscoveryRequest, userId: String? = null): DiscoveryResponse {
+        if (userId != null) {
+            val quota = requireNotNull(quotaService) {
+                "DiscoveryService.quotaService must be configured whenever a userId is passed to generateDiscoveryRoute"
+            }
+            if (quota.getStatus(userId).remainingToday <= 0) {
+                throw ForbiddenException(
+                    ErrorCodes.DISCOVERY_QUOTA_EXCEEDED,
+                    "오늘의 무료 코스 생성 횟수를 모두 사용했어요. 광고를 보고 1회 더 받아보세요.",
+                )
+            }
+        }
+
         if (request.requiredWaypoints.size > MAX_REQUIRED_WAYPOINTS) {
             throw BadRequestException(
                 ErrorCodes.VALIDATION_ERROR,
@@ -158,7 +184,11 @@ class DiscoveryService(
             else -> throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "mode는 LOOP, POINT_TO_POINT, SHAPE만 허용됩니다.")
         }
 
-        return respond(result)
+        val response = respond(result)
+        if (userId == null) return response
+
+        val updatedQuota = quotaService!!.recordUsed(userId)
+        return response.copy(remainingToday = updatedQuota.remainingToday)
     }
 
     /** docs/02-api-spec.md 11.4 — both endLat/endLng required together when mode == POINT_TO_POINT. */

@@ -68,4 +68,21 @@ data class DiscoveryResponse(
     val geoJson: GeoJsonLineString,
     val distanceKm: Double,
     val estimatedMinutes: Int,
+    // docs/02-api-spec.md 8.4 — remaining free/bonus generations left today for this user, AFTER
+    // this call's usage was recorded. Left at its default (0) by DiscoveryService when no `userId`
+    // is given (i.e. every pre-existing unit test call site that doesn't exercise the quota) —
+    // production calls (routed through the authenticated POST /routes/discovery endpoint) always
+    // pass a real value.
+    val remainingToday: Int = 0,
+)
+
+/**
+ * `GET /routes/discovery/quota` response shape, also reused as-is for
+ * `POST /routes/discovery/reward-unlock` (docs/02-api-spec.md 8.4 — "갱신된 쿼터 상태를 응답").
+ */
+@Serializable
+data class DiscoveryQuotaStatus(
+    val usedToday: Int,
+    val limit: Int,
+    val remainingToday: Int,
 )

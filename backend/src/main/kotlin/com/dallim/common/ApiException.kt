@@ -49,6 +49,8 @@ object ErrorCodes {
     const val DRAW_TOO_SHORT = "DRAW_TOO_SHORT"
     const val DRAW_MATCH_FAILED = "DRAW_MATCH_FAILED"
     const val DISCOVERY_NO_ROUTE = "DISCOVERY_NO_ROUTE"
+    // discovery daily quota (v1.3 문서 S-12/13, docs/02-api-spec.md 8.4)
+    const val DISCOVERY_QUOTA_EXCEEDED = "DISCOVERY_QUOTA_EXCEEDED"
 
     // notification (docs/02-api-spec.md 9장)
     const val NOTIFICATION_NOT_FOUND = "NOTIFICATION_NOT_FOUND"
