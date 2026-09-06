@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,12 +26,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.run.RunDetailResponseBody
 import com.dallim.ui.components.DallimErrorState
+import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RunResultCanvas
 import com.dallim.ui.components.RunStatusBadge
+import com.dallim.ui.components.SectionHeader
 import com.dallim.ui.components.toRunStatus
 import com.dallim.app.running.RunFormat
 import com.dallim.ui.theme.DallimColors
@@ -50,9 +55,15 @@ fun RunResultRoute(
     viewModel: RunResultViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedFeedbackTags by viewModel.selectedFeedbackTags.collectAsStateWithLifecycle()
+    val feedbackTagsSubmitted by viewModel.feedbackTagsSubmitted.collectAsStateWithLifecycle()
 
     RunResultScreen(
         uiState = uiState,
+        selectedFeedbackTags = selectedFeedbackTags,
+        feedbackTagsSubmitted = feedbackTagsSubmitted,
+        onFeedbackTagToggle = viewModel::toggleFeedbackTag,
+        onFeedbackTagsSubmit = viewModel::submitFeedbackTags,
         onShareClick = { onShareClick(viewModel.runId) },
         onDoneClick = onDoneClick,
         onRetryClick = viewModel::load,
@@ -63,6 +74,10 @@ fun RunResultRoute(
 @Composable
 private fun RunResultScreen(
     uiState: RunResultUiState,
+    selectedFeedbackTags: Set<String>,
+    feedbackTagsSubmitted: Boolean,
+    onFeedbackTagToggle: (String) -> Unit,
+    onFeedbackTagsSubmit: () -> Unit,
     onShareClick: () -> Unit,
     onDoneClick: () -> Unit,
     onRetryClick: () -> Unit,
@@ -85,7 +100,13 @@ private fun RunResultScreen(
             )
             is RunResultUiState.Success -> {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    ResultContent(run = uiState.run)
+                    ResultContent(
+                        run = uiState.run,
+                        selectedFeedbackTags = selectedFeedbackTags,
+                        feedbackTagsSubmitted = feedbackTagsSubmitted,
+                        onFeedbackTagToggle = onFeedbackTagToggle,
+                        onFeedbackTagsSubmit = onFeedbackTagsSubmit,
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
@@ -103,7 +124,14 @@ private fun RunResultScreen(
 }
 
 @Composable
-private fun ResultContent(run: RunDetailResponseBody, modifier: Modifier = Modifier) {
+private fun ResultContent(
+    run: RunDetailResponseBody,
+    selectedFeedbackTags: Set<String>,
+    feedbackTagsSubmitted: Boolean,
+    onFeedbackTagToggle: (String) -> Unit,
+    onFeedbackTagsSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.padding(top = Spacing.xl)) {
         RunResultCanvas(
             coordinates = run.actualGeoJson.toGeoPoints(),
@@ -150,6 +178,60 @@ private fun ResultContent(run: RunDetailResponseBody, modifier: Modifier = Modif
                 )
             }
         }
+
+        FeedbackTagsSection(
+            selectedTags = selectedFeedbackTags,
+            submitted = feedbackTagsSubmitted,
+            onTagToggle = onFeedbackTagToggle,
+            onSubmit = onFeedbackTagsSubmit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xl, start = Spacing.ScreenHorizontal, end = Spacing.ScreenHorizontal),
+        )
+    }
+}
+
+/**
+ * S-25 "코스 평가 요청(태그 선택 3초 컷)" (v1.3 문서 395행, 483~484행 원칙 — 별점 없는 긍정 행동
+ * 태그만, 최대 3개, 미선택도 완전히 허용). 실패해도 결과 확인 자체엔 지장이 없어야 하므로 제출
+ * 실패는 조용히 무시한다(ViewModel 쪽 처리) — 이 섹션엔 별도 에러 UI가 없다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FeedbackTagsSection(
+    selectedTags: Set<String>,
+    submitted: Boolean,
+    onTagToggle: (String) -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        SectionHeader(title = "이 코스 어땠나요?")
+        if (submitted) {
+            Text(
+                text = "평가해주셔서 감사해요",
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+            )
+            return@Column
+        }
+
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            FEEDBACK_TAG_OPTIONS.forEach { tag ->
+                DallimFilterChip(
+                    label = tag,
+                    selected = tag in selectedTags,
+                    onClick = { onTagToggle(tag) },
+                )
+            }
+        }
+
+        DallimSecondaryButton(
+            text = "평가 제출",
+            onClick = onSubmit,
+            enabled = selectedTags.isNotEmpty(),
+            modifier = Modifier.padding(top = Spacing.md),
+        )
     }
 }
 
@@ -197,6 +279,10 @@ private fun RunResultScreenPreview() {
                     completedAt = "2026-08-23T09:34:38Z",
                 ),
             ),
+            selectedFeedbackTags = emptySet(),
+            feedbackTagsSubmitted = false,
+            onFeedbackTagToggle = {},
+            onFeedbackTagsSubmit = {},
             onShareClick = {},
             onDoneClick = {},
             onRetryClick = {},

@@ -39,6 +39,17 @@ interface RunApi {
 
     @GET("runs/{runId}")
     suspend fun getRun(@Path("runId") runId: String): Response<ApiResponse<RunDetailResponseBody>>
+
+    /**
+     * S-25 코스 평가(태그 선택, docs/달림_화면별_상세기획서_v1.3.md 395행) — 별점 없는 긍정 행동
+     * 태그만 0~3개 제출한다. 이미 제출한 run에 다시 호출해도 idempotent(에러 아님, 기존 값 그대로
+     * 응답)이므로 화면에서 제출 여부를 별도로 추적하지 않아도 안전하게 재시도할 수 있다.
+     */
+    @POST("runs/{runId}/feedback-tags")
+    suspend fun submitFeedbackTags(
+        @Path("runId") runId: String,
+        @Body request: FeedbackTagsRequestBody,
+    ): Response<ApiResponse<FeedbackTagsResponseBody>>
 }
 
 @Serializable
@@ -92,6 +103,12 @@ data class FinishRunResponseBody(
     val earnedInk: Int,
     val earnedBadges: List<String> = emptyList(),
 )
+
+@Serializable
+data class FeedbackTagsRequestBody(val tags: List<String>)
+
+@Serializable
+data class FeedbackTagsResponseBody(val runId: String, val tags: List<String>)
 
 @Serializable
 data class RunDetailResponseBody(
