@@ -65,6 +65,9 @@ object ErrorCodes {
     // race record (docs/02-api-spec.md 15장, 러닝 커리어/완주 이력)
     const val RACE_RECORD_NOT_FOUND = "RACE_RECORD_NOT_FOUND"
 
+    // race calendar (docs/02-api-spec.md 16장, com.dallim.race — 완주 이력과 무관한 별개 도메인)
+    const val RACE_NOT_FOUND = "RACE_NOT_FOUND"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"

@@ -7,6 +7,7 @@ import com.dallim.discovery.discoveryRoutes
 import com.dallim.meetup.meetupRoutes
 import com.dallim.notification.notificationRoutes
 import com.dallim.push.deviceTokenRoutes
+import com.dallim.race.raceRoutes
 import com.dallim.racerecord.raceRecordRoutes
 import com.dallim.route.homeRoutes
 import com.dallim.route.routeRoutes
@@ -45,6 +46,7 @@ fun Application.configureRouting() {
             deviceTokenRoutes()
             meetupRoutes()
             raceRecordRoutes()
+            raceRoutes()
         }
     }
 }

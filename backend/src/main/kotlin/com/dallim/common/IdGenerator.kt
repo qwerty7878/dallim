@@ -27,4 +27,11 @@ object IdGenerator {
     fun raceRecord(): String = next("race")
     fun feedbackTag(): String = next("fbt")
     fun shapeVote(): String = next("sv")
+
+    // com.dallim.race (대회 캘린더, 2026-09-07) — NOT to be confused with com.dallim.racerecord's
+    // "race_..." prefix (완주 이력/자기신고). Deliberately different prefixes ("rce"/"rcc"/"rcs")
+    // so ids never collide/confuse between the two unrelated domains.
+    fun race(): String = next("rce")
+    fun raceCategoryOption(): String = next("rcc")
+    fun raceSave(): String = next("rcs")
 }

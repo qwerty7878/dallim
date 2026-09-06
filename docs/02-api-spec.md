@@ -1588,10 +1588,188 @@ S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실�
    시에도 동일하게 재사용된다 — 별도 온보딩 전용 API는 만들지 않았다.
 
 ### 15.7 이번 라운드에 만들지 않은 것
-- 대회 캘린더/대회 상세/참가 예정 대회 담기(S-80/81, S-82 상단·중단 섹션)
+- ~~대회 캘린더/대회 상세/참가 예정 대회 담기(S-80/81, S-82 상단·중단 섹션)~~ → **2026-09-07
+  구현됨, 16장(대회 캘린더, `com.dallim.race`) 참고.** 단 S-82의 "목표 대회 D-day 카드/훈련
+  진행률" 부분은 16장에서도 여전히 범위 밖(16.6 참고).
 - 코스 미리달리기(S-85), 훈련플랜(S-86)
 - 기록 인증(사진/링크 제출 → 운영 검토 → `인증` 배지, S-84) — 그래서 `verified`는 항상 `false`
 - 대회 DB 검색(현재는 `raceName` 자유 입력만) — S-83이 "없으면 직접 입력 허용"이라고 명시한
   경로만 우선 구현
 - "완주 이력 3건 이상 시 배지" 같은 마일스톤/배지 부여 로직(S-83) — 배지 시스템 자체가 이번
   범위 밖이라 판단, 향후 배지 도메인이 생기면 이 API의 `items.length`로 계산 가능
+
+---
+
+## 16. 대회 캘린더(race) (2026-09-07 — `docs/달림_화면별_상세기획서_v1.3.md` SPEC 편입)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` PART 3-H "S-80 대회 캘린더"/"S-81 대회 상세" 근거
+> (664~692행). 15.7에서 유보해뒀던 부분을 채우는 라운드다.
+>
+> **주의**: 이 도메인(`com.dallim.race`)은 15장 러닝 커리어(`com.dallim.racerecord`, 내가
+> 과거에 뛴 대회의 자기신고 완주 이력)와 완전히 별개다. 이 장은 "앞으로 열릴 대회 정보를
+> 찾아보고 담아두는" 기능이며, id 프리픽스도 다르다(`rce_*`/`rcc_*`/`rcs_*` — 15장의
+> `race_*`와 헷갈리지 말 것).
+>
+> 이번 라운드는 **대회 조회 + 종목별 정보 + 내 대회 담기**만 구현한다 — 접수 제휴 추적
+> 링크/추천 대회 유상 노출, 데이터 정확도 신고, "이 대회 준비하는 사람들"(모집 연계), 코스
+> 미리달리기(S-85)/훈련플랜(S-86), 목표 대회 D-day/훈련 진행률(S-82 상단), 포스터 이미지,
+> 크롤링 배치는 전부 범위 밖(16.6 참고).
+
+### 16.1 데이터 모델
+
+```
+races
+  id                    varchar(32) PK
+  name                  varchar(100)
+  region                varchar(50)      -- 자유 문자열, 예: "서울"/"성남" (GET /races?region= 매칭 기준)
+  location              varchar(200)     -- 집결 장소
+  race_date             timestamptz      -- 대회 일시
+  registration_start    timestamptz
+  registration_end      timestamptz
+  organizer             varchar(100)     -- 주최
+  souvenir              varchar(200) null -- 기념품, 선택
+  created_at            timestamptz
+
+race_category_options   -- 대회 하나에 여러 종목(참가비/정원/컷오프가 종목마다 다를 수 있음)
+  id               varchar(32) PK
+  race_id          varchar(32) FK -> races
+  category         FIVE_K | TEN_K | HALF | FULL | ULTRA | TRAIL (와이어 표현: "5K"/"10K"/...)
+  distance_km      double null      -- ULTRA/TRAIL처럼 대회마다 거리가 제각각이면 null
+  fee_krw          int null
+  capacity         int null
+  cutoff_minutes   int null
+
+race_saves               -- User <-> Race 담기(bookmark), saved_routes와 동일 패턴
+  id          varchar(32) PK
+  user_id     varchar(32) FK -> users
+  race_id     varchar(32) FK -> races
+  created_at  timestamptz
+  UNIQUE(user_id, race_id)
+```
+
+- **접수 상태(`status`)는 컬럼으로 저장하지 않는다.** 매 조회 시 현재 시각과
+  `registrationStart`/`registrationEnd`를 비교해 계산한다(배치/스케줄러 불필요):
+  - `now < registrationStart` → `UPCOMING`
+  - `registrationStart <= now <= registrationEnd` → `OPEN`
+  - `now > registrationEnd` → `CLOSED`
+- **`savedCount`("달림 러너 N명 참가 예정")**: 실제 참가 여부를 검증하지 않고, 이 대회를
+  담은(`race_saves`) 유저 수로 대체한다(SPEC이 요구하는 신뢰도 수준에 맞춘 것 — 과설계 금지).
+- **`minFeeKrw`/`maxFeeKrw`**: 그 대회의 모든 종목 `feeKrw` 중 최솟값/최댓값(참가비가 없는
+  종목은 제외). 종목이 하나도 참가비를 갖지 않으면 둘 다 `null`.
+
+### 16.2 `GET /races`
+대회 목록 — 비로그인도 조회 가능, `isSaved`만 옵셔널 JWT로 개인화(4장 `GET /routes`와 동일한
+`authenticate(AUTH_JWT, optional = true)` 패턴).
+
+**Query Parameters**
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| `region` | string? | 지역 문자열 부분 일치(대소문자 무시). 예: `region=서울` |
+| `category` | string? | `5K`/`10K`/`HALF`/`FULL`/`ULTRA`/`TRAIL` 중 하나 — 대회가 그 종목을 하나라도 포함하면 매치. 잘못된 값은 필터 없음으로 취급 |
+| `status` | string? | `UPCOMING`/`OPEN`/`CLOSED`(계산값 기준 필터). 잘못된 값은 필터 없음으로 취급 |
+| `page` | int | 기본 0 |
+| `size` | int | 기본 20, 1~100 |
+
+**기본 정렬**: 접수 마감 임박순(`registrationEnd` 오름차순). 이미 마감(`CLOSED`)된 대회는
+그 안에서도 `registrationEnd` 오름차순을 유지한 채 전부 뒤로 밀린다.
+
+**Response 200**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "raceId": "rce_002",
+        "name": "서울 하프 마라톤",
+        "region": "서울",
+        "location": "잠실종합운동장",
+        "raceDate": "2026-11-01T08:00:00Z",
+        "dDay": 55,
+        "registrationStart": "2026-09-01T00:00:00Z",
+        "registrationEnd": "2026-09-20T23:59:59Z",
+        "status": "OPEN",
+        "categories": ["5K", "10K", "HALF"],
+        "minFeeKrw": 20000,
+        "maxFeeKrw": 35000,
+        "savedCount": 12,
+        "isSaved": false
+      }
+    ],
+    "totalCount": 8,
+    "page": 0,
+    "size": 20
+  },
+  "error": null
+}
+```
+- `dDay`: `raceDate`까지 남은 일수(현재 시각 기준, 지난 대회면 음수도 가능하나 큐레이션
+  데이터는 항상 미래 일자를 쓴다).
+
+### 16.3 `GET /races/{raceId}`
+대회 상세 — 종목별(거리·참가비·정원·컷오프) 표 포함. 존재하지 않으면
+`404 RACE_NOT_FOUND`.
+
+**Response 200**
+```json
+{
+  "success": true,
+  "data": {
+    "raceId": "rce_008",
+    "name": "과천 사슴벌레 트레일런",
+    "region": "과천",
+    "location": "서울대공원 산림욕장 입구",
+    "raceDate": "2026-09-10T07:00:00Z",
+    "dDay": 3,
+    "registrationStart": "2026-06-01T00:00:00Z",
+    "registrationEnd": "2026-07-15T23:59:59Z",
+    "status": "CLOSED",
+    "organizer": "과천시",
+    "souvenir": null,
+    "categories": [
+      { "category": "TRAIL", "distanceKm": 15.0, "feeKrw": 30000, "capacity": 300, "cutoffMinutes": 240 },
+      { "category": "ULTRA", "distanceKm": 50.0, "feeKrw": 60000, "capacity": 150, "cutoffMinutes": 600 }
+    ],
+    "minFeeKrw": 30000,
+    "maxFeeKrw": 60000,
+    "savedCount": 4,
+    "isSaved": false
+  },
+  "error": null
+}
+```
+
+### 16.4 `POST /races/{raceId}/save` 🔒 / `DELETE /races/{raceId}/save` 🔒
+내 대회에 담기 / 담기 취소 — `com.dallim.user`의 saved-routes(2장)와 완전히 같은 패턴. 둘 다
+idempotent(이미 담았는데 또 담기, 담지 않았는데 취소 모두 에러가 아니라 성공). 존재하지 않는
+`raceId`로 담기를 시도하면 `404 RACE_NOT_FOUND`(취소는 존재 여부를 따지지 않고 그냥
+idempotent 성공).
+
+**Response 201** (POST) / **Response 200** (DELETE)
+```json
+{ "success": true, "data": null, "error": null }
+```
+
+### 16.5 `GET /users/me/races` 🔒
+내가 담은 대회 목록 — 대회 날짜(`raceDate`) 임박순. 16.2의 아이템과 동일한 형태(`isSaved`는
+항상 `true`).
+
+**Response 200**
+```json
+{ "success": true, "data": { "items": [ /* 16.2 아이템과 동일 형태 */ ] }, "error": null }
+```
+
+### 16.6 이번 라운드에 만들지 않은 것
+- 접수 제휴 추적 링크, 상단 "추천 대회" 유상 노출 슬롯(수익화) — `CLAUDE.md` 2026-09-06
+  결정("초기엔 광고만")에 따라 대회 쪽 수익화는 이번 범위 밖
+- "정보가 다른가요? 신고" 데이터 정확도 신고 기능
+- "이 대회 준비하는 사람들"(14장 같이 달리기 모집과의 연계)
+- 코스 미리달리기(S-85), 훈련플랜(S-86, RUN+) — 애초에 없는 기능
+- 목표 대회 D-day 카드/훈련 진행률(S-82 상단, "이번 주 8/20km") — "담기"까지만, 목표 설정과
+  훈련 진행률 추적은 범위 밖
+- 대표 이미지/포스터 업로드 — 이미지 자산 관리 인프라가 없어 `posterImageUrl` 같은 필드
+  자체가 없음
+- 크롤링 배치/자동 갱신 — 수동 큐레이션 원칙대로 시드 데이터(`V12__seed_races.sql`)로 대체
+- 월별 캘린더 뷰(리스트 뷰만 제공 — Android 몫이라 이 API 계약엔 영향 없음)
+- 접수하러 가기 외부 링크(`applyUrl` 등) — S-81에 언급되나 이번 브리핑의 "포함" 범위에
+  명시되지 않아 구현하지 않음. 필요해지면 다음 라운드에 `races` 테이블에 컬럼 추가로 확장 가능
