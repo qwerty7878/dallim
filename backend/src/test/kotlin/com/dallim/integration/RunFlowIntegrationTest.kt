@@ -308,6 +308,55 @@ class RunFlowIntegrationTest {
     }
 
     @Test
+    fun `finish - stepCount is stored and echoed back but never affects judgement`() = testApplication {
+        val client = jsonClient()
+        val (_, token) = client.signupNewUser()
+        val runId = startRun(client, token, routeId)
+        uploadAll(client, token, runId, GpsFixtures.load("completed_run"))
+
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
+            header("Authorization", "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z", stepCount = 6820))
+        }
+        assertEquals(HttpStatusCode.OK, finishResponse.status)
+        val finishBody: RunFinishEnvelope = finishResponse.body()
+        assertEquals(RunStatus.COMPLETED, finishBody.data!!.status)
+
+        val detailBody: RunDetailEnvelope = client.authGet("/v1/runs/$runId", token).body()
+        assertEquals(6820, detailBody.data!!.stepCount)
+    }
+
+    @Test
+    fun `finish - omitted stepCount stores and echoes null`() = testApplication {
+        val client = jsonClient()
+        val (_, token) = client.signupNewUser()
+        val runId = startRun(client, token, routeId)
+        uploadAll(client, token, runId, GpsFixtures.load("completed_run"))
+        finish(client, token, runId)
+
+        val detailBody: RunDetailEnvelope = client.authGet("/v1/runs/$runId", token).body()
+        assertEquals(null, detailBody.data!!.stepCount)
+    }
+
+    @Test
+    fun `finish - negative stepCount returns 400 VALIDATION_ERROR`() = testApplication {
+        val client = jsonClient()
+        val (_, token) = client.signupNewUser()
+        val runId = startRun(client, token, routeId)
+        uploadAll(client, token, runId, GpsFixtures.load("completed_run"))
+
+        val finishResponse = client.post("/v1/runs/$runId/finish") {
+            header("Authorization", "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(FinishRunRequest(finishedAt = "2026-08-30T01:00:00Z", stepCount = -1))
+        }
+        assertEquals(HttpStatusCode.BadRequest, finishResponse.status)
+        val error: SimpleApiResponse = finishResponse.body()
+        assertEquals("VALIDATION_ERROR", error.error?.code)
+    }
+
+    @Test
     fun `POST runs with an unknown routeId returns 404 ROUTE_NOT_FOUND`() = testApplication {
         val client = jsonClient()
         val (_, token) = client.signupNewUser()

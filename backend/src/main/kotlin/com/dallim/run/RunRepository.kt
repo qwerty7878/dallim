@@ -43,6 +43,7 @@ class RunRepository(
         val averagePaceSecPerKm: Int?,
         val sketchMatchPercent: Int?,
         val routeCompletionPercent: Int?,
+        val stepCount: Int?,
     )
 
     data class FinisherRow(
@@ -274,6 +275,7 @@ class RunRepository(
         averagePaceSecPerKm: Int,
         isFirstDiscoverer: Boolean,
         earnedInk: Int,
+        stepCount: Int? = null,
     ) {
         transaction(database) {
             RunRecordTable.update({ RunRecordTable.id eq runId }) {
@@ -286,6 +288,7 @@ class RunRepository(
                 it[RunRecordTable.routeCompletionPercent] = result.routeCompletionPercent
                 it[RunRecordTable.isFirstDiscoverer] = isFirstDiscoverer
                 it[RunRecordTable.earnedInk] = earnedInk
+                it[RunRecordTable.stepCount] = stepCount
                 it[RunRecordTable.updatedAt] = Instant.now()
             }
         }
@@ -349,5 +352,6 @@ class RunRepository(
         averagePaceSecPerKm = this[RunRecordTable.averagePaceSecPerKm],
         sketchMatchPercent = this[RunRecordTable.sketchMatchPercent],
         routeCompletionPercent = this[RunRecordTable.routeCompletionPercent],
+        stepCount = this[RunRecordTable.stepCount],
     )
 }

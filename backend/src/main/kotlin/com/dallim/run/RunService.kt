@@ -86,6 +86,12 @@ class RunService(
             throw ConflictException(ErrorCodes.RUN_ALREADY_FINISHED, "이미 종료된 러닝입니다.")
         }
 
+        // stepCount is storage-only (see FinishRunRequest.stepCount) — the only check here is
+        // rejecting a nonsensical negative value; it never feeds RunJudgementService.
+        if ((request.stepCount ?: 0) < 0) {
+            throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "stepCount는 0 이상이어야 합니다.")
+        }
+
         val rawPoints = runRepository.fetchGpsPoints(runId)
         if (rawPoints.size < RunJudgementService.MIN_POINTS_FOR_JUDGEMENT) {
             throw BadRequestException(ErrorCodes.GPS_DATA_INSUFFICIENT, "완주 판정을 위한 GPS 데이터가 부족합니다.")
@@ -116,6 +122,7 @@ class RunService(
             averagePaceSecPerKm = averagePace,
             isFirstDiscoverer = isFirstDiscoverer,
             earnedInk = earnedInk,
+            stepCount = request.stepCount,
         )
 
         if (result.status == RunStatus.COMPLETED) {
@@ -171,6 +178,7 @@ class RunService(
             sketchMatchPercent = run.sketchMatchPercent ?: 0,
             routeCompletionPercent = run.routeCompletionPercent ?: 0,
             completedAt = run.finishedAt?.toString() ?: "",
+            stepCount = run.stepCount,
         )
     }
 

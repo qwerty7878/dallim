@@ -54,6 +54,11 @@ object RunRecordTable : Table("run_records") {
     val isFirstDiscoverer = bool("is_first_discoverer").default(false)
     val earnedInk = integer("earned_ink").default(0)
 
+    // 2026-09-06 (docs/달림_화면별_상세기획서_v1.3.md PART 4.1) — storage-only for now, collected
+    // ahead of a future "step count vs. distance" anti-cheat signal. Never read by
+    // RunJudgementService. Nullable: not every device/session can supply a step sensor reading.
+    val stepCount = integer("step_count").nullable()
+
     val createdAt = timestamp("created_at").clientDefault { Instant.now() }
     val updatedAt = timestamp("updated_at").clientDefault { Instant.now() }
 
@@ -75,6 +80,7 @@ data class RunRecord(
     val routeCompletionPercent: Int?,
     val isFirstDiscoverer: Boolean,
     val earnedInk: Int,
+    val stepCount: Int?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

@@ -51,9 +51,18 @@ data class GpsBatchResponse(val receivedCount: Int)
  * `clientPrecheckStatus` is intentionally typed as a raw, unvalidated String: it is UX-preview
  * data only (CLAUDE.md rule 3) and RunService must never branch on it when computing the real
  * judgement — only log/ignore it.
+ *
+ * `stepCount` (2026-09-06, docs/달림_화면별_상세기획서_v1.3.md PART 4.1) is collected now so
+ * historical data exists once a "step count vs. distance" anti-cheat signal is built later — it is
+ * pure storage in this round and RunJudgementService must never branch on it (same rule as
+ * clientPrecheckStatus). Optional since not every device/session can supply a step sensor reading.
  */
 @Serializable
-data class FinishRunRequest(val finishedAt: String, val clientPrecheckStatus: String? = null)
+data class FinishRunRequest(
+    val finishedAt: String,
+    val clientPrecheckStatus: String? = null,
+    val stepCount: Int? = null,
+)
 
 @Serializable
 data class RunFinishResponse(
@@ -83,4 +92,7 @@ data class RunDetailResponse(
     val sketchMatchPercent: Int,
     val routeCompletionPercent: Int,
     val completedAt: String,
+    // Storage/debugging only for now — never consulted by RunJudgementService. See
+    // FinishRunRequest.stepCount.
+    val stepCount: Int? = null,
 )

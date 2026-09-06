@@ -503,9 +503,17 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 
 **Request**
 ```json
-{ "finishedAt": "2026-08-23T09:34:38Z", "clientPrecheckStatus": "COMPLETED" }
+{
+  "finishedAt": "2026-08-23T09:34:38Z",
+  "clientPrecheckStatus": "COMPLETED",
+  "stepCount": 6820
+}
 ```
 > `clientPrecheckStatus`는 클라이언트 로컬 판정값(참고용, 서버가 재계산해 덮어씀)
+> `stepCount`(선택, 걸음 수 센서 값)는 2026-09-06 추가 —
+> `docs/달림_화면별_상세기획서_v1.3.md` PART 4.1 "부정행위 방지"의 "걸음 수 대비 이동 거리
+> 불일치" 향후 탐지 신호를 위해 지금부터 수집만 해둔다. **현재는 저장·조회(`GET /runs/{runId}`
+> 응답)만 하고 완주 판정에는 전혀 쓰지 않는다** — 센서 값을 못 얻는 기기/세션은 생략(null) 가능.
 
 **Response 200**
 ```json
@@ -552,10 +560,13 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
     "averagePaceSecPerKm": 401,
     "sketchMatchPercent": 92,
     "routeCompletionPercent": 97,
-    "completedAt": "2026-08-23T09:34:38Z"
+    "completedAt": "2026-08-23T09:34:38Z",
+    "stepCount": 6820
   }
 }
 ```
+> `stepCount`: `POST /runs/{runId}/finish`에서 받은 값을 그대로 노출(2026-09-06 추가). 저장·디버깅/
+> 향후 부정행위 탐지용 노출일 뿐 판정에는 쓰이지 않는다. 값이 없으면 `null`.
 
 **Error**
 - `404 RUN_NOT_FOUND`
