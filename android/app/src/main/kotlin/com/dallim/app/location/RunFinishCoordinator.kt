@@ -59,7 +59,11 @@ class RunFinishCoordinator @Inject constructor(
         val response = runCatching {
             runApi.finishRun(
                 runId = runId,
-                request = FinishRunRequest(finishedAt = Instant.now().toString(), clientPrecheckStatus = precheckStatus),
+                request = FinishRunRequest(
+                    finishedAt = Instant.now().toString(),
+                    clientPrecheckStatus = precheckStatus,
+                    stepCount = repository.state.value.stepCount,
+                ),
             )
         }.getOrNull()
 

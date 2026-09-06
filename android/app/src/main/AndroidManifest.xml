@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 걸음수 수집(StepCounterTracker, 2026-09-06 SPEC 편입). 이 권한을 얻기 위한 별도 요청
+         UI/다이얼로그는 만들지 않는다 — 시스템 설정 등으로 이미 허용돼 있을 때만 사용하고,
+         없으면 StepCounterTracker가 조용히 null로 폴백한다. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
     <application
         android:name=".DallimApplication"

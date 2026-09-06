@@ -43,6 +43,8 @@ data class RunTrackingSnapshot(
     /** 진행률 링에 쓰는 로컬 프리체크 커버리지(%) — UX 프리뷰 전용, 서버 판정과 다를 수 있다. */
     val coveragePercent: Int = 0,
     val finishError: String? = null,
+    /** [StepCounterTracker.stopAndConsume]이 채워줌 — 저장 전용, 판정에는 쓰이지 않는다. */
+    val stepCount: Int? = null,
 )
 
 @Singleton

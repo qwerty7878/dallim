@@ -71,7 +71,13 @@ data class GpsBatchRequest(val points: List<GpsPointDto>)
 data class GpsBatchResponseBody(val receivedCount: Int)
 
 @Serializable
-data class FinishRunRequest(val finishedAt: String, val clientPrecheckStatus: String)
+data class FinishRunRequest(
+    val finishedAt: String,
+    val clientPrecheckStatus: String,
+    // 2026-09-06, docs/달림_화면별_상세기획서_v1.3.md PART 4.1 — 저장만 해두는 값. 완주 판정에는
+    // 전혀 관여하지 않는다(CLAUDE.md rule 3). 센서/권한이 없으면 null.
+    val stepCount: Int? = null,
+)
 
 @Serializable
 data class FinishRunResponseBody(
@@ -101,4 +107,5 @@ data class RunDetailResponseBody(
     val sketchMatchPercent: Int,
     val routeCompletionPercent: Int,
     val completedAt: String,
+    val stepCount: Int? = null,
 )

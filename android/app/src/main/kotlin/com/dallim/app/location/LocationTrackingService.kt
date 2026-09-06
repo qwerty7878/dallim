@@ -54,6 +54,8 @@ class LocationTrackingService : LifecycleService() {
 
     @Inject lateinit var gpsPointDao: GpsPointDao
 
+    @Inject lateinit var stepCounterTracker: StepCounterTracker
+
     private val fusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(this)
     }
@@ -111,6 +113,7 @@ class LocationTrackingService : LifecycleService() {
         pauseStartedAtElapsedRealtime = null
         runStartElapsedRealtime = SystemClock.elapsedRealtime()
         deviationTracker.reset()
+        stepCounterTracker.start()
 
         repository.update {
             RunTrackingSnapshot(phase = RunPhase.RUNNING, runId = startRunId)
@@ -143,7 +146,8 @@ class LocationTrackingService : LifecycleService() {
 
     private fun handleFinish() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
-        repository.update { it.copy(phase = RunPhase.FINISHING) }
+        val stepCount = stepCounterTracker.stopAndConsume()
+        repository.update { it.copy(phase = RunPhase.FINISHING, stepCount = stepCount) }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -251,6 +255,7 @@ class LocationTrackingService : LifecycleService() {
 
     override fun onDestroy() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        stepCounterTracker.stopAndConsume()
         super.onDestroy()
     }
 
