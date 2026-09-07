@@ -29,6 +29,7 @@ import com.dallim.app.onboarding.profile.ProfileSetupRoute
 import com.dallim.app.onboarding.signup.SignupRoute
 import com.dallim.app.onboarding.splash.SplashRoute
 import com.dallim.app.onboarding.terms.TermsRoute
+import com.dallim.app.race.detail.RaceDetailRoute
 import com.dallim.app.race.list.RaceListRoute
 import com.dallim.app.route.create.CourseCreateEntryRoute
 import com.dallim.app.route.create.ai.AiRouteRoute
@@ -220,6 +221,15 @@ fun DallimNavHost(
                 // 뒤로가기만으로 돌아간다 (RaceListScreen.kt 상단 주석).
                 onExploreCoursesClick = { navController.popBackStack() },
                 onRaceClick = { raceId -> navController.navigate(DallimDestinations.raceDetail(raceId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.RACE_DETAIL,
+            arguments = listOf(navArgument(DallimDestinations.ARG_RACE_ID) { type = NavType.StringType }),
+        ) {
+            RaceDetailRoute(
+                onBackClick = { navController.popBackStack() },
             )
         }
 
