@@ -115,4 +115,18 @@ object DallimDestinations {
      * 만들지 않는다(4탭 구조 유지 원칙).
      */
     const val MEDAL_SHELF = "s91_medal_shelf" // S-91
+
+    const val ARG_RACE_ID = "raceId"
+
+    /**
+     * S-80 대회 캘린더 (2026-09-07 신규, docs/달림_화면별_상세기획서_v1.3.md PART 3-H 664~692행,
+     * docs/02-api-spec.md 16장). 15장 러닝 커리어(`com.dallim.app.career`, 내가 과거에 뛴 대회의
+     * 자기신고 완주 이력)와 완전히 별개 도메인이니 혼동 금지 — 이건 "앞으로 열릴 대회"다.
+     * 탐색(S-11)의 세그먼트 탭에서 진입한다(DiscoverScreen 참고).
+     */
+    const val RACE_LIST = "s80_race_list" // S-80
+
+    private const val RACE_DETAIL_BASE = "s81_race_detail" // S-81
+    const val RACE_DETAIL = "$RACE_DETAIL_BASE/{$ARG_RACE_ID}"
+    fun raceDetail(raceId: String) = "$RACE_DETAIL_BASE/$raceId"
 }

@@ -68,6 +68,7 @@ fun DiscoverRoute(
     onRouteClick: (routeId: String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
+    onRaceTabClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
@@ -79,6 +80,7 @@ fun DiscoverRoute(
         onRouteClick = onRouteClick,
         onTabSelected = onTabSelected,
         onCreateCourseClick = onCreateCourseClick,
+        onRaceTabClick = onRaceTabClick,
         onDistanceFilterChange = viewModel::onDistanceFilterChange,
         onStatusFilterChange = viewModel::onStatusFilterChange,
         onSortChange = viewModel::onSortChange,
@@ -96,6 +98,7 @@ private fun DiscoverScreen(
     onRouteClick: (String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
+    onRaceTabClick: () -> Unit,
     onDistanceFilterChange: (DistanceFilter) -> Unit,
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
@@ -154,6 +157,16 @@ private fun DiscoverScreen(
                     )
                 }
                 Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+            }
+
+            // 대회(S-80)와 왕복하는 세그먼트 탭 — "대회"를 탭하면 RaceListRoute로 push한다
+            // (RaceListScreen.kt 상단 주석에 이미 명시된 왕복 구조의 반대쪽 절반).
+            Row(
+                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                DallimFilterChip(label = "그림 코스", selected = true, onClick = {})
+                DallimFilterChip(label = "대회", selected = false, onClick = onRaceTabClick)
             }
 
             FilterSection(
@@ -374,6 +387,7 @@ private fun DiscoverScreenPreview() {
             onRouteClick = {},
             onTabSelected = {},
             onCreateCourseClick = {},
+            onRaceTabClick = {},
             onDistanceFilterChange = {},
             onStatusFilterChange = {},
             onSortChange = {},

@@ -29,6 +29,7 @@ import com.dallim.app.onboarding.profile.ProfileSetupRoute
 import com.dallim.app.onboarding.signup.SignupRoute
 import com.dallim.app.onboarding.splash.SplashRoute
 import com.dallim.app.onboarding.terms.TermsRoute
+import com.dallim.app.race.list.RaceListRoute
 import com.dallim.app.route.create.CourseCreateEntryRoute
 import com.dallim.app.route.create.ai.AiRouteRoute
 import com.dallim.app.route.create.draw.DrawRouteRoute
@@ -208,6 +209,17 @@ fun DallimNavHost(
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onCreateCourseClick = { navController.navigate(DallimDestinations.COURSE_CREATE_ENTRY) },
+                onRaceTabClick = { navController.navigate(DallimDestinations.RACE_LIST) },
+            )
+        }
+
+        composable(DallimDestinations.RACE_LIST) {
+            RaceListRoute(
+                onBackClick = { navController.popBackStack() },
+                // 탐색(S-11)이 이미 백스택에 있는 왕복 구조이므로 새로 navigate하지 않고
+                // 뒤로가기만으로 돌아간다 (RaceListScreen.kt 상단 주석).
+                onExploreCoursesClick = { navController.popBackStack() },
+                onRaceClick = { raceId -> navController.navigate(DallimDestinations.raceDetail(raceId)) },
             )
         }
 
