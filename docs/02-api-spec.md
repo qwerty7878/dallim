@@ -1590,8 +1590,10 @@ S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실�
 ### 15.7 이번 라운드에 만들지 않은 것
 - ~~대회 캘린더/대회 상세/참가 예정 대회 담기(S-80/81, S-82 상단·중단 섹션)~~ → **2026-09-07
   구현됨, 16장(대회 캘린더, `com.dallim.race`) 참고.** 단 S-82의 "목표 대회 D-day 카드/훈련
-  진행률" 부분은 16장에서도 여전히 범위 밖(16.6 참고).
-- 코스 미리달리기(S-85), 훈련플랜(S-86)
+  진행률" 부분은 16장에서도 여전히 범위 밖(16.7 참고).
+- ~~코스 미리달리기(S-85)~~ → **2026-09-12 구현됨, 16.6(대회 코스 미리 달리기,
+  `com.dallim.race`) 참고.** 훈련플랜(S-86)은 여전히 범위 밖(RUN+ 유료 기능, "광고 수익만"
+  방침에 따라 결제 기능 없이는 만들지 않음).
 - 기록 인증(사진/링크 제출 → 운영 검토 → `인증` 배지, S-84) — 그래서 `verified`는 항상 `false`
 - 대회 DB 검색(현재는 `raceName` 자유 입력만) — S-83이 "없으면 직접 입력 허용"이라고 명시한
   경로만 우선 구현
@@ -1611,9 +1613,12 @@ S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실�
 > `race_*`와 헷갈리지 말 것).
 >
 > 이번 라운드는 **대회 조회 + 종목별 정보 + 내 대회 담기**만 구현한다 — 접수 제휴 추적
-> 링크/추천 대회 유상 노출, 데이터 정확도 신고, "이 대회 준비하는 사람들"(모집 연계), 코스
-> 미리달리기(S-85)/훈련플랜(S-86), 목표 대회 D-day/훈련 진행률(S-82 상단), 포스터 이미지,
-> 크롤링 배치는 전부 범위 밖(16.6 참고).
+> 링크/추천 대회 유상 노출, 데이터 정확도 신고, "이 대회 준비하는 사람들"(모집 연계),
+> 훈련플랜(S-86), 목표 대회 D-day/훈련 진행률(S-82 상단), 포스터 이미지, 크롤링 배치는 전부
+> 범위 밖(16.7 참고).
+>
+> **2026-09-12 갱신**: 코스 미리달리기(S-85)는 **더 이상 범위 밖이 아니다** — 16.6
+> `GET /races/{raceId}/course` 참고.
 
 ### 16.1 데이터 모델
 
@@ -1628,6 +1633,7 @@ races
   registration_end      timestamptz
   organizer             varchar(100)     -- 주최
   souvenir              varchar(200) null -- 기념품, 선택
+  course_route_id       varchar(32) null FK -> sketch_routes  -- S-85 공식 코스, 2026-09-12 신규
   created_at            timestamptz
 
 race_category_options   -- 대회 하나에 여러 종목(참가비/정원/컷오프가 종목마다 다를 수 있음)
@@ -1645,7 +1651,20 @@ race_saves               -- User <-> Race 담기(bookmark), saved_routes와 동�
   race_id     varchar(32) FK -> races
   created_at  timestamptz
   UNIQUE(user_id, race_id)
+
+race_course_segments      -- S-85 공식 코스를 자른 구간들, 2026-09-12 신규 (16.6 참고)
+  id            varchar(32) PK
+  race_id       varchar(32) FK -> races
+  route_id      varchar(32) FK -> sketch_routes  -- 그 구간만 담은 SketchRoute (is_preview_segment = true)
+  label         varchar(50)      -- 예: "출발~1.4km"
+  order_index   int
+  created_at    timestamptz
 ```
+
+- **`sketch_routes.is_preview_segment`(2026-09-12 신규)**: `race_course_segments.route_id`가
+  가리키는 구간용 SketchRoute는 이 컬럼이 `true`다. `GET /routes` 목록/탐색 조회에서는
+  제외되지만 `GET /routes/{routeId}`(직접 조회)와 `POST /runs`(그 id로 러닝 시작)는 평범한
+  코스처럼 그대로 동작한다(4-5장 참고, 완주 판정 알고리즘도 구간을 특별 취급하지 않는다).
 
 - **접수 상태(`status`)는 컬럼으로 저장하지 않는다.** 매 조회 시 현재 시각과
   `registrationStart`/`registrationEnd`를 비교해 계산한다(배치/스케줄러 불필요):
@@ -1693,7 +1712,8 @@ race_saves               -- User <-> Race 담기(bookmark), saved_routes와 동�
         "minFeeKrw": 20000,
         "maxFeeKrw": 35000,
         "savedCount": 12,
-        "isSaved": false
+        "isSaved": false,
+        "previewProgressPercent": 33
       }
     ],
     "totalCount": 8,
@@ -1705,6 +1725,10 @@ race_saves               -- User <-> Race 담기(bookmark), saved_routes와 동�
 ```
 - `dDay`: `raceDate`까지 남은 일수(현재 시각 기준, 지난 대회면 음수도 가능하나 큐레이션
   데이터는 항상 미래 일자를 쓴다).
+- `previewProgressPercent`(2026-09-12 신규, S-85): 이 대회에 공식 코스(`courseRouteId`)가
+  없으면 `null`. 있으면 완주한 구간들의 `distanceKm` 합 / 전체 코스 `distanceKm` * 100을
+  정수로 반올림한 값(0~100). 비로그인이면 `0`. 상세 계산/구간 목록은 16.6
+  `GET /races/{raceId}/course` 참고.
 
 ### 16.3 `GET /races/{raceId}`
 대회 상세 — 종목별(거리·참가비·정원·컷오프) 표 포함. 존재하지 않으면
@@ -1733,11 +1757,14 @@ race_saves               -- User <-> Race 담기(bookmark), saved_routes와 동�
     "minFeeKrw": 30000,
     "maxFeeKrw": 60000,
     "savedCount": 4,
-    "isSaved": false
+    "isSaved": false,
+    "previewProgressPercent": null
   },
   "error": null
 }
 ```
+- `previewProgressPercent`: 16.2와 동일한 계산(이 예시는 `rce_008`처럼 공식 코스가 없는
+  대회라 `null`).
 
 ### 16.4 `POST /races/{raceId}/save` 🔒 / `DELETE /races/{raceId}/save` 🔒
 내 대회에 담기 / 담기 취소 — `com.dallim.user`의 saved-routes(2장)와 완전히 같은 패턴. 둘 다
@@ -1759,12 +1786,85 @@ idempotent 성공).
 { "success": true, "data": { "items": [ /* 16.2 아이템과 동일 형태 */ ] }, "error": null }
 ```
 
-### 16.6 이번 라운드에 만들지 않은 것
+### 16.6 `GET /races/{raceId}/course` — S-85 대회 코스 미리 달리기 (2026-09-12 신규)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` PART 3-H "S-85 대회 코스 미리 달리기" 근거
+> (733~740행). 대회 공식 코스(Route)를 몇 개 구간으로 잘라 "이 구간 달리기" CTA로 기존
+> 러닝(5장) 플로우에 진입시키는 기능이다. **"이 구간 달리기"는 새 엔드포인트가 아니다** —
+> 아래 `segments[].routeId`로 기존 `POST /runs`를 그대로 호출하면 된다(GPS 배치 업로드/
+> 완주 판정은 구간을 특별 취급하지 않고 평범한 SketchRoute처럼 그대로 통과한다).
+>
+> 소셜 세션(14장 같이 달리기 모집과 연계되는 실시간 세션, S-30~S-39)과 훈련 플랜(S-86,
+> RUN+ 유료)은 이번 라운드에도 범위 밖이다 — 전자는 실시간 채팅이 필요해 범위 밖, 후자는
+> "광고 수익만, 결제 기능 없음" 방침(`CLAUDE.md` 2026-09-06 결정)에 따라 만들지 않는다.
+
+비로그인도 조회 가능, 구간 `isCompleted`/`previewProgressPercent`만 옵셔널 JWT로 개인화
+(4장 `GET /routes`와 동일한 `authenticate(AUTH_JWT, optional = true)` 패턴). 대회가
+존재하지 않으면 `404 RACE_NOT_FOUND`.
+
+**Response 200 — 공식 코스가 있는 경우**
+```json
+{
+  "success": true,
+  "data": {
+    "hasCourse": true,
+    "geoJson": { "type": "LineString", "coordinates": [[127.073, 37.5145], [127.118, 37.5385]] },
+    "distanceKm": 4.2,
+    "elevationGainM": 15,
+    "segments": [
+      {
+        "segmentId": "csg_race002_1",
+        "label": "출발~1.4km",
+        "routeId": "rt_race002_seg1",
+        "distanceKm": 1.4,
+        "estimatedMinutes": 9,
+        "elevationGainM": 5,
+        "orderIndex": 1,
+        "isCompleted": true
+      },
+      {
+        "segmentId": "csg_race002_2",
+        "label": "1.4km~2.8km",
+        "routeId": "rt_race002_seg2",
+        "distanceKm": 1.4,
+        "estimatedMinutes": 9,
+        "elevationGainM": 5,
+        "orderIndex": 2,
+        "isCompleted": false
+      }
+    ],
+    "previewProgressPercent": 33
+  },
+  "error": null
+}
+```
+- `geoJson`/`distanceKm`/`elevationGainM`(코스 전체): `races.course_route_id`가 가리키는
+  SketchRoute의 필드를 그대로 재사용(4장 `GET /routes/{routeId}`와 동일한 필드).
+- `segments[].isCompleted`: 그 세그먼트의 `routeId`로 로그인한 유저가 완주(`COMPLETED`)한
+  `RunRecord`가 있는지(`com.dallim.run.RunRepository.findCompletedRouteIds` 재사용). 비로그인
+  이면 항상 `false`.
+- `previewProgressPercent`: 완주한 구간들의 `distanceKm` 합 / 전체 코스 `distanceKm` * 100,
+  정수 반올림. 비로그인이면 `0`.
+
+**Response 200 — 공식 코스가 없는 경우**
+```json
+{ "success": true, "data": { "hasCourse": false }, "error": null }
+```
+
+- 시드 데이터(`V14__seed_race_course_preview.sql`): `rce_002`(서울 하프 마라톤)에 데모용
+  4.2km 코스(`rt_race002_course`)를 연결하고, 1.4km씩 3개 구간(`rt_race002_seg1~3`,
+  `race_course_segments`)으로 나눠뒀다 — 실제 21km 하프 트랙을 재현한 것이 아니라 개발/QA
+  검증용 축소 예시다(`V2__seed_curated_routes.sql`과 동일한 원칙).
+- 구간용 SketchRoute는 `sketch_routes.is_preview_segment = true`라서 `GET /routes` 목록에는
+  뜨지 않는다(16.1 참고).
+
+### 16.7 이번 라운드에 만들지 않은 것
 - 접수 제휴 추적 링크, 상단 "추천 대회" 유상 노출 슬롯(수익화) — `CLAUDE.md` 2026-09-06
   결정("초기엔 광고만")에 따라 대회 쪽 수익화는 이번 범위 밖
 - "정보가 다른가요? 신고" 데이터 정확도 신고 기능
 - "이 대회 준비하는 사람들"(14장 같이 달리기 모집과의 연계)
-- 코스 미리달리기(S-85), 훈련플랜(S-86, RUN+) — 애초에 없는 기능
+- ~~코스 미리달리기(S-85)~~ → **2026-09-12 구현됨, 16.6 참고.** 훈련플랜(S-86, RUN+)은
+  여전히 범위 밖 — 결제 기능 없이는 만들지 않는다는 방침 때문에 애초에 없는 기능
 - 목표 대회 D-day 카드/훈련 진행률(S-82 상단, "이번 주 8/20km") — "담기"까지만, 목표 설정과
   훈련 진행률 추적은 범위 밖
 - 대표 이미지/포스터 업로드 — 이미지 자산 관리 인프라가 없어 `posterImageUrl` 같은 필드

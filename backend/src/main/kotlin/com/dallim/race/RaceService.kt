@@ -1,7 +1,10 @@
 package com.dallim.race
 
 import com.dallim.common.ErrorCodes
+import com.dallim.common.GeoMath.toPercentInt
 import com.dallim.common.NotFoundException
+import com.dallim.route.RouteRepository
+import com.dallim.run.RunRepository
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -11,8 +14,18 @@ import java.time.temporal.ChronoUnit
  *
  * 접수 상태([RaceStatus])는 저장하지 않고 [computeStatus]로 매 조회 시 계산한다 — 배치/
  * 스케줄러가 필요 없다(작업 브리핑 지시).
+ *
+ * S-85(대회 코스 미리 달리기, 2026-09-12, docs/02-api-spec.md 16.6) 이후로는
+ * `com.dallim.route.RouteRepository`/`com.dallim.run.RunRepository`에도 의존한다 — 공식 코스
+ * 요약(geoJson/distanceKm/elevationGainM)은 route 도메인 데이터고, 구간 완주 여부는 run
+ * 도메인 데이터라서 그렇다(완주 판정 알고리즘 자체는 손대지 않고 RunRepository.
+ * findCompletedRouteIds를 그대로 재사용).
  */
-class RaceService(private val raceRepository: RaceRepository) {
+class RaceService(
+    private val raceRepository: RaceRepository,
+    private val routeRepository: RouteRepository,
+    private val runRepository: RunRepository,
+) {
 
     /** GET /races — 16.1. region(문자열 매칭)/category/status 필터 + 접수 마감 임박순 정렬. */
     fun listRaces(
@@ -45,9 +58,16 @@ class RaceService(private val raceRepository: RaceRepository) {
 
         val savedCounts = raceRepository.countSavedByRaces(pageItems.map { it.race.id })
         val savedRaceIds = if (userId != null) raceRepository.findSavedRaceIds(userId, pageItems.map { it.race.id }) else emptySet()
+        val previewProgressPercents = computePreviewProgressPercents(pageItems.map { it.race }, userId)
 
         return RaceListResponse(
-            items = pageItems.map { it.toSummary(savedCount = savedCounts[it.race.id] ?: 0, isSaved = it.race.id in savedRaceIds) },
+            items = pageItems.map {
+                it.toSummary(
+                    savedCount = savedCounts[it.race.id] ?: 0,
+                    isSaved = it.race.id in savedRaceIds,
+                    previewProgressPercent = previewProgressPercents[it.race.id],
+                )
+            },
             totalCount = totalCount,
             page = safePage,
             size = safeSize,
@@ -88,6 +108,56 @@ class RaceService(private val raceRepository: RaceRepository) {
             maxFeeKrw = enriched.maxFeeKrw,
             savedCount = raceRepository.countSaved(raceId),
             isSaved = isSaved,
+            previewProgressPercent = computePreviewProgressPercents(listOf(race), userId)[race.id],
+        )
+    }
+
+    /**
+     * GET /races/{raceId}/course — S-85. 이 대회에 공식 코스가 없으면 `hasCourse=false`뿐인
+     * 응답을 돌려준다(에러가 아니다 — "코스 없음"은 정상 상태). 구간 완주 여부/진행률은
+     * [computePreviewProgressPercents]와 같은 계산이지만, 여기선 구간별 `isCompleted`까지
+     * 함께 내려줘야 해서 별도로 계산한다.
+     */
+    fun getCourse(raceId: String, userId: String?): RaceCourseResponse {
+        val race = raceRepository.findById(raceId)
+            ?: throw NotFoundException(ErrorCodes.RACE_NOT_FOUND, "대회를 찾을 수 없습니다.")
+        val courseRouteId = race.courseRouteId ?: return RaceCourseResponse(hasCourse = false)
+
+        // FK가 가리키는 route가 사라졌을 리 없지만(참조 무결성), 방어적으로 코스 없음과 동일하게 처리.
+        val courseRoute = routeRepository.findDetail(courseRouteId) ?: return RaceCourseResponse(hasCourse = false)
+
+        val segments = raceRepository.findSegmentsForRace(raceId)
+        val completedRouteIds = if (userId != null) {
+            runRepository.findCompletedRouteIds(userId, segments.map { it.routeId })
+        } else {
+            emptySet()
+        }
+
+        val completedDistanceKm = segments.filter { it.routeId in completedRouteIds }.sumOf { it.distanceKm }
+        val progressPercent = if (courseRoute.distanceKm > 0.0) {
+            (completedDistanceKm / courseRoute.distanceKm * 100.0).toPercentInt()
+        } else {
+            0
+        }
+
+        return RaceCourseResponse(
+            hasCourse = true,
+            geoJson = courseRoute.geoJson,
+            distanceKm = courseRoute.distanceKm,
+            elevationGainM = courseRoute.elevationGainM,
+            segments = segments.map {
+                RaceCourseSegmentItem(
+                    segmentId = it.segmentId,
+                    label = it.label,
+                    routeId = it.routeId,
+                    distanceKm = it.distanceKm,
+                    estimatedMinutes = it.estimatedMinutes,
+                    elevationGainM = it.elevationGainM,
+                    orderIndex = it.orderIndex,
+                    isCompleted = it.routeId in completedRouteIds,
+                )
+            },
+            previewProgressPercent = progressPercent,
         )
     }
 
@@ -109,16 +179,58 @@ class RaceService(private val raceRepository: RaceRepository) {
         val races = raceRepository.findSavedRacesForUser(userId)
         val categoriesByRace = raceRepository.findCategoriesByRaces(races.map { it.id })
         val savedCounts = raceRepository.countSavedByRaces(races.map { it.id })
+        val previewProgressPercents = computePreviewProgressPercents(races, userId)
         val now = Instant.now()
 
         val items = races.map { race ->
             race.toEnriched(categoriesByRace[race.id] ?: emptyList(), now)
-                .toSummary(savedCount = savedCounts[race.id] ?: 0, isSaved = true)
+                .toSummary(
+                    savedCount = savedCounts[race.id] ?: 0,
+                    isSaved = true,
+                    previewProgressPercent = previewProgressPercents[race.id],
+                )
         }
         return MyRacesResponse(items = items)
     }
 
     // --- 내부 계산 로직 ---
+
+    /**
+     * `previewProgressPercent`(S-85) — [races] 중 `courseRouteId`가 있는 대회만 계산하고, 없는
+     * 대회는 `null`을 매핑한다. 완주한 구간들의 `distanceKm` 합 / 전체 코스 `distanceKm` * 100을
+     * 정수로 반올림한다. [userId]가 null(비로그인)이면 항상 0(구간을 하나도 완주하지 않은
+     * 것과 동일하게 계산되므로 별도 분기가 필요 없다).
+     *
+     * findCategoriesByRaces/countSavedByRaces와 동일한 배치 조회 관례 — 대회마다 쿼리하지
+     * 않고 [races] 전체에 대해 한 번씩만 조회한다.
+     */
+    private fun computePreviewProgressPercents(races: List<Race>, userId: String?): Map<String, Int?> {
+        val racesWithCourse = races.filter { it.courseRouteId != null }
+        if (racesWithCourse.isEmpty()) return races.associate { it.id to null }
+
+        val courseRouteIds = racesWithCourse.mapNotNull { it.courseRouteId }
+        val courseDistanceKmByRouteId = routeRepository.findDistanceKmByIds(courseRouteIds)
+
+        val segmentsByRace = raceRepository.findSegmentsByRaces(racesWithCourse.map { it.id })
+        val allSegmentRouteIds = segmentsByRace.values.flatten().map { it.routeId }
+        val completedRouteIds = if (userId != null) {
+            runRepository.findCompletedRouteIds(userId, allSegmentRouteIds)
+        } else {
+            emptySet()
+        }
+
+        return races.associate { race ->
+            val courseRouteId = race.courseRouteId
+            val totalDistanceKm = courseRouteId?.let { courseDistanceKmByRouteId[it] }
+            if (courseRouteId == null || totalDistanceKm == null || totalDistanceKm <= 0.0) {
+                race.id to (if (courseRouteId == null) null else 0)
+            } else {
+                val segments = segmentsByRace[race.id] ?: emptyList()
+                val completedDistanceKm = segments.filter { it.routeId in completedRouteIds }.sumOf { it.distanceKm }
+                race.id to (completedDistanceKm / totalDistanceKm * 100.0).toPercentInt()
+            }
+        }
+    }
 
     /** 저장하지 않고 매 조회 시 계산 — UPCOMING(접수 시작 전)/OPEN(접수중)/CLOSED(마감). */
     private fun computeStatus(race: Race, now: Instant): RaceStatus = when {
@@ -148,7 +260,7 @@ class RaceService(private val raceRepository: RaceRepository) {
         )
     }
 
-    private fun EnrichedRace.toSummary(savedCount: Int, isSaved: Boolean) = RaceSummaryResponse(
+    private fun EnrichedRace.toSummary(savedCount: Int, isSaved: Boolean, previewProgressPercent: Int?) = RaceSummaryResponse(
         raceId = race.id,
         name = race.name,
         region = race.region,
@@ -163,6 +275,7 @@ class RaceService(private val raceRepository: RaceRepository) {
         maxFeeKrw = maxFeeKrw,
         savedCount = savedCount,
         isSaved = isSaved,
+        previewProgressPercent = previewProgressPercent,
     )
 
     private fun parseCategoryOrNull(raw: String): RaceCategory? = when (raw) {

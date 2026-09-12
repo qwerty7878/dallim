@@ -15,10 +15,11 @@ import io.ktor.server.routing.route
 import org.koin.ktor.ext.inject
 
 /**
- * 대회 캘린더 엔드포인트 — GET /races, GET /races/{raceId}, POST/DELETE /races/{raceId}/save,
- * GET /users/me/races (docs/02-api-spec.md 16장). GET /races(목록)/{raceId}(상세)는
- * com.dallim.route.RouteRoutes와 동일하게 비로그인으로도 조회 가능하되 `isSaved`만
- * `authenticate(AUTH_JWT, optional = true)`로 개인화한다.
+ * 대회 캘린더 엔드포인트 — GET /races, GET /races/{raceId}, GET /races/{raceId}/course,
+ * POST/DELETE /races/{raceId}/save, GET /users/me/races (docs/02-api-spec.md 16장).
+ * GET /races(목록)/{raceId}(상세)/{raceId}/course는 com.dallim.route.RouteRoutes와 동일하게
+ * 비로그인으로도 조회 가능하되 `isSaved`/구간 완주 여부만 `authenticate(AUTH_JWT, optional =
+ * true)`로 개인화한다.
  */
 fun Route.raceRoutes() {
     val raceService by inject<RaceService>()
@@ -43,6 +44,16 @@ fun Route.raceRoutes() {
                 val raceId = call.parameters["raceId"]!!
                 val userId = call.currentUserId()
                 val response = raceService.getDetail(raceId, userId)
+                call.respond(HttpStatusCode.OK, ApiResponse.success(response))
+            }
+
+            // S-85 대회 코스 미리 달리기 — docs/02-api-spec.md 16.6(신규). "이 구간 달리기"는
+            // 새 엔드포인트가 아니라 응답의 segments[].routeId로 기존 POST /runs를 그대로
+            // 호출하는 것이다.
+            get("/{raceId}/course") {
+                val raceId = call.parameters["raceId"]!!
+                val userId = call.currentUserId()
+                val response = raceService.getCourse(raceId, userId)
                 call.respond(HttpStatusCode.OK, ApiResponse.success(response))
             }
         }

@@ -1,6 +1,7 @@
 package com.dallim.race
 
 import com.dallim.common.IdGenerator
+import com.dallim.route.SketchRouteTable
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
@@ -129,6 +130,58 @@ class RaceRepository(private val database: Database) {
             .map { it.toRace() }
     }
 
+    // --- 대회 코스 미리 달리기(S-85, docs/02-api-spec.md 16.6) ---
+
+    /** GET /races/{raceId}/course — [raceId]의 공식 코스를 자른 구간들, orderIndex 오름차순.
+     * sketch_routes와 조인해 distanceKm/estimatedMinutes/elevationGainM까지 한 번에 가져온다 —
+     * 전부 plain 컬럼(geometry 아님)이라 com.dallim.route.RouteRepository처럼 raw JDBC로 뺄
+     * 필요가 없다. */
+    fun findSegmentsForRace(raceId: String): List<SegmentRow> = transaction(database) {
+        (RaceCourseSegmentTable innerJoin SketchRouteTable)
+            .selectAll()
+            .where { RaceCourseSegmentTable.raceId eq raceId }
+            .orderBy(RaceCourseSegmentTable.orderIndex, SortOrder.ASC)
+            .map { it.toSegmentRow() }
+    }
+
+    /** 배치 조회(N+1 방지) — GET /races 목록/GET /users/me/races에서 대회마다 한 번씩
+     * 쿼리하지 않도록 (findCategoriesByRaces와 동일한 관례). */
+    fun findSegmentsByRaces(raceIds: List<String>): Map<String, List<SegmentRow>> {
+        if (raceIds.isEmpty()) return emptyMap()
+        return transaction(database) {
+            (RaceCourseSegmentTable innerJoin SketchRouteTable)
+                .selectAll()
+                .where { RaceCourseSegmentTable.raceId inList raceIds }
+                .orderBy(RaceCourseSegmentTable.orderIndex, SortOrder.ASC)
+                .map { it.toSegmentRow() }
+                .groupBy { it.raceId }
+        }
+    }
+
+    /** GET /races/{raceId}/course 코스 요약(geoJson 제외 -- 그건 geometry라
+     * com.dallim.route.RouteRepository.findDetail을 통해서만 읽는다). */
+    data class SegmentRow(
+        val segmentId: String,
+        val raceId: String,
+        val routeId: String,
+        val label: String,
+        val orderIndex: Int,
+        val distanceKm: Double,
+        val estimatedMinutes: Int,
+        val elevationGainM: Int,
+    )
+
+    private fun ResultRow.toSegmentRow() = SegmentRow(
+        segmentId = this[RaceCourseSegmentTable.id],
+        raceId = this[RaceCourseSegmentTable.raceId],
+        routeId = this[RaceCourseSegmentTable.routeId],
+        label = this[RaceCourseSegmentTable.label],
+        orderIndex = this[RaceCourseSegmentTable.orderIndex],
+        distanceKm = this[SketchRouteTable.distanceKm],
+        estimatedMinutes = this[SketchRouteTable.estimatedMinutes],
+        elevationGainM = this[SketchRouteTable.elevationGainM],
+    )
+
     private fun ResultRow.toRace() = Race(
         id = this[RaceTable.id],
         name = this[RaceTable.name],
@@ -139,6 +192,7 @@ class RaceRepository(private val database: Database) {
         registrationEnd = this[RaceTable.registrationEnd],
         organizer = this[RaceTable.organizer],
         souvenir = this[RaceTable.souvenir],
+        courseRouteId = this[RaceTable.courseRouteId],
         createdAt = this[RaceTable.createdAt],
     )
 
