@@ -1,6 +1,7 @@
 package com.dallim.network.race
 
 import com.dallim.network.common.ApiResponse
+import com.dallim.network.common.GeoJsonLineString
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.DELETE
@@ -44,6 +45,14 @@ interface RaceApi {
     /** 내가 담은 대회 목록 — 대회 날짜(raceDate) 임박순, 16.2 아이템과 동일한 형태. */
     @GET("users/me/races")
     suspend fun getMyRaces(): Response<ApiResponse<MyRacesResponseBody>>
+
+    /**
+     * S-85 대회 코스 미리 달리기 — 16.6(신규). 이 대회에 공식 코스가 없으면 `hasCourse=false`뿐이고
+     * 나머지 필드는 null/빈 배열이다. "이 구간 달리기"는 별도 엔드포인트가 아니라
+     * `segments[].routeId`로 기존 `POST /runs`(S-20 러닝 준비)를 그대로 호출하는 것이다.
+     */
+    @GET("races/{raceId}/course")
+    suspend fun getRaceCourse(@Path("raceId") raceId: String): Response<ApiResponse<RaceCourseResponseBody>>
 }
 
 /**
@@ -67,6 +76,8 @@ data class RaceSummaryItem(
     val maxFeeKrw: Int? = null,
     val savedCount: Int,
     val isSaved: Boolean = false,
+    // S-85(코스 미리 달리기) 완주 진행률 — 공식 코스가 없으면 null, 있으면 0~100. 비로그인이면 0.
+    val previewProgressPercent: Int? = null,
 )
 
 @Serializable
@@ -105,7 +116,35 @@ data class RaceDetailResponseBody(
     val maxFeeKrw: Int? = null,
     val savedCount: Int,
     val isSaved: Boolean = false,
+    val previewProgressPercent: Int? = null,
 )
 
 @Serializable
 data class MyRacesResponseBody(val items: List<RaceSummaryItem>)
+
+/** GET /races/{raceId}/course 구간 아이템 — S-85. `routeId`가 곧 "이 구간 달리기" 액션이다. */
+@Serializable
+data class RaceCourseSegmentItem(
+    val segmentId: String,
+    val label: String,
+    val routeId: String,
+    val distanceKm: Double,
+    val estimatedMinutes: Int,
+    val elevationGainM: Int,
+    val orderIndex: Int,
+    val isCompleted: Boolean = false,
+)
+
+/**
+ * GET /races/{raceId}/course — S-85 "대회 코스 미리 달리기". `hasCourse=false`면 나머지 필드는
+ * 전부 null/빈 배열이다.
+ */
+@Serializable
+data class RaceCourseResponseBody(
+    val hasCourse: Boolean,
+    val geoJson: GeoJsonLineString? = null,
+    val distanceKm: Double? = null,
+    val elevationGainM: Int? = null,
+    val segments: List<RaceCourseSegmentItem> = emptyList(),
+    val previewProgressPercent: Int? = null,
+)
