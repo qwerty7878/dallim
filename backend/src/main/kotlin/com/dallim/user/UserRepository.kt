@@ -69,6 +69,7 @@ class UserRepository(private val database: Database) {
         gender = this[UserTable.gender],
         totalRuns = this[UserTable.totalRuns],
         totalDistanceKm = this[UserTable.totalDistanceKm],
+        runningTemperature = this[UserTable.runningTemperature],
         createdAt = this[UserTable.createdAt],
         updatedAt = this[UserTable.updatedAt],
     )

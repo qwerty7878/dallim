@@ -34,4 +34,8 @@ object IdGenerator {
     fun race(): String = next("rce")
     fun raceCategoryOption(): String = next("rcc")
     fun raceSave(): String = next("rcs")
+
+    // com.dallim.social (소셜 세션, S-30~S-39, 1단계는 S-30~S-34) — "ss"는 참가 신청(applicant)
+    // 행에는 안 쓴다, 그건 (sessionId, userId) 복합 PK라 별도 id가 필요 없다.
+    fun socialSession(): String = next("ss")
 }

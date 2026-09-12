@@ -38,6 +38,13 @@ object UserTable : Table("users") {
     val totalRuns = integer("total_runs").default(0)
     val totalDistanceKm = double("total_distance_km").default(0.0)
 
+    // 매너온도류 신뢰도 점수 (당근마켓 매너온도와 같은 컨셉), 36.5에서 시작 -- 2026-09-13,
+    // com.dallim.social 도메인(S-30~S-34)이 호스트/참가자 카드에 노출하려고 추가했다. gender와
+    // 달리 이건 공개 정보다(S-30/32/34 SPEC이 명시적으로 노출을 요구). 이 필드를 조정하는 로직
+    // (피드백/노쇼 반영)은 2단계(S-38)에서 만든다 -- 지금은 항상 기본값을 그대로 읽어서 응답에
+    // 노출만 한다.
+    val runningTemperature = double("running_temperature").default(36.5)
+
     val createdAt = timestamp("created_at").clientDefault { Instant.now() }
     val updatedAt = timestamp("updated_at").clientDefault { Instant.now() }
 
@@ -62,6 +69,7 @@ data class User(
     val gender: String?, // server-side only, see UserTable.gender doc above
     val totalRuns: Int,
     val totalDistanceKm: Double,
+    val runningTemperature: Double,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

@@ -68,6 +68,20 @@ object ErrorCodes {
     // race calendar (docs/02-api-spec.md 16장, com.dallim.race — 완주 이력과 무관한 별개 도메인)
     const val RACE_NOT_FOUND = "RACE_NOT_FOUND"
 
+    // social session (docs/02-api-spec.md 17장, com.dallim.social — S-30~S-34, 1단계)
+    const val SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
+    const val SESSION_NOT_HOST = "SESSION_NOT_HOST"
+    const val SESSION_HOST_REQUIRES_FIRST_RUN = "SESSION_HOST_REQUIRES_FIRST_RUN"
+    const val SESSION_CANCELLED = "SESSION_CANCELLED"
+    // 성별/온도/기타 어떤 참가 조건이든 전부 이 코드 하나 + 동일 문구로 통일한다 — 코드나 문구를
+    // 세분화하면 "내 조건만 사유가 없네" 식의 성별 역추론이 가능해진다 (S-32 SPEC 핵심 요구사항).
+    const val SESSION_CONDITION_NOT_MET = "SESSION_CONDITION_NOT_MET"
+    const val SESSION_ALREADY_APPLIED = "SESSION_ALREADY_APPLIED"
+    const val SESSION_FULL = "SESSION_FULL"
+    const val SESSION_APPLICATION_NOT_FOUND = "SESSION_APPLICATION_NOT_FOUND"
+    const val SESSION_APPLICATION_NOT_PENDING = "SESSION_APPLICATION_NOT_PENDING"
+    const val SESSION_APPLICANT_NOT_FOUND = "SESSION_APPLICANT_NOT_FOUND"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"
