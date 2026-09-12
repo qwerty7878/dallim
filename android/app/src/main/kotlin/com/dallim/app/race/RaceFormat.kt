@@ -68,5 +68,14 @@ object RaceFormat {
         else -> category
     }
 
+    /** S-85 코스/구간 고도 표시 — "+52m". */
+    fun elevationLabel(elevationGainM: Int): String = "+${elevationGainM}m"
+
+    /** S-85 구간 예상 소요 시간 — "약 18분". */
+    fun estimatedMinutesLabel(estimatedMinutes: Int): String = "약 ${estimatedMinutes}분"
+
+    /** S-85 코스 답사 진행률 — "62% 답사 완료". */
+    fun previewProgressLabel(previewProgressPercent: Int): String = "${previewProgressPercent}% 답사 완료"
+
     private fun format(krw: Int): String = "%,d".format(krw)
 }
