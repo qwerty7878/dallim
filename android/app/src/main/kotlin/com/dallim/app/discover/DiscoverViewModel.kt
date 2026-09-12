@@ -77,11 +77,16 @@ class DiscoverViewModel @Inject constructor(
     val uiState: StateFlow<DiscoverUiState> = _uiState.asStateFlow()
 
     private var location: Pair<Double, Double>? = null
+    /**
+     * 필터 변경은 짧은 시간에 여러 번 일어날 수 있다. 이전 요청을 취소하더라도 Retrofit/OkHttp가
+     * 이미 응답을 돌려준 경우는 있어, 세대 번호까지 확인해야 오래된 결과가 최신 목록을 덮지 않는다.
+     */
+    private var requestGeneration = 0L
 
     init {
         viewModelScope.launch {
             location = locationProvider.getCurrentLocation()
-            loadPage(reset = true)
+            reload()
         }
     }
 
@@ -149,21 +154,24 @@ class DiscoverViewModel @Inject constructor(
     fun loadNextPage() {
         val current = _uiState.value
         if (current.isLoadingInitial || current.isLoadingMore || !current.hasMore) return
-        viewModelScope.launch { loadPage(reset = false) }
+
+        val generation = requestGeneration
+        val filters = current.filters()
+        _uiState.update { it.copy(isLoadingMore = true) }
+        viewModelScope.launch { loadPage(reset = false, filters = filters, generation = generation) }
     }
 
     private fun reload() {
-        viewModelScope.launch { loadPage(reset = true) }
+        val filters = _uiState.value.filters()
+        val generation = ++requestGeneration
+        _uiState.update { it.copy(isLoadingInitial = true, isLoadingMore = false, errorMessage = null) }
+        viewModelScope.launch { loadPage(reset = true, filters = filters, generation = generation) }
     }
 
-    private suspend fun loadPage(reset: Boolean) {
+    private suspend fun loadPage(reset: Boolean, filters: RouteFilters, generation: Long) {
         val stateBefore = _uiState.value
         val targetPage = if (reset) 0 else stateBefore.page + 1
-        _uiState.update {
-            if (reset) it.copy(isLoadingInitial = true, errorMessage = null) else it.copy(isLoadingMore = true)
-        }
 
-        val filters = _uiState.value
         val result = safeApiCall {
             routeApi.getRoutes(
                 lat = location?.first,
@@ -178,16 +186,28 @@ class DiscoverViewModel @Inject constructor(
         }
 
         _uiState.update { current ->
+            // 필터 변경 후 늦게 도착한 응답은 화면 상태를 절대 변경하지 않는다.
+            if (generation != requestGeneration) return@update current
             when (result) {
-                is UiResult.Success -> current.copy(
-                    items = if (reset) result.data.items else current.items + result.data.items,
-                    totalCount = result.data.totalCount,
-                    page = targetPage,
-                    hasMore = (targetPage + 1) * PAGE_SIZE < result.data.totalCount,
-                    isLoadingInitial = false,
-                    isLoadingMore = false,
-                    errorMessage = null,
-                )
+                is UiResult.Success -> {
+                    // offset 페이지 API라도 네트워크 재시도/서버 데이터 변동으로 같은 항목이
+                    // 겹칠 수 있으므로, 이어붙일 때 routeId 기준으로 한 번 더 방어한다.
+                    val newItems = if (reset) {
+                        result.data.items
+                    } else {
+                        val existingIds = current.items.mapTo(mutableSetOf()) { it.routeId }
+                        current.items + result.data.items.filter { it.routeId !in existingIds }
+                    }
+                    current.copy(
+                        items = newItems,
+                        totalCount = result.data.totalCount,
+                        page = targetPage,
+                        hasMore = (targetPage + 1) * PAGE_SIZE < result.data.totalCount,
+                        isLoadingInitial = false,
+                        isLoadingMore = false,
+                        errorMessage = null,
+                    )
+                }
                 is UiResult.Error -> current.copy(
                     isLoadingInitial = false,
                     isLoadingMore = false,
@@ -202,3 +222,16 @@ class DiscoverViewModel @Inject constructor(
         const val PAGE_SIZE = 20
     }
 }
+
+/** 요청이 시작된 시점의 필터 스냅샷. 응답을 받을 때의 화면 상태를 읽지 않도록 분리한다. */
+private data class RouteFilters(
+    val distanceFilter: DistanceFilter,
+    val statusFilter: RouteStatusFilter,
+    val sort: SortOption,
+)
+
+private fun DiscoverUiState.filters() = RouteFilters(
+    distanceFilter = distanceFilter,
+    statusFilter = statusFilter,
+    sort = sort,
+)
