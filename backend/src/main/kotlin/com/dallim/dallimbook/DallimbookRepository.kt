@@ -113,4 +113,45 @@ class DallimbookRepository(private val dataSource: DataSource) {
             }
         }
     }
+
+    data class PaceStats(val bestPaceSecPerKm: Int?, val averagePaceSecPerKm: Int?)
+
+    /**
+     * Header stats ("최고 페이스"/"평균 페이스") — same scope as [sumCompletedDistanceKm]: every
+     * COMPLETED run for this user, independent of the current page/status filter.
+     *
+     * - bestPaceSecPerKm: MIN(average_pace_sec_per_km) across those runs (fastest pace). The
+     *   `IS NOT NULL` filter is defensive only — a COMPLETED run should always have this value
+     *   populated by RunJudgementService, but we don't want a stray null row to poison MIN().
+     * - averagePaceSecPerKm: total duration / total distance (not a naive per-run average of
+     *   `average_pace_sec_per_km`), so a single short run doesn't skew the overall figure. Null
+     *   when there's no completed distance to divide by.
+     */
+    fun paceStats(userId: String): PaceStats {
+        val sql = """
+            SELECT
+                MIN(average_pace_sec_per_km) FILTER (WHERE average_pace_sec_per_km IS NOT NULL) AS best_pace,
+                COALESCE(SUM(duration_seconds), 0) AS total_duration_seconds,
+                COALESCE(SUM(distance_km), 0) AS total_distance_km
+            FROM run_records
+            WHERE user_id = ? AND status = 'COMPLETED'
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.executeQuery().use { rs ->
+                    if (!rs.next()) return PaceStats(bestPaceSecPerKm = null, averagePaceSecPerKm = null)
+                    val bestPace = rs.getObject("best_pace") as? Number
+                    val totalDurationSeconds = rs.getDouble("total_duration_seconds")
+                    val totalDistanceKm = rs.getDouble("total_distance_km")
+                    val averagePace = if (totalDistanceKm > 0.0) {
+                        Math.round(totalDurationSeconds / totalDistanceKm).toInt()
+                    } else {
+                        null
+                    }
+                    return PaceStats(bestPaceSecPerKm = bestPace?.toInt(), averagePaceSecPerKm = averagePace)
+                }
+            }
+        }
+    }
 }

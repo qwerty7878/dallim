@@ -20,6 +20,7 @@ class DallimbookService(private val dallimbookRepository: DallimbookRepository) 
 
         val (rows, totalCount) = dallimbookRepository.findCompletedRuns(userId, statusFilter, safePage, safeSize)
         val totalDistanceKm = dallimbookRepository.sumCompletedDistanceKm(userId)
+        val paceStats = dallimbookRepository.paceStats(userId)
 
         val items = rows.map {
             DallimbookRunItem(
@@ -31,6 +32,12 @@ class DallimbookService(private val dallimbookRepository: DallimbookRepository) 
             )
         }
 
-        return DallimbookResponse(items = items, totalCount = totalCount, totalDistanceKm = totalDistanceKm)
+        return DallimbookResponse(
+            items = items,
+            totalCount = totalCount,
+            totalDistanceKm = totalDistanceKm,
+            bestPaceSecPerKm = paceStats.bestPaceSecPerKm,
+            averagePaceSecPerKm = paceStats.averagePaceSecPerKm,
+        )
     }
 }

@@ -681,10 +681,18 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
       }
     ],
     "totalCount": 12,
-    "totalDistanceKm": 48.2
+    "totalDistanceKm": 48.2,
+    "bestPaceSecPerKm": 305,
+    "averagePaceSecPerKm": 342
   }
 }
 ```
+
+> 2026-09-12 (사용자 요청, SPEC 원문에는 없던 필드): `bestPaceSecPerKm`/`averagePaceSecPerKm`은
+> `status = 'COMPLETED'`인 모든 run 대상, 페이지네이션과 무관하게 항상 전체 집계(`totalDistanceKm`과
+> 같은 범위). `bestPaceSecPerKm`은 그 run들의 `average_pace_sec_per_km` 최솟값(가장 빠른 페이스),
+> `averagePaceSecPerKm`은 개별 페이스의 단순 평균이 아니라 **총 시간(duration_seconds 합) / 총
+> 거리(distance_km 합)**으로 계산한 전체 평균 페이스다. 완주 기록이 없으면 둘 다 `null`.
 
 ---
 
