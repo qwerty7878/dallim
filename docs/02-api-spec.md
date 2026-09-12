@@ -1884,21 +1884,19 @@ idempotent 성공).
 
 ---
 
-## 17. 소셜 세션 1단계 (2026-09-13 — `docs/달림_화면별_상세기획서_v1.3.md` PART 3-D S-30~S-39 편입)
+## 17. 소셜 세션 (2026-09-13 — `docs/달림_화면별_상세기획서_v1.3.md` PART 3-D S-30~S-39 편입)
 
 > `docs/달림_화면별_상세기획서_v1.3.md` 421~491행 "D. 소셜 세션(S-30~S-39)" 근거. 10개 화면짜리
-> 큰 기능이라 2단계로 쪼갰다:
-> - **1단계(이번 라운드)**: S-30 세션 탐색, S-31 세션 생성, S-32 세션 상세, S-33 참가 신청,
+> 큰 기능이라 2단계로 쪼개서 구현했고, **1단계/2단계 모두 완료됐다**:
+> - **1단계** (17.1~17.9): S-30 세션 탐색, S-31 세션 생성, S-32 세션 상세, S-33 참가 신청,
 >   S-34 호스트 신청자 관리 — 순수 CRUD + 승인 워크플로우.
-> - **2단계(다음 라운드)**: S-35 팀 채팅(Ktor 네이티브 WebSocket + 서버 프로세스 내 인메모리
->   세션맵, EC2 단일 인스턴스라 Redis Pub/Sub 불필요), S-36 GPS 체크인, S-37 Ready Check,
->   S-38 세션 종료 후 평가, S-39 Running Mate. 이번 라운드는 관련 테이블/엔드포인트를 전혀
->   만들지 않는다.
+> - **2단계** (17.10~17.17): S-35 팀 채팅(Ktor 네이티브 WebSocket + 서버 프로세스 내 인메모리
+>   커넥션맵, EC2 단일 인스턴스라 Redis Pub/Sub 불필요), S-36 GPS 체크인, S-37 Ready Check,
+>   S-38 세션 종료 후 평가, S-39 Running Mate.
 >
 > **주의**: `com.dallim.meetup`(14장, 같이 달리기 모집)과 완전히 별개 도메인(`com.dallim.social`)
 > 이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 도메인은 호스트 승인 워크플로우 +
-> 참가 조건(성별/온도) + (2단계에서) 채팅/체크인까지 있는 별개의 무거운 기능이라 재사용하지
-> 않는다.
+> 참가 조건(성별/온도) + 채팅/체크인/평가까지 있는 별개의 무거운 기능이라 재사용하지 않는다.
 
 ### 17.1 데이터 모델
 
@@ -2181,13 +2179,239 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
 - 참가자에게 알림은 가지 않는다(`com.dallim.notification` 연동은 이번 1단계 범위 밖 — 과욕
   금지).
 
-### 17.10 이번 1단계에 만들지 않은 것
-- S-35 팀 채팅, S-36 GPS 체크인, S-37 Ready Check, S-38 세션 종료 후 평가, S-39 Running Mate
-  — 전부 2단계. 관련 테이블/컬럼/엔드포인트를 이번 라운드에 만들지 않았다.
-- 날짜·시간대·페이스·거리 정밀 필터 (`GET /social-sessions`는 `routeId`/`beginnerFriendly`/
-  `hasMinTemperature`까지만).
+### 17.10 데이터 모델 (2단계 — S-35~S-39)
+
+```
+social_sessions.started_at   timestamptz null   -- POST /social-sessions/{id}/start(17.14)에서
+                                                  -- 세팅. null이면 아직 시작 전. 채팅 생명주기
+                                                  -- (17.11)를 이 필드 기준으로 근사한다.
+
+social_session_chat_messages
+  id                varchar(32) PK
+  session_id        varchar(32) FK -> social_sessions
+  sender_user_id     varchar(32) FK -> users, null  -- null = 시스템 메시지
+  type              TEXT | QUICK_MESSAGE | HOST_ANNOUNCEMENT | SYSTEM
+  body              text
+  created_at        timestamptz
+
+content_reports   -- 채팅 메시지 신고(17.13) + 세션 자체 신고(17.9 옆, 1단계 gap도 같이 닫음) 공용
+  id                  varchar(32) PK
+  reporter_user_id    varchar(32) FK -> users
+  target_type         CHAT_MESSAGE | SOCIAL_SESSION
+  target_id           varchar(64)
+  reason              text null
+  created_at          timestamptz
+
+social_session_checkins
+  session_id        varchar(32) FK -> social_sessions
+  user_id           varchar(32) FK -> users            -- 호스트도 별도 행으로 들어갈 수 있음
+  status            WAITING | CHECKED_IN | LATE | NO_SHOW
+  checked_in_at     timestamptz null
+  distance_error_m  double null
+  manual_by_host    boolean
+  PRIMARY KEY (session_id, user_id)
+
+social_session_feedbacks
+  session_id           varchar(32) FK -> social_sessions
+  from_user_id         varchar(32) FK -> users
+  to_user_id           varchar(32) FK -> users
+  tags                 varchar(200) null   -- 콤마 구분, 최대 3개, 미선택은 null
+  wants_to_run_again   boolean
+  created_at           timestamptz
+  PRIMARY KEY (session_id, from_user_id, to_user_id)   -- 재제출은 이 PK로 update(덮어쓰기)
+
+running_mates
+  user_id_a               varchar(32) FK -> users   -- 항상 user_id_a < user_id_b로 저장
+  user_id_b               varchar(32) FK -> users
+  run_together_count       int
+  last_run_together_at      timestamptz
+  hidden_by_a               boolean   -- 내 쪽만 조용히 true (상대 알림 없음)
+  hidden_by_b               boolean
+  PRIMARY KEY (user_id_a, user_id_b)
+```
+
+- **채팅 생명주기**: `started_at + 24시간` 이후엔 WebSocket 전송(쓰기)만 막고 조회는 허용,
+  `started_at + 7일` 이후엔 조회 자체도 `403 SESSION_CHAT_ACCESS_EXPIRED`. `started_at`이
+  `null`(아직 시작 전)이면 두 제한 모두 적용 안 됨.
+- **체크인 LATE의 의미**: 윈도우(17.12)+반경을 통과한 체크인 시도는 항상 성공하고, 성공 시점이
+  `scheduledAt` 이후면 `LATE`, 그 전이면 `CHECKED_IN`으로 즉시 확정 저장된다. 윈도우/반경을
+  벗어난 시도는 그 자체로 거부(`400`)되지 `LATE`로 저장되지 않는다.
+
+### 17.11 `GET /social-sessions/{sessionId}/chat/messages` — S-35 팀 채팅 히스토리 🔒
+
+**Query Parameters**: `page`(기본 0), `size`(기본 30). 최신 순.
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "scm_001",
+        "senderUserId": "usr_2",
+        "senderNickname": "러너B",
+        "senderAvatarId": "avatar_05",
+        "type": "QUICK_MESSAGE",
+        "body": "가는 중이에요",
+        "createdAt": "2026-09-20T20:55:00Z"
+      }
+    ],
+    "totalCount": 1,
+    "page": 0,
+    "size": 30
+  },
+  "error": null
+}
+```
+- 호스트도 아니고 `APPROVED` 참가자도 아니면 `403 SESSION_NOT_PARTICIPANT`.
+- 시작 +7일 경과 시 `403 SESSION_CHAT_ACCESS_EXPIRED`(17.10 참고).
+- 시스템 메시지(`type=SYSTEM`)는 `senderUserId`/`senderNickname`/`senderAvatarId` 모두 `null`.
+
+### 17.12 `GET /social-sessions/{sessionId}/chat/ws` — S-35 팀 채팅 WebSocket 🔒
+
+인증은 HTTP 업그레이드 요청의 `Authorization` 헤더로 그대로 검증된다(`authenticate(AUTH_JWT)`
+가 핸드셰이크에도 적용됨). 접근 조건은 17.11과 동일(호스트 또는 `APPROVED` 참가자, 시작 +7일
+이내) — 조건 미충족 시 연결 즉시 종료(`VIOLATED_POLICY`).
+
+```json
+// 클라이언트 -> 서버 (텍스트 프레임)
+{ "type": "TEXT", "body": "저 5분 전 도착했어요!" }
+{ "type": "QUICK_MESSAGE", "body": "오늘 참가 어려워요", "cancelReason": "몸살이 나서 못 갈 것 같아요" }
+```
+```json
+// 서버 -> 같은 세션의 모든 커넥션(보낸 사람 포함) 브로드캐스트
+{
+  "id": "scm_010",
+  "senderUserId": "usr_1",
+  "senderNickname": "달림이",
+  "senderAvatarId": "avatar_02",
+  "type": "HOST_ANNOUNCEMENT",
+  "body": "오늘 우천으로 20분 늦게 시작합니다!",
+  "createdAt": "2026-09-20T20:40:00Z"
+}
+```
+- `type`은 클라이언트가 `TEXT`/`QUICK_MESSAGE`만 보낼 수 있다. 호스트가 보낸 `TEXT`는 서버가
+  자동으로 `HOST_ANNOUNCEMENT`로 승격해서 브로드캐스트한다(클라이언트가 타입을 지정할 필요
+  없음). `QUICK_MESSAGE`의 `body`가 고정 4문구(`도착했어요`/`가는 중이에요`/`5분 늦어요`/
+  `오늘 참가 어려워요`) 중 하나가 아니면 저장/브로드캐스트 없이 발신자에게만 에러 프레임
+  (`{ "code": "VALIDATION_ERROR", "message": "..." }`)이 전송된다.
+- `오늘 참가 어려워요`를 보내면: (1) 그 Quick Message 자체가 저장/브로드캐스트되고, (2) 참가가
+  즉시 `CANCELLED`로 전환되고, (3) `cancelReason`이 있으면 "취소 사유: ..." 형태의 `SYSTEM`
+  메시지가 추가로 브로드캐스트되고, (4) 최근 30일 내 동일 유저의 "당일 취소"가 2회 이상이면
+  `users.running_temperature`가 -0.5(3회째부터 -0.3 추가) 감점된다(0~99 clamp).
+- 시작 +24시간 경과(읽기 전용) 후 보낸 메시지는 조용히 무시된다(저장/브로드캐스트/에러 프레임
+  전부 없음 — 연결 자체는 유지, 다음 재연결 전까지 클라이언트가 판단해야 함).
+
+### 17.13 `POST /social-sessions/{sessionId}/chat/messages/{messageId}/report`,`POST /social-sessions/{sessionId}/report` — S-35 신고 🔒
+
+```json
+// Request
+{ "reason": "부적절한 언급이 있었어요" }
+```
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 둘 다 호스트/`APPROVED` 참가자 확인은 메시지 신고에만 적용(`403 SESSION_NOT_PARTICIPANT`),
+  세션 자체 신고는 세션 존재 여부만 확인. 메시지가 없으면 `404 CHAT_MESSAGE_NOT_FOUND`.
+- 자동 조치 전혀 없음(기록만) — `content_reports`에 적재, 모더레이션 큐는 이번 범위 밖.
+
+### 17.14 `POST /social-sessions/{sessionId}/checkin` — S-36 GPS 체크인 🔒
+
+```json
+// Request
+{ "lat": 37.5120, "lng": 126.9230 }
+```
+```json
+// Response 200 (성공)
+{ "success": true, "data": { "status": "CHECKED_IN", "distanceToMeetingPointM": 42.3, "checkedInAt": "2026-09-20T20:58:00Z" }, "error": null }
+```
+- 체크인 윈도우(`scheduledAt-30분` ~ `scheduledAt+15분`) 밖이면 `400
+  SESSION_CHECKIN_OUTSIDE_WINDOW`. 집결지 반경 150m 밖이면 `400 SESSION_CHECKIN_TOO_FAR`
+  (성별 조건과 달리 사유를 숨길 필요가 없어 시간/거리를 별도 코드로 구분한다).
+- `scheduledAt` 이후 도착이면 `status: "LATE"`로 저장.
+- 이미 `CHECKED_IN`/`LATE`면 재검증 없이 기존 결과를 그대로 반환(멱등).
+- 세션이 이미 시작됐으면(`started_at` 세팅됨) `400 SESSION_ALREADY_STARTED`.
+- 호스트도 아니고 `APPROVED` 참가자도 아니면 `403 SESSION_NOT_PARTICIPANT`.
+
+### 17.15 `GET /social-sessions/{sessionId}/ready-check`, `POST /social-sessions/{sessionId}/start`, `POST /social-sessions/{sessionId}/checkins/{userId}/manual-confirm` — S-37 Ready Check 🔒
+
+```json
+// GET .../ready-check Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      { "userId": "usr_1", "nickname": "달림이", "avatarId": "avatar_02", "isHost": true, "status": "WAITING", "checkedInAt": null, "distanceErrorM": null, "manualByHost": false },
+      { "userId": "usr_2", "nickname": "러너B", "avatarId": "avatar_05", "isHost": false, "status": "CHECKED_IN", "checkedInAt": "2026-09-20T20:58:00Z", "distanceErrorM": 42.3, "manualByHost": false }
+    ],
+    "started": false
+  },
+  "error": null
+}
+```
+```json
+// POST .../start, POST .../checkins/{userId}/manual-confirm Response 200
+{ "success": true, "data": null, "error": null }
+```
+- `ready-check`는 호스트 또는 `APPROVED` 참가자만(`403 SESSION_NOT_PARTICIPANT`).
+- `start`는 호스트만(`403 SESSION_NOT_HOST`). 미체크인 인원이 있어도 항상 성공(대기 강제
+  금지) — `APPROVED` 참가자 중 아직 `CHECKED_IN`/`LATE`가 아닌 사람을 전부 `NO_SHOW`로 일괄
+  전환한다(호스트 자신은 스윕 대상 아님). 이미 시작된 세션이면 `409 SESSION_ALREADY_STARTED`.
+- `manual-confirm`은 호스트만(`403 SESSION_NOT_HOST`), 대상이 호스트/`APPROVED` 참가자가
+  아니면 `404 SESSION_APPLICANT_NOT_FOUND`. GPS 판정 없이 강제로 `CHECKED_IN`으로 전환하며,
+  NO_SHOW 오판정 사후 이의제기도 이 엔드포인트 하나로 해결한다(별도 이의제기 API 없음).
+
+### 17.16 `GET /social-sessions/{sessionId}/feedback-targets`, `POST /social-sessions/{sessionId}/feedback` — S-38 세션 종료 후 평가 🔒
+
+```json
+// GET .../feedback-targets Response 200
+{ "success": true, "data": { "items": [ { "userId": "usr_2", "nickname": "러너B", "avatarId": "avatar_05", "isHost": false } ] }, "error": null }
+```
+```json
+// POST .../feedback Request
+{ "targetUserId": "usr_2", "tags": ["시간을 잘 지켜요", "안전하게 달렸어요"], "wantsToRunAgain": true }
+```
+```json
+// Response 200
+{ "success": true, "data": { "mateEstablished": true }, "error": null }
+```
+- 평가자/대상 모두 같이 체크인(`CHECKED_IN`/`LATE`)했어야 한다 — 평가자가 아니면
+  `403 SESSION_FEEDBACK_NOT_ELIGIBLE`, 대상이 아니면 `400 SESSION_FEEDBACK_TARGET_NOT_ELIGIBLE`
+  (본인을 대상으로 지정해도 동일 코드).
+- `tags`는 최대 3개, 고정 어휘집(긍정/중립만, 별점 없음) 밖 문구는 `400 VALIDATION_ERROR`.
+  빈 배열(미선택)도 허용.
+- 재제출은 (session, from, to) 기준 덮어쓰기 — 이전 태그 개수 대비 델타만큼만
+  `users.running_temperature`에 가산(태그 1개당 +0.1, 세션당 최대 +0.3, 0~99 clamp).
+- `wantsToRunAgain`이 양쪽 다 true가 되는 순간 `mateEstablished: true`와 함께 S-39 Running
+  Mate가 성립/누적된다.
+
+### 17.17 `GET /users/me/running-mates`, `DELETE /users/me/running-mates/{mateUserId}` — S-39 Running Mate 🔒
+
+```json
+// GET Response 200
+{
+  "success": true,
+  "data": { "items": [ { "userId": "usr_2", "nickname": "러너B", "avatarId": "avatar_05", "runTogetherCount": 3, "lastRunTogetherAt": "2026-09-20T21:30:00Z" } ] },
+  "error": null
+}
+```
+```json
+// DELETE Response 200
+{ "success": true, "data": null, "error": null }
+```
+- `GET`은 내가 숨기지 않은 메이트만(상호 동의 성립 후에도 각자 자기 쪽만 숨길 수 있음).
+- `DELETE`는 조용히 단방향 해제 — 내 쪽 `hidden_by_*`만 `true`로 바뀌고 상대방 목록/알림에는
+  아무 변화가 없다(SPEC 명시: "팔로우가 아닌 상호 동의 기반이므로 해제는 조용히"). 관계가
+  없어도 멱등하게 성공.
+
+### 17.18 이번 라운드(2단계)에도 만들지 않은 것
+- 날짜·시간대·페이스·거리 정밀 필터 (`GET /social-sessions`는 여전히 `routeId`/
+  `beginnerFriendly`/`hasMinTemperature`까지만).
 - 신청 24시간 무응답 자동 만료(`EXPIRED`) — 상태값(enum)은 이미 만들어 뒀지만 이 상태로
-  전환시키는 배치/스케줄러는 이번 라운드에 없다. 만료는 2단계에서 실제로 동작하게 만든다.
-- 호스트 "24시간 내 응답률" 프로필 지표, 세션 공유/신고 액션.
-- `com.dallim.notification` 연동(신청/승인/취소 알림) — 14장 meetup의 join 알림과 달리
-  이번 1단계는 알림을 전혀 보내지 않는다.
+  전환시키는 배치/스케줄러는 아직 없다.
+- 호스트 "24시간 내 응답률" 프로필 지표.
+- `com.dallim.notification` 연동(신청/승인/체크인/평가 알림) — 여전히 전혀 없음.
+- 1:1 DM, 별점 평가, 신고에 대한 자동 조치/모더레이션 큐(기록만).
+- Android 화면(S-30~S-39) 전부 — 이번 라운드도 백엔드만.
