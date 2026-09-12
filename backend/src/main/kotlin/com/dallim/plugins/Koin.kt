@@ -11,6 +11,7 @@ import com.dallim.race.raceModule
 import com.dallim.racerecord.raceRecordModule
 import com.dallim.route.routeModule
 import com.dallim.run.runModule
+import com.dallim.social.socialSessionChatModule
 import com.dallim.social.socialSessionModule
 import com.dallim.user.userModule
 import io.ktor.server.application.Application
@@ -53,6 +54,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             raceRecordModule,
             raceModule,
             socialSessionModule,
+            socialSessionChatModule,
         )
     }
 }

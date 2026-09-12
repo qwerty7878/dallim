@@ -38,4 +38,9 @@ object IdGenerator {
     // com.dallim.social (소셜 세션, S-30~S-39, 1단계는 S-30~S-34) — "ss"는 참가 신청(applicant)
     // 행에는 안 쓴다, 그건 (sessionId, userId) 복합 PK라 별도 id가 필요 없다.
     fun socialSession(): String = next("ss")
+
+    // com.dallim.social 2단계 (S-35 채팅/신고, 2026-09-13) -- 체크인/평가/Running Mate는 전부
+    // 복합 PK라 별도 id가 필요 없다(위 socialSession() 주석과 동일 원칙).
+    fun socialChatMessage(): String = next("scm")
+    fun contentReport(): String = next("rpt")
 }

@@ -36,6 +36,7 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging-jvm:$ktorVersion")
     implementation("io.ktor:ktor-server-request-validation-jvm:$ktorVersion")
     implementation("io.ktor:ktor-server-cors-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-server-websockets-jvm:$ktorVersion") // S-35 팀 채팅(com.dallim.social)
 
     // --- Ktor client (Google/Kakao token verification calls) ---
     implementation("io.ktor:ktor-client-core-jvm:$ktorVersion")

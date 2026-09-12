@@ -24,6 +24,37 @@ class UserRepository(private val database: Database) {
         UserTable.selectAll().where { UserTable.id eq userId }.map { it.toUser() }.singleOrNull()
     }
 
+    /** Batch lookup (social feedback-targets / running-mates 목록 등 N명 프로필을 한 번에
+     * 조회해야 하는 곳에서 N+1을 피하려고 추가, 2026-09-13 com.dallim.social 2단계). 존재하지 않는
+     * id는 결과에서 조용히 빠진다(호출부가 Map으로 묶어 쓰는 걸 전제). */
+    fun findByIds(userIds: List<String>): List<User> {
+        if (userIds.isEmpty()) return emptyList()
+        return transaction(database) {
+            UserTable.selectAll().where { UserTable.id inList userIds }.map { it.toUser() }
+        }
+    }
+
+    /**
+     * [userId]의 running_temperature를 [delta]만큼 조정하고 0~99 사이로 clamp한다(당근마켓
+     * 매너온도 관례, 2026-09-13 com.dallim.social 2단계에서 처음 실제로 조정하는 로직이 생겼다 --
+     * 이전까지는 항상 기본값 36.5를 그대로 노출만 했다). 읽고-쓰는 두 단계라 동시에 여러 감점/가산이
+     * 몰리면 레이스가 있을 수 있지만, 지금 이 앱의 쓰기 빈도(세션당 최대 몇 건)에서는 무시할 수
+     * 있는 수준이라 행 잠금 없이 단순하게 구현한다(과설계 금지 -- 트래픽이 커지면 그때 SQL
+     * `GREATEST(LEAST(...))` 한 줄로 원자적으로 바꾸면 된다).
+     */
+    fun adjustRunningTemperature(userId: String, delta: Double) {
+        transaction(database) {
+            val current = UserTable.selectAll().where { UserTable.id eq userId }
+                .map { it[UserTable.runningTemperature] }
+                .singleOrNull() ?: return@transaction
+            val next = (current + delta).coerceIn(0.0, 99.0)
+            UserTable.update({ UserTable.id eq userId }) {
+                it[UserTable.runningTemperature] = next
+                it[UserTable.updatedAt] = Instant.now()
+            }
+        }
+    }
+
     /**
      * Registers the onboarding profile fields onto an existing user row. Throws
      * [NicknameTakenException] if the unique index on `nickname` is violated concurrently

@@ -45,6 +45,7 @@ open class SocialSessionRepository(private val database: Database) {
         val meetingPointDescription: String?,
         val rainPolicy: SocialSessionRainPolicy,
         val status: SocialSessionStatus,
+        val startedAt: Instant?,
         val createdAt: Instant,
     )
 
@@ -245,6 +246,39 @@ open class SocialSessionRepository(private val database: Database) {
         }
     }
 
+    /** POST /social-sessions/{id}/start (S-37) -- atomic "only if not already started" update
+     * (WHERE started_at IS NULL) so a double-submit race can't silently reset the clock; returns
+     * false when it was already started (caller maps that to 409 SESSION_ALREADY_STARTED). */
+    fun markStarted(sessionId: String, now: Instant): Boolean = transaction(database) {
+        val updated = SocialSessionTable.update({
+            (SocialSessionTable.id eq sessionId) and SocialSessionTable.startedAt.isNull()
+        }) {
+            it[SocialSessionTable.startedAt] = now
+        }
+        updated > 0
+    }
+
+    /**
+     * S-35 Quick Message("오늘 참가 어려워요") 취소 처리용 -- [userId]의 지난 [since] 이후
+     * "당일 취소"(응답 시각과 세션 일정이 같은 날, UTC 기준 근사) 건수를 센다. 세션 전체를 대상으로
+     * 하므로(현재 세션만이 아니라) 과거 다른 세션에서의 당일 취소도 함께 집계된다 -- SocialSession
+     * ChatService.handleCantMakeItWithdrawal 문서 참고.
+     */
+    fun countSameDayCancellationsSince(userId: String, since: Instant): Int = transaction(database) {
+        (SocialSessionApplicantTable innerJoin SocialSessionTable)
+            .select(SocialSessionApplicantTable.respondedAt, SocialSessionTable.scheduledAt)
+            .where {
+                (SocialSessionApplicantTable.userId eq userId) and
+                    (SocialSessionApplicantTable.status eq SocialSessionApplicantStatus.CANCELLED) and
+                    (SocialSessionApplicantTable.respondedAt greaterEq since)
+            }
+            .count { row ->
+                val respondedAt = row[SocialSessionApplicantTable.respondedAt] ?: return@count false
+                val scheduledAt = row[SocialSessionTable.scheduledAt]
+                respondedAt.truncatedTo(java.time.temporal.ChronoUnit.DAYS) == scheduledAt.truncatedTo(java.time.temporal.ChronoUnit.DAYS)
+            }
+    }
+
     private fun ResultRow.toSessionRow() = SessionRow(
         id = this[SocialSessionTable.id],
         hostUserId = this[SocialSessionTable.hostUserId],
@@ -266,6 +300,7 @@ open class SocialSessionRepository(private val database: Database) {
         meetingPointDescription = this[SocialSessionTable.meetingPointDescription],
         rainPolicy = this[SocialSessionTable.rainPolicy],
         status = this[SocialSessionTable.status],
+        startedAt = this[SocialSessionTable.startedAt],
         createdAt = this[SocialSessionTable.createdAt],
     )
 

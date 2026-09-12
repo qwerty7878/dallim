@@ -7,6 +7,7 @@ import com.dallim.plugins.configureRouting
 import com.dallim.plugins.configureSecurity
 import com.dallim.plugins.configureSerialization
 import com.dallim.plugins.configureStatusPages
+import com.dallim.plugins.configureWebSockets
 import com.dallim.plugins.loadDallimConfig
 import com.dallim.route.RouteStatusUpdateJob
 import com.dallim.route.untilNext3AmMillis
@@ -35,6 +36,7 @@ fun Application.module() {
     configureSerialization()
     configureStatusPages()
     configureCors()
+    configureWebSockets()
     configureSecurity(config)
     configureDependencyInjection(config, dataSource, database)
     configureRouting()

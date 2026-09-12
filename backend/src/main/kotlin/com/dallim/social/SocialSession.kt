@@ -89,6 +89,11 @@ object SocialSessionTable : Table("social_sessions") {
 
     val status = enumerationByName("status", 16, SocialSessionStatus::class).default(SocialSessionStatus.RECRUITING)
 
+    // 2단계(S-37 POST /start)에서 세팅됨. null이면 아직 시작 전. 이 앱엔 별도의 명시적 "세션 종료"
+    // 액션이 없어서, 채팅 생명주기(S-35 +24h 읽기전용/+7일 접근종료)를 이 필드 기준으로 근사한다
+    // (com.dallim.social.SocialSessionChatService 문서 참고 -- 합리적 단순화, 배치 없음).
+    val startedAt = timestamp("started_at").nullable()
+
     val createdAt = timestamp("created_at").clientDefault { Instant.now() }
 
     override val primaryKey = PrimaryKey(id)
@@ -112,6 +117,7 @@ data class SocialSession(
     val meetingPointDescription: String?,
     val rainPolicy: SocialSessionRainPolicy,
     val status: SocialSessionStatus,
+    val startedAt: Instant?,
     val createdAt: Instant,
 )
 
