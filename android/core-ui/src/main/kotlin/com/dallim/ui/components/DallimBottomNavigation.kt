@@ -11,12 +11,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
@@ -44,7 +44,7 @@ enum class DallimTab(
 ) {
     HOME("홈", Icons.Outlined.Home, Icons.Filled.Home),
     EXPLORE("탐색", Icons.Outlined.Search, Icons.Filled.Search),
-    DALLIMBOOK("달림북", Icons.Outlined.MenuBook, Icons.Filled.MenuBook),
+    DALLIMBOOK("달림북", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
     MY("마이", Icons.Outlined.Person, Icons.Filled.Person),
 }
 
