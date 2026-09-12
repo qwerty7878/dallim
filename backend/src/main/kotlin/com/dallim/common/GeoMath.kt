@@ -85,6 +85,57 @@ object GeoMath {
     fun Double.toPercentInt(): Int = roundToInt().coerceIn(0, 100)
 
     /**
+     * Slices an ordered polyline down to the sub-path between [startMeters] and [endMeters] of
+     * arc length from its start (inclusive), via the same cumulative-distance + linear
+     * interpolation approach as [resample]: interpolates a new vertex at each cut point and
+     * keeps every original vertex strictly between them.
+     *
+     * Used to cut a race's official course LineString (docs/달림_화면별_상세기획서_v1.3.md
+     * S-85, "대회 코스 미리 달리기") into its preview segments. Pure function -- no I/O -- so it
+     * is directly unit-testable; the actual seed-data segments are hand-authored coordinates
+     * (see V14__seed_race_course_preview.sql) rather than a call to this function, since Flyway
+     * SQL can't invoke Kotlin, but this is the function a future admin/authoring tool would call
+     * to derive them instead of hand-picking coordinates.
+     *
+     * @param startMeters arc-length distance from the start of [points] to begin the slice at, in meters.
+     * @param endMeters arc-length distance from the start of [points] to end the slice at, in meters. Must be >= [startMeters].
+     */
+    fun sliceByDistance(points: List<LatLng>, startMeters: Double, endMeters: Double): List<LatLng> {
+        require(startMeters >= 0.0) { "startMeters must be >= 0" }
+        require(endMeters >= startMeters) { "endMeters must be >= startMeters" }
+        if (points.size < 2) return points
+
+        val cumulative = DoubleArray(points.size)
+        for (i in 1 until points.size) {
+            cumulative[i] = cumulative[i - 1] + haversineMeters(points[i - 1], points[i])
+        }
+        val total = cumulative.last()
+        val clampedStart = startMeters.coerceIn(0.0, total)
+        val clampedEnd = endMeters.coerceIn(0.0, total)
+
+        fun interpolateAt(targetDist: Double): LatLng {
+            var idx = cumulative.indexOfLast { it <= targetDist }
+            if (idx < 0) idx = 0
+            if (idx >= points.size - 1) idx = points.size - 2
+
+            val segStart = cumulative[idx]
+            val segLen = cumulative[idx + 1] - segStart
+            val t = if (segLen <= 0.0) 0.0 else ((targetDist - segStart) / segLen).coerceIn(0.0, 1.0)
+
+            return LatLng(
+                lat = points[idx].lat + (points[idx + 1].lat - points[idx].lat) * t,
+                lng = points[idx].lng + (points[idx + 1].lng - points[idx].lng) * t,
+            )
+        }
+
+        val startPoint = interpolateAt(clampedStart)
+        val endPoint = interpolateAt(clampedEnd)
+        val betweenPoints = points.filterIndexed { i, _ -> cumulative[i] > clampedStart && cumulative[i] < clampedEnd }
+
+        return listOf(startPoint) + betweenPoints + listOf(endPoint)
+    }
+
+    /**
      * Spherical "destination point given distance and bearing" formula — the point reached by
      * travelling [distanceMeters] from [origin] along initial compass bearing
      * [bearingDegrees] (0 = north, 90 = east, clockwise) over a spherical earth.

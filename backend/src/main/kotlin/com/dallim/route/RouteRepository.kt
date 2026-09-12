@@ -72,6 +72,11 @@ class RouteRepository(
         val conditions = mutableListOf<String>()
         val whereArgs = mutableListOf<Any>()
 
+        // 대회 코스 미리 달리기(S-85) 구간용 row는 이 목록/탐색 조회에서 항상 제외한다 --
+        // GET /routes/{routeId}(직접 조회)/POST /runs는 그대로 동작해야 하므로 findDetail 등
+        // 다른 조회 함수는 건드리지 않는다(docs/02-api-spec.md 16.6).
+        conditions += "is_preview_segment = FALSE"
+
         if (lat != null && lng != null) {
             conditions += PostGis.dWithinExpr("path")
             whereArgs += lng
@@ -147,7 +152,8 @@ class RouteRepository(
      * Null only when no curated routes exist at all (e.g. seed migration not yet applied).
      */
     fun findTodaySketchCandidate(): RouteRow? {
-        val sql = "SELECT $summaryColumns FROM sketch_routes ORDER BY (status = 'POPULAR') DESC, RANDOM() LIMIT 1"
+        // S-85 구간용 row는 이 홈 화면 추천에도 노출되면 안 되므로 제외 (search()와 동일한 이유).
+        val sql = "SELECT $summaryColumns FROM sketch_routes WHERE is_preview_segment = FALSE ORDER BY (status = 'POPULAR') DESC, RANDOM() LIMIT 1"
         dataSource.connection.use { conn ->
             conn.prepareStatement(sql).use { stmt ->
                 stmt.executeQuery().use { rs -> return if (rs.next()) rs.toRouteRow() else null }
@@ -174,6 +180,20 @@ class RouteRepository(
             SavedRouteTable.select(SavedRouteTable.routeId)
                 .where { (SavedRouteTable.userId eq userId) and (SavedRouteTable.routeId inList routeIds) }
                 .mapTo(mutableSetOf()) { it[SavedRouteTable.routeId] }
+        }
+    }
+
+    /**
+     * GET /races/{raceId}/course `previewProgressPercent` denominator -- batch lookup of the
+     * course/segment routes' `distance_km` (non-spatial column, so plain Exposed rather than raw
+     * JDBC). See com.dallim.race.RaceService.
+     */
+    fun findDistanceKmByIds(routeIds: List<String>): Map<String, Double> {
+        if (routeIds.isEmpty()) return emptyMap()
+        return transaction(database) {
+            SketchRouteTable.select(SketchRouteTable.id, SketchRouteTable.distanceKm)
+                .where { SketchRouteTable.id inList routeIds }
+                .associate { it[SketchRouteTable.id] to it[SketchRouteTable.distanceKm] }
         }
     }
 

@@ -40,6 +40,12 @@ object SketchRouteTable : Table("sketch_routes") {
     val repeatSegmentPercent = integer("repeat_segment_percent").default(0)
     val runability = double("runability").default(0.0)
 
+    // 대회 코스 미리 달리기(S-85, docs/02-api-spec.md 16.6) 구간용 row 표시 플래그. TRUE인
+    // row는 com.dallim.route.RouteRepository.search / findTodaySketchCandidate가 WHERE 조건으로
+    // 걸러내 GET /routes 목록·탐색 조회에는 뜨지 않는다 -- 다만 GET /routes/{routeId}(직접
+    // 조회)와 POST /runs(그 id로 러닝 시작)는 평범한 SketchRoute처럼 그대로 동작한다.
+    val isPreviewSegment = bool("is_preview_segment").default(false)
+
     val createdAt = timestamp("created_at").clientDefault { Instant.now() }
     val updatedAt = timestamp("updated_at").clientDefault { Instant.now() }
 

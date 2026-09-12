@@ -49,6 +49,10 @@ object RaceTable : Table("races") {
     val organizer = varchar("organizer", 100)
     val souvenir = varchar("souvenir", 200).nullable() // 기념품, 선택
 
+    // 대회 코스 미리 달리기(S-85, 2026-09-12, docs/02-api-spec.md 16.6) — 공식 코스로 등록된
+    // SketchRoute. 코스가 없는 대회가 대다수라 nullable.
+    val courseRouteId = varchar("course_route_id", 32).references(com.dallim.route.SketchRouteTable.id).nullable()
+
     val createdAt = timestamp("created_at").clientDefault { Instant.now() }
 
     override val primaryKey = PrimaryKey(id)
@@ -64,7 +68,34 @@ data class Race(
     val registrationEnd: Instant,
     val organizer: String,
     val souvenir: String?,
+    val courseRouteId: String?,
     val createdAt: Instant,
+)
+
+/**
+ * 대회 공식 코스(`Race.courseRouteId`)를 잘라낸 구간들 — S-85, docs/02-api-spec.md 16.6.
+ * [routeId]는 그 구간만 담은 별도의 SketchRoute(항상 `is_preview_segment = true`)를 가리킨다
+ * — "이 구간 달리기"는 새 엔드포인트 없이 이 routeId로 기존 POST /runs를 그대로 태우는
+ * 방식이라, 완주 판정(RunJudgementService)도 구간을 특별 취급하지 않고 평범한 SketchRoute
+ * 처럼 그대로 통과시킨다.
+ */
+object RaceCourseSegmentTable : Table("race_course_segments") {
+    val id = varchar("id", 32)
+    val raceId = varchar("race_id", 32).references(RaceTable.id)
+    val routeId = varchar("route_id", 32).references(com.dallim.route.SketchRouteTable.id)
+    val label = varchar("label", 50) // 예: "출발~1.4km"
+    val orderIndex = integer("order_index")
+    val createdAt = timestamp("created_at").clientDefault { Instant.now() }
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+data class RaceCourseSegment(
+    val id: String,
+    val raceId: String,
+    val routeId: String,
+    val label: String,
+    val orderIndex: Int,
 )
 
 /**
