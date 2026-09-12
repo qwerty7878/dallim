@@ -11,6 +11,7 @@ import com.dallim.race.raceModule
 import com.dallim.racerecord.raceRecordModule
 import com.dallim.route.routeModule
 import com.dallim.run.runModule
+import com.dallim.social.socialSessionCheckinModule
 import com.dallim.social.socialSessionChatModule
 import com.dallim.social.socialSessionModule
 import com.dallim.user.userModule
@@ -55,6 +56,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             raceModule,
             socialSessionModule,
             socialSessionChatModule,
+            socialSessionCheckinModule,
         )
     }
 }
