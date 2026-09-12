@@ -153,7 +153,12 @@ private fun DallimbookGridScreen(
                     modifier = Modifier.weight(1f),
                 )
                 else -> Column(modifier = Modifier.weight(1f)) {
-                    SummaryRow(totalCount = uiState.totalCount, totalDistanceKm = uiState.totalDistanceKm)
+                    SummaryRow(
+                        totalCount = uiState.totalCount,
+                        totalDistanceKm = uiState.totalDistanceKm,
+                        bestPaceSecPerKm = uiState.bestPaceSecPerKm,
+                        averagePaceSecPerKm = uiState.averagePaceSecPerKm,
+                    )
 
                     LazyVerticalGrid(
                         state = gridState,
@@ -203,13 +208,29 @@ private fun DallimbookGridScreen(
 }
 
 @Composable
-private fun SummaryRow(totalCount: Int, totalDistanceKm: Double) {
-    Text(
-        text = "완주 ${totalCount}개 · 총 ${"%.1f".format(totalDistanceKm)}km",
-        style = DallimTypography.Caption,
-        color = DallimColors.TextSecondary,
+private fun SummaryRow(
+    totalCount: Int,
+    totalDistanceKm: Double,
+    bestPaceSecPerKm: Int?,
+    averagePaceSecPerKm: Int?,
+) {
+    Column(
         modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.sm),
-    )
+    ) {
+        Text(
+            text = "완주 ${totalCount}개 · 총 ${"%.1f".format(totalDistanceKm)}km",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+        )
+        // 완주 기록이 하나도 없으면 서버가 둘 다 null을 내려준다 — RunFormat.pace가 그 경우
+        // "-'--\""로 표시해 빈 상태에서도 어색하지 않게 처리한다(다른 페이스 표시 화면과 동일한 관례).
+        Text(
+            text = "최고 페이스 ${RunFormat.pace(bestPaceSecPerKm)}/km · 평균 페이스 ${RunFormat.pace(averagePaceSecPerKm)}/km",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
 }
 
 @Composable
@@ -314,6 +335,8 @@ private fun DallimbookGridScreenPreview() {
                 ),
                 totalCount = 1,
                 totalDistanceKm = 5.18,
+                bestPaceSecPerKm = 305,
+                averagePaceSecPerKm = 342,
                 isLoadingInitial = false,
             ),
             onBackClick = {},

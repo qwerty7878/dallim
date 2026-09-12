@@ -31,4 +31,8 @@ data class DallimbookResponseBody(
     val items: List<DallimbookRunItem>,
     val totalCount: Int,
     val totalDistanceKm: Double,
+    /** 완주 기록이 하나도 없으면 null. 단위: 초/km. */
+    val bestPaceSecPerKm: Int? = null,
+    /** 완주 기록이 하나도 없으면 null. 단위: 초/km. */
+    val averagePaceSecPerKm: Int? = null,
 )
