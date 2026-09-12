@@ -1881,3 +1881,313 @@ idempotent 성공).
 - 월별 캘린더 뷰(리스트 뷰만 제공 — Android 몫이라 이 API 계약엔 영향 없음)
 - 접수하러 가기 외부 링크(`applyUrl` 등) — S-81에 언급되나 이번 브리핑의 "포함" 범위에
   명시되지 않아 구현하지 않음. 필요해지면 다음 라운드에 `races` 테이블에 컬럼 추가로 확장 가능
+
+---
+
+## 17. 소셜 세션 1단계 (2026-09-13 — `docs/달림_화면별_상세기획서_v1.3.md` PART 3-D S-30~S-39 편입)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` 421~491행 "D. 소셜 세션(S-30~S-39)" 근거. 10개 화면짜리
+> 큰 기능이라 2단계로 쪼갰다:
+> - **1단계(이번 라운드)**: S-30 세션 탐색, S-31 세션 생성, S-32 세션 상세, S-33 참가 신청,
+>   S-34 호스트 신청자 관리 — 순수 CRUD + 승인 워크플로우.
+> - **2단계(다음 라운드)**: S-35 팀 채팅(Ktor 네이티브 WebSocket + 서버 프로세스 내 인메모리
+>   세션맵, EC2 단일 인스턴스라 Redis Pub/Sub 불필요), S-36 GPS 체크인, S-37 Ready Check,
+>   S-38 세션 종료 후 평가, S-39 Running Mate. 이번 라운드는 관련 테이블/엔드포인트를 전혀
+>   만들지 않는다.
+>
+> **주의**: `com.dallim.meetup`(14장, 같이 달리기 모집)과 완전히 별개 도메인(`com.dallim.social`)
+> 이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 도메인은 호스트 승인 워크플로우 +
+> 참가 조건(성별/온도) + (2단계에서) 채팅/체크인까지 있는 별개의 무거운 기능이라 재사용하지
+> 않는다.
+
+### 17.1 데이터 모델
+
+```
+social_sessions
+  id                          varchar(32) PK
+  host_user_id                varchar(32) FK -> users
+  route_id                    varchar(32) FK -> sketch_routes   -- 코스 미리보기용
+  title                       varchar(60)
+  scheduled_at                timestamptz
+  min_participants            int
+  max_participants            int
+  running_styles              varchar(200) null   -- 콤마 구분 자유 텍스트 (S-31 "러닝 스타일 4종",
+                                                   -- 정확한 값 목록이 SPEC에 없어 닫힌 enum 대신
+                                                   -- 자유 텍스트로 둠 — comfortablePace/
+                                                   -- runningExperience와 동일 원칙)
+  beginner_friendly           boolean             -- 표시용 태그. 서버가 이 값으로 신청을 막지는
+                                                   -- 않음(17.4 참고, 과설계 금지)
+  min_running_temperature     double null         -- 있으면 이 온도 미만 유저는 신청 자체가 막힘
+  gender_condition            ANY | SAME_AS_HOST | FEMALE_ONLY | MALE_ONLY   -- default ANY
+  description                 text null
+  meeting_point_lat           double
+  meeting_point_lng           double
+  meeting_point_description   text null           -- 집결지 상세 설명(호스트 입력)
+  rain_policy                 PROCEED | CANCEL | DECIDE_LATER   -- default DECIDE_LATER
+  status                      varchar(16)          -- RECRUITING | CANCELLED만 저장.
+                                                   -- NEAR_CONFIRMATION/CONFIRMED는 조회 시점에
+                                                   -- 계산(14.1 run_meetups와 동일 철학, 배치 없음)
+  created_at                  timestamptz
+
+social_session_applicants     -- 신청자 = 호스트 아님. 호스트는 자동 등록되지 않는다
+                               -- (주최자는 참가자가 아니라서 S-34 승인 리스트에 안 보여야 함)
+  session_id      varchar(32) FK -> social_sessions
+  user_id         varchar(32) FK -> users
+  status          PENDING | APPROVED | EXPIRED | CANCELLED   -- default PENDING
+  message         text null       -- 호스트에게 보내는 한 줄
+  applied_at      timestamptz
+  responded_at    timestamptz null
+  PRIMARY KEY (session_id, user_id)   -- 동일 세션 중복 신청 방지 (재신청도 막음 — 과설계 금지)
+
+users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. 당근마켓 매너온도
+                                                              -- 컨셉의 신뢰도 점수. gender와 달리
+                                                              -- 공개 정보라 응답 DTO에 노출됨.
+                                                              -- 조정 로직(피드백/노쇼 반영)은
+                                                              -- 2단계(S-38)에서 만든다 — 이번
+                                                              -- 라운드는 항상 기본값을 그대로 읽어
+                                                              -- 노출만 한다.
+```
+
+- **`SocialSessionDisplayStatus`(계산값, 저장 안 됨)**: `status == CANCELLED`면 `CANCELLED`.
+  아니면 승인된(`APPROVED`) 참가자 수 `approvedCount` vs `minParticipants`로: `approvedCount >=
+  minParticipants`면 `CONFIRMED`, 남은 인원(`minParticipants - approvedCount`)이 2명 이하면
+  `NEAR_CONFIRMATION`(S-32 예시 "성사까지 2명"을 일반화), 그 외엔 `RECRUITING`.
+- **참가 조건은 성별/온도만 서버가 실제로 막는다.** `running_styles`(페이스 대체)와
+  `beginner_friendly`는 카드/상세에 표시되는 정보일 뿐 신청을 막는 조건으로 쓰지 않는다 — SPEC이
+  이 두 값의 구체적인 매칭 규칙을 정의하지 않아서, 임의로 매칭 알고리즘을 발명하지 않기 위한
+  결정이다(과설계 금지).
+- **성별 조건 매칭**: `gender`는 서버 전용 필드(CLAUDE.md 규칙 2, 어떤 응답에도 노출 안 함)라
+  서버 내부에서만 비교한다. `SAME_AS_HOST`는 호스트/신청자 둘 다 `MALE`/`FEMALE`로 명확히
+  밝혔을 때만 통과 — 성별을 밝히지 않은 유저(`PREFER_NOT_TO_SAY`/null)는 안전한 기본값으로
+  차단한다.
+- **`meetingPointHint`**: `meeting_point_description`의 첫 단어만 잘라 "○○ 인근"으로
+  뭉뚱그린 값(`sketch_routes`에 region 컬럼이 없어 그쪽 재사용은 불가능 — 이 방식으로 단순화).
+
+### 17.2 `GET /social-sessions` — S-30 세션 탐색
+
+**인증**: 옵셔널(비로그인도 조회 가능, 로그인해도 개인화되는 필드는 없음 — `isSaved` 같은
+개인화는 이번 1단계 범위 밖).
+
+**Query Parameters**
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| `routeId` | string? | 특정 코스 기준으로 필터 |
+| `beginnerFriendly` | boolean? | 초보환영 세션만 |
+| `hasMinTemperature` | boolean? | `true`면 온도 조건이 있는 세션만, `false`면 없는 세션만 |
+| `page` | int | 기본 0 |
+| `size` | int | 기본 20 |
+
+> 날짜·시간대·페이스·거리 필터는 SPEC이 요구하지만 이번 1단계는 위 핵심 필터만 구현한다 —
+> 과설계 금지, 사용성 보면서 다음 라운드에 추가.
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "sessionId": "ss_001",
+        "title": "안양천 야간 러닝",
+        "scheduledAt": "2026-09-20T21:00:00Z",
+        "routeId": "rt_004",
+        "routeThumbnailGeoJson": { "type": "LineString", "coordinates": [[126.9,37.5],[126.91,37.51]] },
+        "approvedCount": 3,
+        "minParticipants": 4,
+        "maxParticipants": 6,
+        "runningStyles": ["대화하면서", "초보환영조합"],
+        "hostUserId": "usr_1",
+        "hostNickname": "달림이",
+        "hostAvatarId": "avatar_02",
+        "hostRunningTemperature": 37.2,
+        "beginnerFriendly": true,
+        "status": "NEAR_CONFIRMATION"
+      }
+    ],
+    "totalCount": 1,
+    "page": 0,
+    "size": 20
+  },
+  "error": null
+}
+```
+- 빈 상태(`session_empty_region`) 안내 문구는 클라이언트 책임 — 빈 배열만 내려준다.
+- 정렬: `scheduledAt` 오름차순.
+
+### 17.3 `POST /social-sessions` — S-31 세션 생성 🔒
+
+```json
+// Request
+{
+  "routeId": "rt_004",
+  "title": "안양천 야간 러닝",
+  "scheduledAt": "2026-09-20T21:00:00Z",
+  "minParticipants": 4,
+  "maxParticipants": 6,
+  "runningStyles": ["대화하면서", "초보환영조합"],
+  "beginnerFriendly": true,
+  "minRunningTemperature": null,
+  "genderCondition": "ANY",
+  "description": "천천히 대화하면서 뛰어요",
+  "meetingPointLat": 37.5123,
+  "meetingPointLng": 126.9234,
+  "meetingPointDescription": "안양천 삼성교 밑 벤치 앞",
+  "rainPolicy": "DECIDE_LATER"
+}
+```
+```json
+// Response 201
+{ "success": true, "data": { "sessionId": "ss_001" }, "error": null }
+```
+- **호스트 자격**: `users.total_runs >= 1`이어야 한다. 완주 0회면 `400
+  SESSION_HOST_REQUIRES_FIRST_RUN`("한 번이라도 달려본 뒤 열 수 있어요") — 노쇼 호스트 억제
+  장치.
+- `routeId`가 없으면 `404 ROUTE_NOT_FOUND`(4장과 동일 코드 재사용).
+- `title` 공백이면 `400 VALIDATION_ERROR`.
+- `scheduledAt`이 현재 시각보다 과거면 `400 VALIDATION_ERROR`.
+- `minParticipants < 1` 이거나 `maxParticipants < minParticipants` 이거나
+  `maxParticipants > 30`이면 `400 VALIDATION_ERROR`.
+
+### 17.4 `GET /social-sessions/{sessionId}` — S-32 세션 상세
+
+**인증**: 옵셔널.
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "sessionId": "ss_001",
+    "hostUserId": "usr_1",
+    "hostNickname": "달림이",
+    "hostAvatarId": "avatar_02",
+    "hostRunningTemperature": 37.2,
+    "routeId": "rt_004",
+    "routeName": "물고기",
+    "routeThumbnailGeoJson": { "type": "LineString", "coordinates": [[126.9,37.5],[126.91,37.51]] },
+    "routeDistanceKm": 4.2,
+    "routeEstimatedMinutes": 30,
+    "title": "안양천 야간 러닝",
+    "scheduledAt": "2026-09-20T21:00:00Z",
+    "minParticipants": 4,
+    "maxParticipants": 6,
+    "approvedCount": 3,
+    "runningStyles": ["대화하면서", "초보환영조합"],
+    "beginnerFriendly": true,
+    "minRunningTemperature": null,
+    "genderCondition": "ANY",
+    "description": "천천히 대화하면서 뛰어요",
+    "meetingPointLat": 37.5123,
+    "meetingPointLng": 126.9234,
+    "meetingPointDetail": null,
+    "meetingPointHint": "안양천 인근",
+    "rainPolicy": "DECIDE_LATER",
+    "status": "NEAR_CONFIRMATION",
+    "isHost": false,
+    "myApplicationStatus": null,
+    "participants": [
+      { "userId": "usr_2", "nickname": "러너B", "avatarId": "avatar_05" }
+    ]
+  },
+  "error": null
+}
+```
+- `sessionId`가 없으면 `404 SESSION_NOT_FOUND`.
+- **`meetingPointDetail`**: 로그인 유저가 `APPROVED` 참가자이거나 호스트 본인일 때만 채워짐.
+  그 외엔 `null`이고 대신 `meetingPointHint`(대략적인 지역명, 항상 채워짐)로 대체 — 17.1 참고.
+- `myApplicationStatus`: 비로그인/미신청이면 `null`. 호스트는 참가자가 아니므로 항상 `null`.
+- `participants`: `APPROVED` 상태만.
+
+### 17.5 `POST /social-sessions/{sessionId}/apply` — S-33 참가 신청 🔒
+
+```json
+// Request
+{ "message": "천천히 페이스로 함께 달리고 싶어요" }
+```
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- `sessionId`가 없으면 `404 SESSION_NOT_FOUND`. 취소된 세션이면 `409 SESSION_CANCELLED`.
+- 본인이 만든 세션에는 신청 불가(`400 VALIDATION_ERROR`).
+- 동일 세션에 이미 신청한 적 있으면(복합 PK) `409 SESSION_ALREADY_APPLIED` — 재신청 불가(취소/
+  만료된 신청도 포함, 과설계 금지로 단순하게 둠).
+- `max_participants`가 이미 `APPROVED`로 찼으면 `400 SESSION_FULL`.
+- **참가 조건(성별/온도) 미충족이면 `400 SESSION_CONDITION_NOT_MET`, 문구는 항상
+  "참가 조건이 맞지 않아요" 하나로 통일한다** — 성별 조건이든 온도 조건이든 사유를 구분해서
+  노출하지 않는다. 세분화하면 "내 조건만 사유가 없네" 식으로 성별을 역추론할 수 있기 때문이다
+  (S-32 SPEC 핵심 요구사항).
+
+### 17.6 `POST /social-sessions/{sessionId}/apply/cancel` — 신청 취소 🔒
+
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 신청 내역이 없으면 `404 SESSION_APPLICATION_NOT_FOUND`.
+- `PENDING` 상태가 아니면(이미 승인/만료/취소됨) `400 SESSION_APPLICATION_NOT_PENDING`.
+
+### 17.7 `GET /social-sessions/{sessionId}/applicants` — S-34 호스트 신청자 목록 🔒(호스트만)
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "userId": "usr_2",
+        "nickname": "러너B",
+        "avatarId": "avatar_05",
+        "runningTemperature": 36.8,
+        "comfortablePace": "PACE_6_7",
+        "runningExperience": "UNDER_3_MONTHS",
+        "message": "천천히 페이스로 함께 달리고 싶어요",
+        "appliedAt": "2026-09-15T10:00:00Z",
+        "status": "PENDING"
+      }
+    ]
+  },
+  "error": null
+}
+```
+- 호스트가 아니면 `403 SESSION_NOT_HOST`.
+- **성별·나이·연락처는 절대 포함하지 않는다**(SPEC 명시).
+- 참석률/소셜 달림 횟수/긍정 행동 태그/과거 동반 여부는 체크인·평가(2단계, S-36/38) 데이터가
+  있어야 계산 가능해서 이번 응답에는 없음 — 없는 데이터를 placeholder로 채우지 않는다(과설계
+  금지). 2단계에서 필드가 새로 추가된다.
+- `CANCELLED`(신청 취소)된 신청자는 목록에서 제외. `applied_at` 오름차순(먼저 신청한 순).
+
+### 17.8 `POST /social-sessions/{sessionId}/applicants/{userId}/approve` — S-34 승인 🔒(호스트만)
+
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 호스트가 아니면 `403 SESSION_NOT_HOST`.
+- 해당 신청자가 없으면 `404 SESSION_APPLICANT_NOT_FOUND`.
+- 신청 상태가 `PENDING`이 아니면(이미 승인/만료/취소) `400 SESSION_APPLICATION_NOT_PENDING`.
+- 이미 `APPROVED` 수가 `maxParticipants`에 도달했으면 `409 SESSION_FULL`(정원 초과 승인 방지).
+
+### 17.9 `DELETE /social-sessions/{sessionId}` — 세션 취소 🔒(호스트만)
+
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 호스트가 아니면 `403 SESSION_NOT_HOST`.
+- 참가자가 있어도 그냥 취소 가능. 실제 행을 지우지 않고 `status`만 `CANCELLED`로 바꾼다
+  (`run_meetups`의 소프트 취소와 동일 패턴).
+- 참가자에게 알림은 가지 않는다(`com.dallim.notification` 연동은 이번 1단계 범위 밖 — 과욕
+  금지).
+
+### 17.10 이번 1단계에 만들지 않은 것
+- S-35 팀 채팅, S-36 GPS 체크인, S-37 Ready Check, S-38 세션 종료 후 평가, S-39 Running Mate
+  — 전부 2단계. 관련 테이블/컬럼/엔드포인트를 이번 라운드에 만들지 않았다.
+- 날짜·시간대·페이스·거리 정밀 필터 (`GET /social-sessions`는 `routeId`/`beginnerFriendly`/
+  `hasMinTemperature`까지만).
+- 신청 24시간 무응답 자동 만료(`EXPIRED`) — 상태값(enum)은 이미 만들어 뒀지만 이 상태로
+  전환시키는 배치/스케줄러는 이번 라운드에 없다. 만료는 2단계에서 실제로 동작하게 만든다.
+- 호스트 "24시간 내 응답률" 프로필 지표, 세션 공유/신고 액션.
+- `com.dallim.notification` 연동(신청/승인/취소 알림) — 14장 meetup의 join 알림과 달리
+  이번 1단계는 알림을 전혀 보내지 않는다.

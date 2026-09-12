@@ -388,6 +388,61 @@ POST /runs/{runId}/gps-batch
 - 소셜 세션(S-30~S-39, 실시간 채팅 필요)과의 연계 — S-85 구간 러닝을 같이 달리기 모집과
   엮는 것은 범위 밖
 
+### 1.11 소셜 세션 모듈 1단계 (2026-09-13 신규 — `docs/달림_화면별_상세기획서_v1.3.md` PART 3-D S-30~S-39 편입)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` 421~491행 "D. 소셜 세션(S-30~S-39)" 근거. 10개 화면짜리
+> 큰 기능이라 2단계로 쪼갠다. **이번 라운드는 1단계(S-30~S-34)만 구현했고, Android 화면은 아직
+> 없다(백엔드 API만, 다음 라운드에 화면 붙임).**
+>
+> **주의**: 1.8절의 같이 달리기 모집(`com.dallim.meetup`, S-47/48/49)과 완전히 별개
+> 도메인(`com.dallim.social`)이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 모듈은
+> 호스트 승인 워크플로우 + 참가 조건(성별/온도) + (2단계에서) 채팅/체크인까지 있는 별개의 무거운
+> 기능이라 재사용/확장하지 않는다.
+
+| 화면 ID | 화면명 | 단계 | 기능 | 데이터 소스 |
+|---|---|---|---|---|
+| S-30 | 세션 탐색 (백엔드만 구현, 화면 미착수) | 1단계 | 세션 카드 목록, `beginnerFriendly`/`hasMinTemperature` 필터 | `GET /social-sessions` |
+| S-31 | 세션 생성 (백엔드만 구현, 화면 미착수) | 1단계 | 제목/코스/일시/인원/러닝스타일/초보환영/온도조건/성별조건/집결지/우천정책 입력 | `POST /social-sessions` |
+| S-32 | 세션 상세 (백엔드만 구현, 화면 미착수) | 1단계 | 코스 미리보기, 호스트 카드, 참가자 목록, 승인 전 집결지 힌트 | `GET /social-sessions/{id}` |
+| S-33 | 참가 신청 (백엔드만 구현, 화면 미착수) | 1단계 | 한 줄 메시지 + 신청, 취소 | `POST /social-sessions/{id}/apply`, `.../apply/cancel` |
+| S-34 | 호스트 신청자 관리 (백엔드만 구현, 화면 미착수) | 1단계 | 신청자 목록(성별/나이/연락처 제외), 승인 | `GET /social-sessions/{id}/applicants`, `.../approve` |
+| S-35 | 팀 채팅 | 2단계 예정 | Ktor 네이티브 WebSocket + 인메모리 세션맵 | — |
+| S-36 | GPS 체크인 | 2단계 예정 | 집결지 반경 150m 체크인 | — |
+| S-37 | Ready Check | 2단계 예정 | 호스트 시작 트리거 | — |
+| S-38 | 세션 종료 후 평가 | 2단계 예정 | 긍정 행동 태그, `running_temperature` 조정 로직 | — |
+| S-39 | Running Mate | 2단계 예정 | 상호 동의 기반 메이트 | — |
+
+#### 1.11.1 API 계약 요약 (1단계)
+- `GET /social-sessions`: `routeId`/`beginnerFriendly`/`hasMinTemperature` 필터 + 페이지네이션,
+  옵셔널 인증(로그인해도 개인화 필드는 없음 — 1단계는 순수 목록 조회). 날짜·시간대·페이스·거리
+  정밀 필터는 다음 라운드(과설계 금지).
+- `POST /social-sessions` 🔒: 호스트 자격은 `users.total_runs >= 1`(완주 0회면 `400
+  SESSION_HOST_REQUIRES_FIRST_RUN`, 노쇼 호스트 억제).
+- `GET /social-sessions/{id}`: 옵셔널 인증. `meetingPointDetail`은 호스트 본인/`APPROVED`
+  참가자에게만, 그 외엔 `meetingPointHint`(대략적인 지역명)로 대체.
+- `POST /social-sessions/{id}/apply` 🔒: 참가 조건(성별/온도) 미충족이면 `400
+  SESSION_CONDITION_NOT_MET` + 문구 **"참가 조건이 맞지 않아요" 하나로 통일**(성별 역추론
+  방지, S-32 SPEC 핵심 요구사항). 정원(`APPROVED` 기준) 초과 시 `400 SESSION_FULL`.
+- `GET /social-sessions/{id}/applicants` 🔒(호스트만): 성별·나이·연락처 절대 미포함. 참석률/
+  소셜 달림 횟수/긍정 행동 태그/과거 동반 여부는 2단계(체크인/평가) 데이터가 있어야 계산 가능해
+  이번 응답에는 없음(placeholder 없음, 과설계 금지).
+- `POST /social-sessions/{id}/applicants/{userId}/approve` 🔒(호스트만): 정원 초과 승인 방지
+  `409 SESSION_FULL`.
+- `DELETE /social-sessions/{id}` 🔒(호스트만): 소프트 취소(`status = CANCELLED`), 알림 연동은
+  이번 라운드 범위 밖.
+- `users.running_temperature`(신규 컬럼, 기본 36.5) 노출: 호스트/신청자 카드 전부에 공개
+  정보로 노출(`gender`와 반대). 조정 로직은 2단계(S-38)에서 만든다 — 이번 라운드는 항상
+  기본값을 그대로 읽어서 응답에 노출만 한다.
+- 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 17장 참고.
+
+#### 1.11.2 이번 1단계에 만들지 않은 것 (`docs/02-api-spec.md` 17.10과 동일)
+- S-35~S-39(채팅/체크인/Ready Check/평가/Running Mate) 전부 — 관련 테이블/엔드포인트를 이번
+  라운드에 만들지 않았다.
+- Android 화면(S-30~S-34) 자체 — 이번 라운드도 백엔드만.
+- 날짜·시간대·페이스·거리 정밀 필터, 신청 24시간 무응답 자동 만료 배치(`EXPIRED` 상태값은
+  만들었지만 전환 로직은 없음), 호스트 응답률 지표, 세션 공유/신고, `com.dallim.notification`
+  연동.
+
 ---
 
 ## 2. 백엔드(Ktor) 기능명세
@@ -407,6 +462,8 @@ com.dallim
  │               docs/02-api-spec.md 15장)
  ├─ race        (대회 캘린더 — 앞으로 열릴 대회 조회/담기, racerecord와는 별개 도메인,
  │               2026-09-07 SPEC 편입, docs/02-api-spec.md 16장)
+ ├─ social      (소셜 세션 1단계 — 탐색/생성/상세/참가신청/호스트승인, meetup과는 별개 도메인,
+ │               2026-09-13 SPEC 편입, docs/02-api-spec.md 17장)
  └─ common      (GeoJSON 변환, PostGIS 유틸, 공통 응답 래퍼)
 ```
 
@@ -535,6 +592,29 @@ com.dallim
 - 저장 구조: `route_shape_votes(id, route_id, user_id, label, created_at, updated_at)`,
   `(route_id, user_id)` UNIQUE(`V10__route_shape_votes.sql`).
 - 투표 제출 UI(안드로이드)는 별도 라운드 — 이번은 백엔드(마이그레이션/엔드포인트/집계)만 다룬다.
+
+#### I. 소셜 세션 1단계(social) — 2026-09-13 SPEC 편입
+- `docs/달림_화면별_상세기획서_v1.3.md` 421~491행 "D. 소셜 세션(S-30~S-39)" 근거, 1.11절과
+  동일 근거. 10개 화면짜리 큰 기능을 2단계로 쪼갰고, 이번 라운드는 1단계(S-30~S-34, 탐색/생성/
+  상세/참가신청/호스트승인)만 구현한다. **완전히 새 패키지(`com.dallim.social`)** —
+  `com.dallim.meetup`(같이 달리기 모집)과 재사용/확장 관계 없음(meetup은 승인 없는 즉시 참가
+  1회성 게시판, social은 호스트 승인 워크플로우가 있는 별개 기능).
+- 참가 조건은 성별(`genderCondition`: `ANY`/`SAME_AS_HOST`/`FEMALE_ONLY`/`MALE_ONLY`, SPEC이
+  정확한 값 목록을 안 줘서 이번에 4개로 확정)과 온도(`minRunningTemperature`)만 서버가 실제로
+  막는다. `runningStyles`(페이스 대체, 자유 텍스트)와 `beginnerFriendly`는 표시용 정보로만
+  쓰고 신청을 막지 않는다 — SPEC이 이 둘의 구체적 매칭 규칙을 정의하지 않아 임의로 알고리즘을
+  발명하지 않기 위한 결정.
+- 성별 조건 미충족이든 온도 조건 미충족이든 신청 실패 사유는 `SESSION_CONDITION_NOT_MET` +
+  "참가 조건이 맞지 않아요" 하나로 통일한다 — 세분화하면 "내 조건만 사유가 없네" 식으로 성별을
+  역추론할 수 있어서다(S-32 SPEC 핵심 요구사항, `gender`는 CLAUDE.md 규칙 2에 따라 응답에
+  절대 노출되지 않으므로 이 조건은 서버 내부에서만 비교한다).
+- `users.running_temperature`(신규 컬럼, 기본 36.5) — 당근마켓 매너온도 컨셉의 신뢰도 점수.
+  `gender`와 달리 공개 정보라 호스트/신청자 카드에 그대로 노출한다. 조정 로직(피드백/노쇼
+  반영)은 2단계(S-38)에서 만든다.
+- `SocialSessionStatus`는 `RECRUITING`/`CANCELLED`만 저장(`com.dallim.meetup.MeetupStatus`와
+  동일 철학) — 화면에 보이는 `NEAR_CONFIRMATION`/`CONFIRMED`는 `APPROVED` 참가자 수 vs
+  `minParticipants`로 매 조회 시 계산, 배치 잡 없음.
+- 상세 API 계약은 `docs/02-api-spec.md` 17장, 화면 매핑은 1.11절 참고.
 
 ### 2.3 배치/스케줄러
 
