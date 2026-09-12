@@ -50,6 +50,7 @@ import com.dallim.ui.theme.Spacing
 @Composable
 fun RaceDetailRoute(
     onBackClick: () -> Unit,
+    onCoursePreviewClick: (raceId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RaceDetailViewModel = hiltViewModel(),
 ) {
@@ -60,6 +61,7 @@ fun RaceDetailRoute(
         onBackClick = onBackClick,
         onRetryClick = viewModel::load,
         onToggleSaveClick = viewModel::onToggleSaveClick,
+        onCoursePreviewClick = { onCoursePreviewClick(viewModel.raceId) },
         modifier = modifier,
     )
 }
@@ -70,6 +72,7 @@ private fun RaceDetailScreen(
     onBackClick: () -> Unit,
     onRetryClick: () -> Unit,
     onToggleSaveClick: () -> Unit,
+    onCoursePreviewClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -158,6 +161,22 @@ private fun RaceDetailScreen(
                             color = DallimColors.TextSecondary,
                             modifier = Modifier.padding(top = Spacing.sm),
                         )
+                        val previewProgressPercent = uiState.race.previewProgressPercent
+                        if (previewProgressPercent != null) {
+                            Text(
+                                text = RaceFormat.previewProgressLabel(previewProgressPercent),
+                                style = DallimTypography.Caption,
+                                color = DallimColors.Primary,
+                                modifier = Modifier.padding(top = Spacing.xs),
+                            )
+                        }
+
+                        if (uiState.hasCourse) {
+                            CoursePreviewCard(
+                                onClick = onCoursePreviewClick,
+                                modifier = Modifier.padding(top = Spacing.lg),
+                            )
+                        }
 
                         SectionHeader(
                             title = "종목별 안내",
@@ -186,6 +205,20 @@ private fun RaceDetailScreen(
                 )
             }
         }
+    }
+}
+
+/** S-81 -> S-85 진입 카드 — hasCourse == true일 때만 노출한다(RaceDetailViewModel.load 참고). */
+@Composable
+private fun CoursePreviewCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Text(text = "코스 미리 달리기", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+        Text(
+            text = "이 대회의 공식 코스를 구간별로 미리 달려볼 수 있어요.",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
     }
 }
 
@@ -290,11 +323,14 @@ private fun RaceDetailScreenPreview() {
                     maxFeeKrw = 35000,
                     savedCount = 12,
                     isSaved = false,
+                    previewProgressPercent = 62,
                 ),
+                hasCourse = true,
             ),
             onBackClick = {},
             onRetryClick = {},
             onToggleSaveClick = {},
+            onCoursePreviewClick = {},
         )
     }
 }

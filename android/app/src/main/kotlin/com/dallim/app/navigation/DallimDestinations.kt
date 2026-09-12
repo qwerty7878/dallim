@@ -129,4 +129,13 @@ object DallimDestinations {
     private const val RACE_DETAIL_BASE = "s81_race_detail" // S-81
     const val RACE_DETAIL = "$RACE_DETAIL_BASE/{$ARG_RACE_ID}"
     fun raceDetail(raceId: String) = "$RACE_DETAIL_BASE/$raceId"
+
+    /**
+     * S-85 대회 코스 미리 달리기 (2026-09-12 신규, docs/02-api-spec.md 16.6). 대회 상세(S-81)에서
+     * 공식 코스(`hasCourse == true`)가 있을 때만 진입한다. "이 구간 달리기"는 별도 route가 아니라
+     * 구간의 `routeId`로 [RUN_PREPARE](S-20)를 그대로 재사용한다.
+     */
+    private const val RACE_COURSE_PREVIEW_BASE = "s85_race_course_preview"
+    const val RACE_COURSE_PREVIEW = "$RACE_COURSE_PREVIEW_BASE/{$ARG_RACE_ID}"
+    fun raceCoursePreview(raceId: String) = "$RACE_COURSE_PREVIEW_BASE/$raceId"
 }

@@ -20,6 +20,10 @@ sealed interface RaceDetailUiState {
 
     data class Success(
         val race: RaceDetailResponseBody,
+        // S-85 진입 카드 노출 여부 — GET /races/{id}/course 응답의 hasCourse. detail 응답에는
+        // 이 필드가 없어 상세 로드 시 함께 조회한다(아래 load() 참고). 조회 실패 시 안전하게
+        // false(카드 미노출)로 처리한다 — 이 화면의 핵심 기능이 아니라서 별도 에러 상태를 두지 않는다.
+        val hasCourse: Boolean = false,
         val isSaving: Boolean = false,
         val saveErrorMessage: String? = null,
     ) : RaceDetailUiState
@@ -38,7 +42,8 @@ class RaceDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val raceId: String =
+    // RaceDetailRoute가 S-85(코스 미리 달리기) 진입 콜백에 raceId를 그대로 넘겨줘야 해서 non-private.
+    val raceId: String =
         checkNotNull(savedStateHandle[DallimDestinations.ARG_RACE_ID]) { "raceId 인자가 없습니다." }
 
     private val _uiState = MutableStateFlow<RaceDetailUiState>(RaceDetailUiState.Loading)
@@ -51,9 +56,17 @@ class RaceDetailViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _uiState.value = RaceDetailUiState.Loading
-            _uiState.value = when (val result = safeApiCall { raceApi.getRaceDetail(raceId) }) {
-                is UiResult.Success -> RaceDetailUiState.Success(race = result.data)
-                is UiResult.Error -> RaceDetailUiState.Error(result.message)
+            val detailResult = safeApiCall { raceApi.getRaceDetail(raceId) }
+            _uiState.value = when (detailResult) {
+                is UiResult.Success -> {
+                    // hasCourse는 detail 응답에 없어 상세 로드와 함께 조회한다(작업 지시 3번).
+                    // 이 카드는 화면의 핵심 경로가 아니므로 실패해도 카드만 숨기고 상세 자체는
+                    // 정상 표시한다.
+                    val hasCourse = (safeApiCall { raceApi.getRaceCourse(raceId) } as? UiResult.Success)
+                        ?.data?.hasCourse == true
+                    RaceDetailUiState.Success(race = detailResult.data, hasCourse = hasCourse)
+                }
+                is UiResult.Error -> RaceDetailUiState.Error(detailResult.message)
                 UiResult.Loading -> RaceDetailUiState.Loading
             }
         }
