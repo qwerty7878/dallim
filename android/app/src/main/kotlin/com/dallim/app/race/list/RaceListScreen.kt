@@ -269,6 +269,18 @@ private fun RaceCard(
                 color = DallimColors.TextSecondary,
             )
         }
+
+        // S-85(코스 미리 달리기) 답사 진행률 — 공식 코스가 없는 대회는 previewProgressPercent가
+        // null이라 아무것도 그리지 않는다(RaceDetailScreen과 동일한 표시 규칙).
+        val previewProgressPercent = race.previewProgressPercent
+        if (previewProgressPercent != null) {
+            Text(
+                text = RaceFormat.previewProgressLabel(previewProgressPercent),
+                style = DallimTypography.Caption,
+                color = DallimColors.Primary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
     }
 }
 
