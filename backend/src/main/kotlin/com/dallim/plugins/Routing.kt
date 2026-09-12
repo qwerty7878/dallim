@@ -12,8 +12,10 @@ import com.dallim.racerecord.raceRecordRoutes
 import com.dallim.route.homeRoutes
 import com.dallim.route.routeRoutes
 import com.dallim.run.runRoutes
+import com.dallim.social.runningMateRoutes
 import com.dallim.social.socialSessionCheckinRoutes
 import com.dallim.social.socialSessionChatRoutes
+import com.dallim.social.socialSessionFeedbackRoutes
 import com.dallim.social.socialSessionRoutes
 import com.dallim.user.savedRouteRoutes
 import com.dallim.user.userRoutes
@@ -53,6 +55,8 @@ fun Application.configureRouting() {
             socialSessionRoutes()
             socialSessionChatRoutes()
             socialSessionCheckinRoutes()
+            socialSessionFeedbackRoutes()
+            runningMateRoutes()
         }
     }
 }
