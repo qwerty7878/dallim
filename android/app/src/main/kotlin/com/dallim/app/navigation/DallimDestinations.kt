@@ -158,4 +158,27 @@ object DallimDestinations {
     private const val SOCIAL_SESSION_APPLICANTS_BASE = "s34_social_session_applicants" // S-34
     const val SOCIAL_SESSION_APPLICANTS = "$SOCIAL_SESSION_APPLICANTS_BASE/{$ARG_SOCIAL_SESSION_ID}"
     fun socialSessionApplicants(sessionId: String) = "$SOCIAL_SESSION_APPLICANTS_BASE/$sessionId"
+
+    /**
+     * S-35~S-39 소셜 세션 2단계 (2026-09-15 신규, docs/달림_화면별_상세기획서_v1.3.md PART 3-D,
+     * docs/02-api-spec.md 17.11 이하). S-32(세션 상세)에서 호스트/`APPROVED` 참가자에게만 채팅·
+     * 체크인 진입 버튼이 보인다. S-36(GPS 체크인)과 S-37(Ready Check)은 작업 브리핑 지시대로
+     * 한 화면(하나의 자연스러운 동선)으로 합쳐 [SOCIAL_SESSION_CHECKIN] 하나로 둔다. S-38(평가)
+     * 진입점은 그 체크인 화면이 `started == true`를 확인했을 때 보여주는 CTA 하나뿐이다(별도
+     * "세션 종료" 액션이 SPEC에 없어 이 값으로 근사). S-39(Running Mate)는 세션에 종속되지
+     * 않는 "내 소유물" 목록이라 인자가 없다 — 마이(S-42)에서 진입한다.
+     */
+    private const val SOCIAL_SESSION_CHAT_BASE = "s35_social_session_chat"
+    const val SOCIAL_SESSION_CHAT = "$SOCIAL_SESSION_CHAT_BASE/{$ARG_SOCIAL_SESSION_ID}"
+    fun socialSessionChat(sessionId: String) = "$SOCIAL_SESSION_CHAT_BASE/$sessionId"
+
+    private const val SOCIAL_SESSION_CHECKIN_BASE = "s36_social_session_checkin" // S-36 + S-37
+    const val SOCIAL_SESSION_CHECKIN = "$SOCIAL_SESSION_CHECKIN_BASE/{$ARG_SOCIAL_SESSION_ID}"
+    fun socialSessionCheckin(sessionId: String) = "$SOCIAL_SESSION_CHECKIN_BASE/$sessionId"
+
+    private const val SOCIAL_SESSION_FEEDBACK_BASE = "s38_social_session_feedback"
+    const val SOCIAL_SESSION_FEEDBACK = "$SOCIAL_SESSION_FEEDBACK_BASE/{$ARG_SOCIAL_SESSION_ID}"
+    fun socialSessionFeedback(sessionId: String) = "$SOCIAL_SESSION_FEEDBACK_BASE/$sessionId"
+
+    const val RUNNING_MATE_LIST = "s39_running_mate_list" // S-39
 }

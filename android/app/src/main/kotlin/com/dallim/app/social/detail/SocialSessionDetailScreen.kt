@@ -65,6 +65,8 @@ import com.dallim.ui.theme.Spacing
 fun SocialSessionDetailRoute(
     onBackClick: () -> Unit,
     onApplicantsClick: (sessionId: String) -> Unit,
+    onChatClick: (sessionId: String) -> Unit,
+    onCheckinClick: (sessionId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SocialSessionDetailViewModel = hiltViewModel(),
 ) {
@@ -77,6 +79,14 @@ fun SocialSessionDetailRoute(
         onApplicantsClick = {
             val detail = (uiState as? SocialSessionDetailUiState.Success)?.detail ?: return@SocialSessionDetailScreen
             onApplicantsClick(detail.sessionId)
+        },
+        onChatClick = {
+            val detail = (uiState as? SocialSessionDetailUiState.Success)?.detail ?: return@SocialSessionDetailScreen
+            onChatClick(detail.sessionId)
+        },
+        onCheckinClick = {
+            val detail = (uiState as? SocialSessionDetailUiState.Success)?.detail ?: return@SocialSessionDetailScreen
+            onCheckinClick(detail.sessionId)
         },
         onApplyClick = viewModel::onApplyClick,
         onApplyDialogDismiss = viewModel::onApplyDialogDismiss,
@@ -93,6 +103,8 @@ private fun SocialSessionDetailScreen(
     onBackClick: () -> Unit,
     onRetryClick: () -> Unit,
     onApplicantsClick: () -> Unit,
+    onChatClick: () -> Unit,
+    onCheckinClick: () -> Unit,
     onApplyClick: () -> Unit,
     onApplyDialogDismiss: () -> Unit,
     onApplyMessageChange: (String) -> Unit,
@@ -134,6 +146,8 @@ private fun SocialSessionDetailScreen(
             is SocialSessionDetailUiState.Success -> SocialSessionDetailContent(
                 state = uiState,
                 onApplicantsClick = onApplicantsClick,
+                onChatClick = onChatClick,
+                onCheckinClick = onCheckinClick,
                 onApplyClick = onApplyClick,
                 onCancelApplyClick = onCancelApplyClick,
                 modifier = Modifier.weight(1f),
@@ -181,12 +195,16 @@ private fun resolveAction(detail: SocialSessionDetailResponseBody): SocialSessio
 private fun SocialSessionDetailContent(
     state: SocialSessionDetailUiState.Success,
     onApplicantsClick: () -> Unit,
+    onChatClick: () -> Unit,
+    onCheckinClick: () -> Unit,
     onApplyClick: () -> Unit,
     onCancelApplyClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val detail = state.detail
     val action = resolveAction(detail)
+    // S-35/S-36/S-37 진입 가드 — 호스트이거나 APPROVED 참가자만(작업 브리핑 지시).
+    val canAccessSessionTools = detail.isHost || detail.myApplicationStatus == SocialSessionApplicantStatus.APPROVED
 
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -270,6 +288,18 @@ private fun SocialSessionDetailContent(
                     if (!description.isNullOrBlank()) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.md), color = DallimColors.Border)
                         Text(text = description, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                    }
+                }
+            }
+
+            if (canAccessSessionTools) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        DallimSecondaryButton(text = "채팅", onClick = onChatClick, modifier = Modifier.weight(1f))
+                        DallimSecondaryButton(text = "체크인 · Ready Check", onClick = onCheckinClick, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -494,6 +524,8 @@ private fun SocialSessionDetailScreenApplyPreview() {
             onBackClick = {},
             onRetryClick = {},
             onApplicantsClick = {},
+            onChatClick = {},
+            onCheckinClick = {},
             onApplyClick = {},
             onApplyDialogDismiss = {},
             onApplyMessageChange = {},
@@ -514,6 +546,8 @@ private fun SocialSessionDetailScreenPendingPreview() {
             onBackClick = {},
             onRetryClick = {},
             onApplicantsClick = {},
+            onChatClick = {},
+            onCheckinClick = {},
             onApplyClick = {},
             onApplyDialogDismiss = {},
             onApplyMessageChange = {},
@@ -532,6 +566,8 @@ private fun SocialSessionDetailScreenHostPreview() {
             onBackClick = {},
             onRetryClick = {},
             onApplicantsClick = {},
+            onChatClick = {},
+            onCheckinClick = {},
             onApplyClick = {},
             onApplyDialogDismiss = {},
             onApplyMessageChange = {},
@@ -553,6 +589,8 @@ private fun SocialSessionDetailScreenApplyDialogPreview() {
             onBackClick = {},
             onRetryClick = {},
             onApplicantsClick = {},
+            onChatClick = {},
+            onCheckinClick = {},
             onApplyClick = {},
             onApplyDialogDismiss = {},
             onApplyMessageChange = {},

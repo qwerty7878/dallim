@@ -41,12 +41,16 @@ import com.dallim.app.running.navigation.RunNavigationRoute
 import com.dallim.app.running.prepare.RunPrepareRoute
 import com.dallim.app.running.result.RunResultRoute
 import com.dallim.app.running.share.ShareCardRoute
+import com.dallim.app.social.chat.SocialSessionChatRoute
+import com.dallim.app.social.checkin.SocialSessionCheckinRoute
 import com.dallim.app.social.create.SocialSessionCreateRoute
 import com.dallim.app.social.detail.SocialSessionApplicantsRoute
 import com.dallim.app.social.detail.SocialSessionDetailRoute
 import com.dallim.app.social.detail.SocialSessionDetailViewModel
+import com.dallim.app.social.feedback.SocialSessionFeedbackRoute
 import com.dallim.app.social.list.SocialSessionListRoute
 import com.dallim.app.social.list.SocialSessionListViewModel
+import com.dallim.app.social.runningmate.RunningMateListRoute
 import com.dallim.ui.components.DallimTab
 
 /**
@@ -286,7 +290,43 @@ fun DallimNavHost(
                 onApplicantsClick = { sessionId ->
                     navController.navigate(DallimDestinations.socialSessionApplicants(sessionId))
                 },
+                onChatClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionChat(sessionId)) },
+                onCheckinClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionCheckin(sessionId)) },
             )
+        }
+
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_CHAT,
+            arguments = listOf(navArgument(DallimDestinations.ARG_SOCIAL_SESSION_ID) { type = NavType.StringType }),
+        ) {
+            SocialSessionChatRoute(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_CHECKIN,
+            arguments = listOf(navArgument(DallimDestinations.ARG_SOCIAL_SESSION_ID) { type = NavType.StringType }),
+        ) {
+            SocialSessionCheckinRoute(
+                onBackClick = { navController.popBackStack() },
+                onFeedbackClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionFeedback(sessionId)) },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_FEEDBACK,
+            arguments = listOf(navArgument(DallimDestinations.ARG_SOCIAL_SESSION_ID) { type = NavType.StringType }),
+        ) {
+            // 평가 완료/건너뛰기 후 돌아갈 곳 — S-32(세션 상세)까지 한 번에 pop한다(체크인 화면
+            // 까지 포함해 세 화면 전부 스택에서 걷어낸다, 평가를 다시 볼 이유가 없음).
+            SocialSessionFeedbackRoute(
+                onDoneClick = {
+                    navController.popBackStack(route = DallimDestinations.SOCIAL_SESSION_DETAIL, inclusive = false)
+                },
+            )
+        }
+
+        composable(DallimDestinations.RUNNING_MATE_LIST) {
+            RunningMateListRoute(onBackClick = { navController.popBackStack() })
         }
 
         composable(
@@ -326,6 +366,7 @@ fun DallimNavHost(
             MyRoute(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onMedalShelfClick = { navController.navigate(DallimDestinations.MEDAL_SHELF) },
+                onRunningMatesClick = { navController.navigate(DallimDestinations.RUNNING_MATE_LIST) },
                 onLoggedOut = {
                     // 로그아웃 — S-02(로그인) 아래 전체 백스택(홈/탭 포함)을 비운다
                     // (docs/01-feature-spec.md §1.5). SplashViewModel의 로그인 성공 시

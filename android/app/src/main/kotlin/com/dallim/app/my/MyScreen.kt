@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -56,6 +57,7 @@ import com.dallim.ui.theme.Spacing
 fun MyRoute(
     onTabSelected: (DallimTab) -> Unit,
     onMedalShelfClick: () -> Unit,
+    onRunningMatesClick: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MyViewModel = hiltViewModel(),
@@ -74,6 +76,7 @@ fun MyRoute(
         uiState = uiState,
         onTabSelected = onTabSelected,
         onMedalShelfClick = onMedalShelfClick,
+        onRunningMatesClick = onRunningMatesClick,
         onLogoutClick = viewModel::onLogoutClick,
         onRetryClick = viewModel::load,
         modifier = modifier,
@@ -85,6 +88,7 @@ private fun MyScreen(
     uiState: MyUiState,
     onTabSelected: (DallimTab) -> Unit,
     onMedalShelfClick: () -> Unit,
+    onRunningMatesClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -125,6 +129,8 @@ private fun MyScreen(
                     ProfileCard(user = uiState.user)
 
                     MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.lg))
+
+                    RunningMatesEntryCard(onClick = onRunningMatesClick, modifier = Modifier.padding(top = Spacing.md))
 
                     DallimSecondaryButton(
                         text = if (uiState.isLoggingOut) "로그아웃 중…" else "로그아웃",
@@ -230,6 +236,28 @@ private fun MedalShelfEntryCard(onClick: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
+/**
+ * S-39 Running Mate 목록 진입점 (2026-09-15 신규, docs/02-api-spec.md 17.17) — [MedalShelfEntryCard]
+ * 와 동일한 관례로 마이(S-42)에 카드 하나만 추가한다(새 탭을 만들지 않는다는 원칙 유지).
+ */
+@Composable
+private fun RunningMatesEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Filled.Groups, contentDescription = null, tint = DallimColors.Primary)
+            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
+                Text(text = "러닝메이트", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "같이 달린 러너와의 인연을 확인해보세요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
+            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        }
+    }
+}
+
 @Composable
 private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
@@ -261,6 +289,7 @@ private fun MyScreenPreview() {
             ),
             onTabSelected = {},
             onMedalShelfClick = {},
+            onRunningMatesClick = {},
             onLogoutClick = {},
             onRetryClick = {},
         )
