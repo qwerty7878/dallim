@@ -392,8 +392,8 @@ POST /runs/{runId}/gps-batch
 
 > `docs/달림_화면별_상세기획서_v1.3.md` 421~491행 "D. 소셜 세션(S-30~S-39)" 근거. 10개 화면짜리
 > 큰 기능이라 2단계로 쪼갰다. **1단계(S-30~S-34, 탐색/생성/상세/참가신청/호스트승인)와 2단계
-> (S-35~S-39, 채팅/체크인/Ready Check/평가/Running Mate) 전부 백엔드 API로 구현 완료됐다.
-> Android 화면은 아직 없다(다음 라운드에 화면 붙임).**
+> (S-35~S-39, 채팅/체크인/Ready Check/평가/Running Mate) 전부 백엔드 API + Android 화면까지
+> 구현 완료됐다(2026-09-15).**
 >
 > **주의**: 1.8절의 같이 달리기 모집(`com.dallim.meetup`, S-47/48/49)과 완전히 별개
 > 도메인(`com.dallim.social`)이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 모듈은
@@ -407,11 +407,11 @@ POST /runs/{runId}/gps-batch
 | S-32 | 세션 상세 (2026-09-15 화면 구현 완료) | 1단계 | 코스 미리보기, 호스트 카드, 참가자 목록, 승인 전 집결지 힌트 | `GET /social-sessions/{id}` |
 | S-33 | 참가 신청 (2026-09-15 화면 구현 완료, S-32 상세 화면 내 포함) | 1단계 | 한 줄 메시지 + 신청, 취소 | `POST /social-sessions/{id}/apply`, `.../apply/cancel` |
 | S-34 | 호스트 신청자 관리 (2026-09-15 화면 구현 완료) | 1단계 | 신청자 목록(성별/나이/연락처 제외), 승인 | `GET /social-sessions/{id}/applicants`, `.../approve` |
-| S-35 | 팀 채팅 (백엔드만 구현, 화면 미착수) | 2단계 | Ktor 네이티브 WebSocket + 인메모리 커넥션맵(`SocialSessionChatHub`), Quick Message 4종, 호스트 공지 자동 승격, "오늘 참가 어려워요" 취소 연동, +24h 읽기전용/+7일 접근종료, 메시지/세션 신고 | `GET/POST .../chat/messages`, `GET .../chat/ws`, `POST .../chat/messages/{id}/report`, `POST /social-sessions/{id}/report` |
-| S-36 | GPS 체크인 (백엔드만 구현, 화면 미착수) | 2단계 | 집결지 반경 150m + 시작 30분 전~15분 후 윈도우 내 자가 체크인, 호스트 수동 확인 | `POST /social-sessions/{id}/checkin`, `POST .../checkins/{userId}/manual-confirm` |
-| S-37 | Ready Check (백엔드만 구현, 화면 미착수) | 2단계 | 참가자 체크인 상태 목록, 호스트 시작 트리거(미체크인자 자동 NO_SHOW 전환) | `GET /social-sessions/{id}/ready-check`, `POST .../start` |
-| S-38 | 세션 종료 후 평가 (백엔드만 구현, 화면 미착수) | 2단계 | 체크인한 참가자끼리 긍정 행동 태그(최대 3개, 별점 없음) + "다시 같이 뛰고 싶어요", `running_temperature` 가산 로직 | `GET /social-sessions/{id}/feedback-targets`, `POST .../feedback` |
-| S-39 | Running Mate (백엔드만 구현, 화면 미착수) | 2단계 | 상호 동의 성립 메이트 목록, 조용한 단방향 해제 | `GET /users/me/running-mates`, `DELETE .../{mateUserId}` |
+| S-35 | 팀 채팅 (2026-09-15 화면 구현 완료) | 2단계 | Ktor 네이티브 WebSocket + 인메모리 커넥션맵(`SocialSessionChatHub`), Quick Message 4종, 호스트 공지 자동 승격, "오늘 참가 어려워요" 취소 연동, +24h 읽기전용/+7일 접근종료, 메시지/세션 신고 | `GET/POST .../chat/messages`, `GET .../chat/ws`, `POST .../chat/messages/{id}/report`, `POST /social-sessions/{id}/report` |
+| S-36 | GPS 체크인 (2026-09-15 화면 구현 완료, S-37과 한 화면) | 2단계 | 집결지 반경 150m + 시작 30분 전~15분 후 윈도우 내 자가 체크인, 호스트 수동 확인 | `POST /social-sessions/{id}/checkin`, `POST .../checkins/{userId}/manual-confirm` |
+| S-37 | Ready Check (2026-09-15 화면 구현 완료, S-36과 한 화면) | 2단계 | 참가자 체크인 상태 목록, 호스트 시작 트리거(미체크인자 자동 NO_SHOW 전환) | `GET /social-sessions/{id}/ready-check`, `POST .../start` |
+| S-38 | 세션 종료 후 평가 (2026-09-15 화면 구현 완료) | 2단계 | 체크인한 참가자끼리 긍정 행동 태그(최대 3개, 별점 없음) + "다시 같이 뛰고 싶어요", `running_temperature` 가산 로직 | `GET /social-sessions/{id}/feedback-targets`, `POST .../feedback` |
+| S-39 | Running Mate (2026-09-15 화면 구현 완료, 마이(S-42)에서 진입) | 2단계 | 상호 동의 성립 메이트 목록, 조용한 단방향 해제 | `GET /users/me/running-mates`, `DELETE .../{mateUserId}` |
 
 #### 1.11.1 API 계약 요약 (1단계)
 - `GET /social-sessions`: `routeId`/`beginnerFriendly`/`hasMinTemperature` 필터 + 페이지네이션,
@@ -472,12 +472,13 @@ POST /runs/{runId}/gps-batch
   상호 동의 기반이라 해제는 조용히 단방향(상대 알림 없음, 멱등).
 - 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 17장(17.11 이하) 참고.
 
-#### 1.11.3 이번 라운드에 만들지 않은 것 (`docs/02-api-spec.md` 17.16과 동일)
-- Android 화면(S-35~S-39, 2단계: 팀채팅/체크인/Ready Check/평가/Running Mate) — 여전히 백엔드만
-  (1단계 S-30~S-34 화면은 2026-09-15 구현 완료, `app/src/main/kotlin/com/dallim/app/social/`).
+#### 1.11.3 이번 라운드에 만들지 않은 것 (`docs/02-api-spec.md` 17.18과 동일)
+- S-30~S-39(1단계+2단계) Android 화면 전부 2026-09-15 구현 완료
+  (`app/src/main/kotlin/com/dallim/app/social/{list,create,detail,chat,checkin,feedback,
+  runningmate}/`). S-36/S-37은 별도 화면이 아니라 한 화면(`social/checkin/`)으로 합쳤다.
 - 날짜·시간대·페이스·거리 정밀 필터, 신청 24시간 무응답 자동 만료 배치(`EXPIRED` 상태값은
   만들었지만 전환 로직은 없음), 호스트 응답률 지표, `com.dallim.notification` 연동(신청/승인/
-  체크인/평가 알림 전부 없음).
+  체크인/평가 알림 전부 없음), 1:1 DM/별점 평가/신고 자동 조치(기록만).
 - 1:1 DM, 별점 평가, 신고에 대한 자동 조치/모더레이션 큐(기록만).
 - 채팅 이모지 반응, 집결 위치 카드 지도 렌더링 등 클라이언트 전용 UI 요소(백엔드 데이터로는
   이미 충분 -- `meetingPointLat/Lng` 등 1단계 응답 필드 재사용).
