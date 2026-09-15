@@ -12,5 +12,8 @@ import org.koin.dsl.module
  */
 val socialSessionModule = module {
     single { SocialSessionRepository(get()) }
-    single { SocialSessionService(get(), get(), get()) }
+    // 4번째 인자(SocialSessionChatRepository)는 socialSessionChatModule이 등록한다 -- Koin은
+    // 같은 modules() 호출에 실린 모든 모듈을 한꺼번에 봐서 등록 순서와 무관하게 해석한다
+    // (plugins/Koin.kt 참고).
+    single { SocialSessionService(get(), get(), get(), get()) }
 }

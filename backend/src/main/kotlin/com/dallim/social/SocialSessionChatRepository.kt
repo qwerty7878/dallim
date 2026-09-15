@@ -71,6 +71,26 @@ open class SocialSessionChatRepository(private val database: Database) {
         items to totalCount
     }
 
+    /** GET /users/me/social-sessions (18장, 채팅 인박스)용 -- [sessionIds] 각각의 마지막 메시지
+     * 한 건씩. 세션당 별도 쿼리(N+1) 대신 전체를 created_at DESC로 한 번에 가져와 세션별 첫 번째
+     * (=가장 최근) 값만 집는다 -- 인박스 세션 수가 자연히 적어(수십 개 수준) 이 정도면 충분하고,
+     * DISTINCT ON 같은 DB 방언 의존 문법을 새로 끌어들이지 않는다(과설계 금지). */
+    fun findLatestBySessionIds(sessionIds: List<String>): Map<String, ChatMessageRow> {
+        if (sessionIds.isEmpty()) return emptyMap()
+        return transaction(database) {
+            val latest = LinkedHashMap<String, ChatMessageRow>()
+            (SocialSessionChatMessageTable leftJoin UserTable)
+                .selectAll()
+                .where { SocialSessionChatMessageTable.sessionId inList sessionIds }
+                .orderBy(SocialSessionChatMessageTable.createdAt, SortOrder.DESC)
+                .forEach { row ->
+                    val chatRow = row.toChatMessageRow()
+                    latest.putIfAbsent(chatRow.sessionId, chatRow)
+                }
+            latest
+        }
+    }
+
     fun findById(sessionId: String, messageId: String): ChatMessageRow? = transaction(database) {
         (SocialSessionChatMessageTable leftJoin UserTable)
             .selectAll()

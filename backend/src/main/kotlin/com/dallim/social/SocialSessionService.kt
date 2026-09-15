@@ -22,6 +22,9 @@ class SocialSessionService(
     private val sessionRepository: SocialSessionRepository,
     private val routeRepository: RouteRepository,
     private val userRepository: UserRepository,
+    // 채팅 인박스(GET /users/me/social-sessions, 18장)의 lastMessage 미리보기용. 2단계 채팅
+    // 도메인과의 유일한 교차 의존이라 여기 한 곳에만 추가한다.
+    private val chatRepository: SocialSessionChatRepository,
 ) {
 
     /** POST /social-sessions — 17.2. 완주 0회면 호스트가 될 수 없다(SESSION_HOST_REQUIRES_FIRST_RUN,
@@ -245,6 +248,55 @@ class SocialSessionService(
         val row = findSessionOr404(sessionId)
         requireHost(row, callerUserId)
         sessionRepository.cancel(sessionId)
+    }
+
+    /** GET /users/me/social-sessions — 18장, 채팅 인박스. 호스트이거나 APPROVED 참가자인 세션만,
+     * 마지막 채팅 메시지 시각 내림차순(메시지가 없는 세션은 뒤로 밀려나 scheduledAt 오름차순으로
+     * 정렬 -- "다음 예정 순"이 합리적인 기본값이라 판단, 작업 브리핑의 tie-break 재량 반영). */
+    fun listMine(userId: String): MySocialSessionListResponse {
+        val rows = sessionRepository.findMine(userId)
+        if (rows.isEmpty()) return MySocialSessionListResponse(items = emptyList())
+
+        val approvedCounts = sessionRepository.countApprovedByIds(rows.map { it.id })
+        val lastMessages = chatRepository.findLatestBySessionIds(rows.map { it.id })
+        val routeCache = HashMap<String, RouteRepository.RouteRow?>()
+
+        data class Enriched(val item: MySocialSessionListItem, val lastMessageAt: Instant?, val scheduledAt: Instant)
+
+        val enriched = rows.map { row ->
+            val approvedCount = approvedCounts[row.id] ?: 0
+            val route = routeCache.getOrPut(row.routeId) { routeRepository.findDetail(row.routeId) }
+            val lastMessageRow = lastMessages[row.id]
+            val item = MySocialSessionListItem(
+                sessionId = row.id,
+                title = row.title,
+                routeThumbnailGeoJson = route?.geoJson,
+                scheduledAt = row.scheduledAt.toString(),
+                isHost = row.hostUserId == userId,
+                approvedCount = approvedCount,
+                maxParticipants = row.maxParticipants,
+                status = displayStatus(row.status, approvedCount, row.minParticipants),
+                lastMessage = lastMessageRow?.let {
+                    MySocialSessionLastMessage(
+                        body = it.body,
+                        type = it.type,
+                        createdAt = it.createdAt.toString(),
+                        senderNickname = it.senderNickname,
+                    )
+                },
+            )
+            Enriched(item = item, lastMessageAt = lastMessageRow?.createdAt, scheduledAt = row.scheduledAt)
+        }
+
+        val sortedItems = enriched
+            .sortedWith(
+                compareByDescending<Enriched> { it.lastMessageAt != null }
+                    .thenByDescending { it.lastMessageAt ?: Instant.EPOCH }
+                    .thenBy { it.scheduledAt },
+            )
+            .map { it.item }
+
+        return MySocialSessionListResponse(items = sortedItems)
     }
 
     private fun requireHost(row: SocialSessionRepository.SessionRow, callerUserId: String) {

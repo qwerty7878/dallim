@@ -177,6 +177,38 @@ open class SocialSessionRepository(private val database: Database) {
         }
     }
 
+    /** GET /users/me/social-sessions (18장, 채팅 인박스) — 호스트이거나 APPROVED 참가자인 모든
+     * 세션. 호스트는 절대 자기 세션의 applicant 행이 없으므로(SocialSessionApplicantTable 문서
+     * 참고) 두 결과가 겹칠 일이 없어 단순히 이어붙인다 -- OR/서브쿼리로 한 방에 짜는 대신 이렇게
+     * 나눈 이유는 이미 있는 countApprovedByIds와 같은 "batch inList" 관례를 그대로 재사용하기
+     * 위함(과설계 금지). 정렬은 호출부(SocialSessionService.listMine)가 마지막 채팅 메시지 시각
+     * 기준으로 다시 한다 -- 여기선 순서를 보장하지 않는다. */
+    fun findMine(userId: String): List<SessionRow> = transaction(database) {
+        val hosted = (SocialSessionTable innerJoin UserTable)
+            .selectAll()
+            .where { SocialSessionTable.hostUserId eq userId }
+            .map { it.toSessionRow() }
+
+        val approvedSessionIds = SocialSessionApplicantTable
+            .selectAll()
+            .where {
+                (SocialSessionApplicantTable.userId eq userId) and
+                    (SocialSessionApplicantTable.status eq SocialSessionApplicantStatus.APPROVED)
+            }
+            .map { it[SocialSessionApplicantTable.sessionId] }
+
+        val approved = if (approvedSessionIds.isEmpty()) {
+            emptyList()
+        } else {
+            (SocialSessionTable innerJoin UserTable)
+                .selectAll()
+                .where { SocialSessionTable.id inList approvedSessionIds }
+                .map { it.toSessionRow() }
+        }
+
+        hosted + approved
+    }
+
     fun findApplicant(sessionId: String, userId: String): ApplicantRow? = transaction(database) {
         (SocialSessionApplicantTable innerJoin UserTable)
             .selectAll()
