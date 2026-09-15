@@ -130,6 +130,12 @@ object DallimDestinations {
      */
     const val MEDAL_SHELF = "s91_medal_shelf" // S-91
 
+    /**
+     * 차단 관리 (2026-09-16 신규, docs/02-api-spec.md 18.2 — v1.3 SPEC 밖). 마이(S-42)에서만
+     * 진입한다(새 탭을 만들지 않는다는 원칙 유지, MEDAL_SHELF/RUNNING_MATE_LIST와 동일 패턴).
+     */
+    const val BLOCKED_USER_LIST = "blocked_user_list"
+
     const val ARG_RACE_ID = "raceId"
 
     /**

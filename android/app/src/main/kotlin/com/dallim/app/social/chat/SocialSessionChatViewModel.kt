@@ -13,6 +13,9 @@ import com.dallim.network.social.SocialReportRequest
 import com.dallim.network.social.SocialSessionApi
 import com.dallim.network.social.SocialSessionChatEvent
 import com.dallim.network.social.SocialSessionChatSocket
+import com.dallim.network.user.BlockUserRequest
+import com.dallim.network.user.BlockedUserApi
+import com.dallim.network.user.UserApi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +54,15 @@ sealed interface SocialSessionChatUiState {
          * 채팅 자체는 그대로 쓸 수 있어야 하니 null로 남고 카드는 조용히 숨는다.
          */
         val meetingPointText: String? = null,
+        /** 롱프레스 액션 메뉴("신고하기"/"이 사용자 차단")가 열려 있는 메시지 id — 2026-09-16
+         * 신규(구현 7). 이 메뉴에서 "신고하기"를 고르면 [reportTargetMessageId]로 넘어간다. */
+        val actionMenuTargetMessageId: String? = null,
+        /** `GET /users/me` 결과 — 자기 자신 메시지에는 액션 메뉴의 "차단" 항목을 숨기는 데만
+         * 쓴다. */
+        val currentUserId: String? = null,
+        /** `GET /users/me/blocks` 결과 — 채팅 화면에서만 발신자를 가려내는 순수 클라이언트
+         * 필터(서버는 필터링하지 않음, docs/02-api-spec.md 18.2). */
+        val blockedUserIds: Set<String> = emptySet(),
     ) : SocialSessionChatUiState {
         val isReportDialogOpen: Boolean get() = reportTargetMessageId != null || isSessionReportDialogOpen
 
@@ -71,6 +83,8 @@ sealed interface SocialSessionChatUiState {
 class SocialSessionChatViewModel @Inject constructor(
     private val socialSessionApi: SocialSessionApi,
     private val chatSocket: SocialSessionChatSocket,
+    private val userApi: UserApi,
+    private val blockedUserApi: BlockedUserApi,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -82,6 +96,34 @@ class SocialSessionChatViewModel @Inject constructor(
 
     init {
         load()
+        loadCurrentUserId()
+        loadBlockedUsers()
+    }
+
+    /** 액션 메뉴에서 "차단" 항목을 자기 자신 메시지에 숨기는 데만 쓴다. 실패해도 채팅 자체는
+     * 그대로 쓸 수 있어야 하니 조용히 무시한다. */
+    private fun loadCurrentUserId() {
+        viewModelScope.launch {
+            when (val result = safeApiCall { userApi.getMe() }) {
+                is UiResult.Success -> updateSuccess { it.copy(currentUserId = result.data.userId) }
+                is UiResult.Error -> Unit
+                UiResult.Loading -> Unit
+            }
+        }
+    }
+
+    /** 채팅 화면 진입 시 내 차단 목록을 한 번 불러온다(2026-09-16 신규, 구현 7) — 메시지 목록
+     * 렌더링에서 발신자가 이 목록에 있으면 본문을 접어서 보여준다. */
+    private fun loadBlockedUsers() {
+        viewModelScope.launch {
+            when (val result = safeApiCall { blockedUserApi.getBlockedUsers() }) {
+                is UiResult.Success -> updateSuccess {
+                    it.copy(blockedUserIds = result.data.items.mapTo(mutableSetOf()) { item -> item.userId })
+                }
+                is UiResult.Error -> Unit
+                UiResult.Loading -> Unit
+            }
+        }
     }
 
     fun load() {
@@ -182,10 +224,38 @@ class SocialSessionChatViewModel @Inject constructor(
         updateSuccess { it.copy(pendingCancelQuickMessage = false) }
     }
 
-    /** 시스템 메시지(`senderUserId == null`)는 길게 눌러도 신고 대상으로 열지 않는다(화면에서
-     * 애초에 롱프레스를 걸지 않음). */
-    fun onMessageLongPress(messageId: String) =
-        updateSuccess { it.copy(reportTargetMessageId = messageId, reportReasonDraft = "") }
+    /** 시스템 메시지(`senderUserId == null`)는 길게 눌러도 액션 메뉴를 열지 않는다(화면에서
+     * 애초에 롱프레스를 걸지 않음). 2026-09-16부터 바로 신고 다이얼로그를 열지 않고 "신고하기/
+     * 이 사용자 차단" 액션 메뉴를 먼저 연다(구현 7). */
+    fun onMessageLongPress(messageId: String) = updateSuccess { it.copy(actionMenuTargetMessageId = messageId) }
+
+    fun onActionMenuDismiss() = updateSuccess { it.copy(actionMenuTargetMessageId = null) }
+
+    fun onReportFromActionMenuClick() {
+        val messageId = (_uiState.value as? SocialSessionChatUiState.Success)?.actionMenuTargetMessageId ?: return
+        updateSuccess {
+            it.copy(actionMenuTargetMessageId = null, reportTargetMessageId = messageId, reportReasonDraft = "")
+        }
+    }
+
+    /** 채팅 메시지 발신자 차단(docs/02-api-spec.md 18.2, 구현 7) — 성공하면 그 자리에서
+     * [SocialSessionChatUiState.Success.blockedUserIds]에 추가해 즉시 그 사람 메시지가 접힌다.
+     * 세션 신청/매칭 등 다른 곳에는 아무 영향이 없다(18.3, 서버 스코프 자체가 채팅 한정). */
+    fun onBlockUserFromActionMenuClick() {
+        val state = _uiState.value as? SocialSessionChatUiState.Success ?: return
+        val messageId = state.actionMenuTargetMessageId ?: return
+        val targetUserId = state.messages.firstOrNull { it.id == messageId }?.senderUserId ?: return
+        updateSuccess { it.copy(actionMenuTargetMessageId = null) }
+        viewModelScope.launch {
+            when (val result = safeApiCall { blockedUserApi.blockUser(BlockUserRequest(blockedUserId = targetUserId)) }) {
+                is UiResult.Success -> updateSuccess {
+                    it.copy(blockedUserIds = it.blockedUserIds + targetUserId, toastMessage = "차단했어요.")
+                }
+                is UiResult.Error -> updateSuccess { it.copy(toastMessage = result.message) }
+                UiResult.Loading -> Unit
+            }
+        }
+    }
 
     fun onSessionReportClick() =
         updateSuccess { it.copy(isSessionReportDialogOpen = true, reportReasonDraft = "") }

@@ -41,6 +41,7 @@ import com.dallim.app.running.navigation.RunNavigationRoute
 import com.dallim.app.running.prepare.RunPrepareRoute
 import com.dallim.app.running.result.RunResultRoute
 import com.dallim.app.running.share.ShareCardRoute
+import com.dallim.app.social.block.BlockedUserListRoute
 import com.dallim.app.social.chat.SocialSessionChatRoute
 import com.dallim.app.social.checkin.SocialSessionCheckinRoute
 import com.dallim.app.social.create.SocialSessionCreateRoute
@@ -375,6 +376,7 @@ fun DallimNavHost(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onMedalShelfClick = { navController.navigate(DallimDestinations.MEDAL_SHELF) },
                 onRunningMatesClick = { navController.navigate(DallimDestinations.RUNNING_MATE_LIST) },
+                onBlockedUsersClick = { navController.navigate(DallimDestinations.BLOCKED_USER_LIST) },
                 onLoggedOut = {
                     // 로그아웃 — S-02(로그인) 아래 전체 백스택(홈/탭 포함)을 비운다
                     // (docs/01-feature-spec.md §1.5). SplashViewModel의 로그인 성공 시
@@ -384,6 +386,10 @@ fun DallimNavHost(
                     }
                 },
             )
+        }
+
+        composable(DallimDestinations.BLOCKED_USER_LIST) {
+            BlockedUserListRoute(onBackClick = { navController.popBackStack() })
         }
 
         composable(DallimDestinations.MEDAL_SHELF) {

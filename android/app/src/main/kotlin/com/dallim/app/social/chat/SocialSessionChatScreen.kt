@@ -2,6 +2,7 @@ package com.dallim.app.social.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +38,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +90,9 @@ fun SocialSessionChatRoute(
         onCancelQuickMessageDismiss = viewModel::onCancelQuickMessageDismiss,
         onCancelQuickMessageConfirm = viewModel::onCancelQuickMessageConfirm,
         onMessageLongPress = viewModel::onMessageLongPress,
+        onActionMenuDismiss = viewModel::onActionMenuDismiss,
+        onReportFromActionMenuClick = viewModel::onReportFromActionMenuClick,
+        onBlockUserFromActionMenuClick = viewModel::onBlockUserFromActionMenuClick,
         onSessionReportClick = viewModel::onSessionReportClick,
         onReportDialogDismiss = viewModel::onReportDialogDismiss,
         onReportReasonChange = viewModel::onReportReasonChange,
@@ -108,6 +114,9 @@ private fun SocialSessionChatScreen(
     onCancelQuickMessageDismiss: () -> Unit,
     onCancelQuickMessageConfirm: () -> Unit,
     onMessageLongPress: (String) -> Unit,
+    onActionMenuDismiss: () -> Unit,
+    onReportFromActionMenuClick: () -> Unit,
+    onBlockUserFromActionMenuClick: () -> Unit,
     onSessionReportClick: () -> Unit,
     onReportDialogDismiss: () -> Unit,
     onReportReasonChange: (String) -> Unit,
@@ -200,6 +209,19 @@ private fun SocialSessionChatScreen(
             onSubmit = onReportSubmit,
         )
     }
+
+    val actionMenuTarget = (uiState as? SocialSessionChatUiState.Success)
+        ?.let { state -> state.messages.firstOrNull { it.id == state.actionMenuTargetMessageId } }
+    if (uiState is SocialSessionChatUiState.Success && actionMenuTarget != null) {
+        // 2026-09-16 신규(구현 7) — 자기 자신 메시지에는 "이 사용자 차단" 항목을 숨긴다.
+        val canBlock = actionMenuTarget.senderUserId != null && actionMenuTarget.senderUserId != uiState.currentUserId
+        MessageActionDialog(
+            canBlock = canBlock,
+            onReportClick = onReportFromActionMenuClick,
+            onBlockClick = onBlockUserFromActionMenuClick,
+            onDismiss = onActionMenuDismiss,
+        )
+    }
 }
 
 @Composable
@@ -230,7 +252,11 @@ private fun ChatContent(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm, alignment = Alignment.Bottom),
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    ChatMessageRow(message = message, onLongPress = { onMessageLongPress(message.id) })
+                    ChatMessageRow(
+                        message = message,
+                        isBlocked = message.senderUserId != null && message.senderUserId in state.blockedUserIds,
+                        onLongPress = { onMessageLongPress(message.id) },
+                    )
                 }
             }
         }
@@ -318,7 +344,29 @@ private fun MeetingInfoCard(meetingPointText: String?, announcement: ChatMessage
 }
 
 @Composable
-private fun ChatMessageRow(message: ChatMessageItem, onLongPress: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChatMessageRow(
+    message: ChatMessageItem,
+    isBlocked: Boolean,
+    onLongPress: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 2026-09-16 신규(구현 7) — 차단한 발신자의 메시지는 접어서 보여준다. 순수 클라이언트
+    // 필터라 서버 응답은 그대로 두고 여기서만 렌더링을 바꾼다. 탭하면 펼쳐서 원래 내용을 볼 수
+    // 있다(완전히 숨기지 않음 — 신고/차단 취소 등 맥락 파악이 필요할 수 있어서).
+    var expanded by remember(message.id) { mutableStateOf(false) }
+    if (isBlocked && !expanded) {
+        Text(
+            text = "차단한 사용자의 메시지입니다. 탭하면 볼 수 있어요.",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .padding(vertical = Spacing.xs),
+        )
+        return
+    }
+
     when (message.type) {
         SocialChatMessageType.SYSTEM -> Text(
             text = message.body,
@@ -424,6 +472,30 @@ private fun CancelQuickMessageDialog(
     }
 }
 
+/**
+ * 메시지 롱프레스 액션 메뉴(2026-09-16 신규, 구현 7) — "신고하기"/"이 사용자 차단" 중 고른다.
+ * 자기 자신 메시지에는 [canBlock]이 false로 넘어와 차단 항목이 숨는다.
+ */
+@Composable
+private fun MessageActionDialog(
+    canBlock: Boolean,
+    onReportClick: () -> Unit,
+    onBlockClick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = DallimShapes.CardCorner, color = DallimColors.Surface) {
+            Column(modifier = Modifier.padding(Spacing.sm)) {
+                DallimTextButton(text = "신고하기", onClick = onReportClick, modifier = Modifier.fillMaxWidth())
+                if (canBlock) {
+                    DallimTextButton(text = "이 사용자 차단", onClick = onBlockClick, modifier = Modifier.fillMaxWidth())
+                }
+                DallimTextButton(text = "취소", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
 @Composable
 private fun ReportDialog(
     isMessageReport: Boolean,
@@ -509,6 +581,9 @@ private fun SocialSessionChatScreenPreview() {
             onCancelQuickMessageDismiss = {},
             onCancelQuickMessageConfirm = {},
             onMessageLongPress = {},
+            onActionMenuDismiss = {},
+            onReportFromActionMenuClick = {},
+            onBlockUserFromActionMenuClick = {},
             onSessionReportClick = {},
             onReportDialogDismiss = {},
             onReportReasonChange = {},
@@ -536,6 +611,9 @@ private fun SocialSessionChatScreenExpiredPreview() {
             onCancelQuickMessageDismiss = {},
             onCancelQuickMessageConfirm = {},
             onMessageLongPress = {},
+            onActionMenuDismiss = {},
+            onReportFromActionMenuClick = {},
+            onBlockUserFromActionMenuClick = {},
             onSessionReportClick = {},
             onReportDialogDismiss = {},
             onReportReasonChange = {},

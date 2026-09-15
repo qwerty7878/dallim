@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Groups
@@ -58,6 +59,7 @@ fun MyRoute(
     onTabSelected: (DallimTab) -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
+    onBlockedUsersClick: () -> Unit,
     onLoggedOut: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MyViewModel = hiltViewModel(),
@@ -77,6 +79,7 @@ fun MyRoute(
         onTabSelected = onTabSelected,
         onMedalShelfClick = onMedalShelfClick,
         onRunningMatesClick = onRunningMatesClick,
+        onBlockedUsersClick = onBlockedUsersClick,
         onLogoutClick = viewModel::onLogoutClick,
         onRetryClick = viewModel::load,
         modifier = modifier,
@@ -89,6 +92,7 @@ private fun MyScreen(
     onTabSelected: (DallimTab) -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
+    onBlockedUsersClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -131,6 +135,8 @@ private fun MyScreen(
                     MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.lg))
 
                     RunningMatesEntryCard(onClick = onRunningMatesClick, modifier = Modifier.padding(top = Spacing.md))
+
+                    BlockedUsersEntryCard(onClick = onBlockedUsersClick, modifier = Modifier.padding(top = Spacing.md))
 
                     DallimSecondaryButton(
                         text = if (uiState.isLoggingOut) "로그아웃 중…" else "로그아웃",
@@ -258,6 +264,28 @@ private fun RunningMatesEntryCard(onClick: () -> Unit, modifier: Modifier = Modi
     }
 }
 
+/**
+ * 차단 관리 진입점 (2026-09-16 신규, docs/02-api-spec.md 18.2) — [RunningMatesEntryCard]와
+ * 동일한 관례로 마이(S-42)에 카드 하나만 추가한다.
+ */
+@Composable
+private fun BlockedUsersEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Filled.Block, contentDescription = null, tint = DallimColors.Primary)
+            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
+                Text(text = "차단 관리", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "채팅에서 차단한 사용자를 관리하세요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
+            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        }
+    }
+}
+
 @Composable
 private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
@@ -290,6 +318,7 @@ private fun MyScreenPreview() {
             onTabSelected = {},
             onMedalShelfClick = {},
             onRunningMatesClick = {},
+            onBlockedUsersClick = {},
             onLogoutClick = {},
             onRetryClick = {},
         )
