@@ -402,11 +402,11 @@ POST /runs/{runId}/gps-batch
 
 | 화면 ID | 화면명 | 단계 | 기능 | 데이터 소스 |
 |---|---|---|---|---|
-| S-30 | 세션 탐색 (백엔드만 구현, 화면 미착수) | 1단계 | 세션 카드 목록, `beginnerFriendly`/`hasMinTemperature` 필터 | `GET /social-sessions` |
-| S-31 | 세션 생성 (백엔드만 구현, 화면 미착수) | 1단계 | 제목/코스/일시/인원/러닝스타일/초보환영/온도조건/성별조건/집결지/우천정책 입력 | `POST /social-sessions` |
-| S-32 | 세션 상세 (백엔드만 구현, 화면 미착수) | 1단계 | 코스 미리보기, 호스트 카드, 참가자 목록, 승인 전 집결지 힌트 | `GET /social-sessions/{id}` |
-| S-33 | 참가 신청 (백엔드만 구현, 화면 미착수) | 1단계 | 한 줄 메시지 + 신청, 취소 | `POST /social-sessions/{id}/apply`, `.../apply/cancel` |
-| S-34 | 호스트 신청자 관리 (백엔드만 구현, 화면 미착수) | 1단계 | 신청자 목록(성별/나이/연락처 제외), 승인 | `GET /social-sessions/{id}/applicants`, `.../approve` |
+| S-30 | 세션 탐색 (2026-09-15 화면 구현 완료) | 1단계 | 세션 카드 목록, `beginnerFriendly`/`hasMinTemperature` 필터 | `GET /social-sessions` |
+| S-31 | 세션 생성 (2026-09-15 화면 구현 완료) | 1단계 | 제목/코스/일시/인원/러닝스타일/초보환영/온도조건/성별조건/집결지/우천정책 입력 | `POST /social-sessions` |
+| S-32 | 세션 상세 (2026-09-15 화면 구현 완료) | 1단계 | 코스 미리보기, 호스트 카드, 참가자 목록, 승인 전 집결지 힌트 | `GET /social-sessions/{id}` |
+| S-33 | 참가 신청 (2026-09-15 화면 구현 완료, S-32 상세 화면 내 포함) | 1단계 | 한 줄 메시지 + 신청, 취소 | `POST /social-sessions/{id}/apply`, `.../apply/cancel` |
+| S-34 | 호스트 신청자 관리 (2026-09-15 화면 구현 완료) | 1단계 | 신청자 목록(성별/나이/연락처 제외), 승인 | `GET /social-sessions/{id}/applicants`, `.../approve` |
 | S-35 | 팀 채팅 (백엔드만 구현, 화면 미착수) | 2단계 | Ktor 네이티브 WebSocket + 인메모리 커넥션맵(`SocialSessionChatHub`), Quick Message 4종, 호스트 공지 자동 승격, "오늘 참가 어려워요" 취소 연동, +24h 읽기전용/+7일 접근종료, 메시지/세션 신고 | `GET/POST .../chat/messages`, `GET .../chat/ws`, `POST .../chat/messages/{id}/report`, `POST /social-sessions/{id}/report` |
 | S-36 | GPS 체크인 (백엔드만 구현, 화면 미착수) | 2단계 | 집결지 반경 150m + 시작 30분 전~15분 후 윈도우 내 자가 체크인, 호스트 수동 확인 | `POST /social-sessions/{id}/checkin`, `POST .../checkins/{userId}/manual-confirm` |
 | S-37 | Ready Check (백엔드만 구현, 화면 미착수) | 2단계 | 참가자 체크인 상태 목록, 호스트 시작 트리거(미체크인자 자동 NO_SHOW 전환) | `GET /social-sessions/{id}/ready-check`, `POST .../start` |
@@ -473,7 +473,8 @@ POST /runs/{runId}/gps-batch
 - 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 17장(17.11 이하) 참고.
 
 #### 1.11.3 이번 라운드에 만들지 않은 것 (`docs/02-api-spec.md` 17.16과 동일)
-- Android 화면(S-30~S-39) 자체 — 이번 라운드도 백엔드만.
+- Android 화면(S-35~S-39, 2단계: 팀채팅/체크인/Ready Check/평가/Running Mate) — 여전히 백엔드만
+  (1단계 S-30~S-34 화면은 2026-09-15 구현 완료, `app/src/main/kotlin/com/dallim/app/social/`).
 - 날짜·시간대·페이스·거리 정밀 필터, 신청 24시간 무응답 자동 만료 배치(`EXPIRED` 상태값은
   만들었지만 전환 로직은 없음), 호스트 응답률 지표, `com.dallim.notification` 연동(신청/승인/
   체크인/평가 알림 전부 없음).
