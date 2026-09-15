@@ -48,6 +48,7 @@ import com.dallim.app.social.detail.SocialSessionApplicantsRoute
 import com.dallim.app.social.detail.SocialSessionDetailRoute
 import com.dallim.app.social.detail.SocialSessionDetailViewModel
 import com.dallim.app.social.feedback.SocialSessionFeedbackRoute
+import com.dallim.app.social.inbox.ChatInboxRoute
 import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.app.social.runningmate.RunningMateListRoute
 import com.dallim.ui.components.DallimTab
@@ -229,6 +230,13 @@ fun DallimNavHost(
             RaceListRoute(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onRaceClick = { raceId -> navController.navigate(DallimDestinations.raceDetail(raceId)) },
+            )
+        }
+
+        composable(DallimDestinations.CHAT_TAB) {
+            ChatInboxRoute(
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
+                onSessionClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionChat(sessionId)) },
             )
         }
 

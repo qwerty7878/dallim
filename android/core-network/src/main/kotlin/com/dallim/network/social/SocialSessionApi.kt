@@ -142,6 +142,13 @@ interface SocialSessionApi {
     suspend fun deleteRunningMate(
         @Path("mateUserId") mateUserId: String,
     ): Response<ApiResponse<Unit>>
+
+    /**
+     * 채팅 인박스 (2026-09-16 신규, v1.3 SPEC 밖 — docs/02-api-spec.md 18.1). 내가 호스트이거나
+     * `APPROVED` 참가자인 모든 소셜 세션. 페이지네이션 없음.
+     */
+    @GET("users/me/social-sessions")
+    suspend fun getSocialSessionInbox(): Response<ApiResponse<SocialSessionInboxResponseBody>>
 }
 
 /** POST /social-sessions (17.2) request body. `genderCondition`/`rainPolicy`는 백엔드 enum과
@@ -435,3 +442,37 @@ data class RunningMateItem(
 
 @Serializable
 data class RunningMateListResponseBody(val items: List<RunningMateItem>)
+
+// ======================================================================================
+// 채팅 인박스 (2026-09-16 신규, v1.3 SPEC 밖 — docs/02-api-spec.md 18.1). "채팅" 탭에 올릴
+// 목록이 필요하다는 이 세션의 판단을 사용자가 승인했다.
+// ======================================================================================
+
+/** `GET /users/me/social-sessions` (18.1) 세션 하나의 마지막 채팅 메시지 미리보기.
+ * `type == SYSTEM`이면 `senderNickname`도 null. */
+@Serializable
+data class SocialSessionInboxLastMessage(
+    val body: String,
+    val type: String,
+    val createdAt: String,
+    val senderNickname: String?,
+)
+
+/** `GET /users/me/social-sessions` (18.1) 아이템 — 채팅 탭 목록 한 행. 정렬은 서버가
+ * `lastMessage.createdAt` 내림차순(채팅 없던 세션은 뒤로) + `scheduledAt` 오름차순으로 이미
+ * 해준다 — 클라이언트가 재정렬하지 않는다. */
+@Serializable
+data class SocialSessionInboxItem(
+    val sessionId: String,
+    val title: String,
+    val routeThumbnailGeoJson: GeoJsonLineString?,
+    val scheduledAt: String,
+    val isHost: Boolean,
+    val approvedCount: Int,
+    val maxParticipants: Int,
+    val status: String,
+    val lastMessage: SocialSessionInboxLastMessage?,
+)
+
+@Serializable
+data class SocialSessionInboxResponseBody(val items: List<SocialSessionInboxItem>)
