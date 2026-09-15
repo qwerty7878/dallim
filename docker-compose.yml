@@ -30,6 +30,11 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://dallim:dallim@postgres:5432/dallim
+    # OPENAI_API_KEY 없으면 계속 fail-fast로 재시작을 반복한다(Docker 기본 백오프로 점점
+    # 뜸해짐) -- 키를 넣기 전까진 정상적인 동작이니 당황하지 말 것. 키를 넣은 뒤에는 이 정책이
+    # Redis/Postgres 일시 장애(main.py가 자체 재연결하는 것과는 별개로, 프로세스 자체가 죽는
+    # 예기치 못한 예외)에서도 스스로 복구하게 해준다.
+    restart: unless-stopped
     depends_on:
       - postgres
       - redis
