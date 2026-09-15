@@ -8,6 +8,7 @@ import com.dallim.common.NotFoundException
 import com.dallim.route.RouteRepository
 import com.dallim.user.User
 import com.dallim.user.UserRepository
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -26,6 +27,11 @@ class SocialSessionService(
     // 도메인과의 유일한 교차 의존이라 여기 한 곳에만 추가한다.
     private val chatRepository: SocialSessionChatRepository,
 ) {
+
+    companion object {
+        /** 신청 마감: 일정 3일 전부터 신규 신청 차단(2026-09-16 사용자 지시). */
+        private val APPLICATION_CLOSE_WINDOW: Duration = Duration.ofDays(3)
+    }
 
     /** POST /social-sessions — 17.2. 완주 0회면 호스트가 될 수 없다(SESSION_HOST_REQUIRES_FIRST_RUN,
      * 노쇼 호스트 억제 장치 겸 SPEC 요구사항). */
@@ -124,6 +130,7 @@ class SocialSessionService(
 
         val meetingPointDetail = if (isHost || isApprovedParticipant) row.meetingPointDescription else null
         val meetingPointHint = buildMeetingPointHint(row.meetingPointDescription)
+        val applicationOpen = !Instant.now().isAfter(row.scheduledAt.minus(APPLICATION_CLOSE_WINDOW))
 
         val participants = sessionRepository.findApprovedApplicants(sessionId).map {
             SocialSessionParticipantItem(userId = it.userId, nickname = it.nickname, avatarId = it.avatarId)
@@ -159,17 +166,24 @@ class SocialSessionService(
             isHost = isHost,
             myApplicationStatus = myApplication?.status,
             participants = participants,
+            applicationOpen = applicationOpen,
         )
     }
 
     /** POST /social-sessions/{id}/apply — 17.4. 조건 미충족 사유는 절대 세분화해서 노출하지
      * 않는다 — 성별이든 온도든 전부 SESSION_CONDITION_NOT_MET + 동일 문구 하나로 통일한다
-     * (역추론 방지, S-32 SPEC 핵심 요구사항 — 작업 브리핑 참고). */
+     * (역추론 방지, S-32 SPEC 핵심 요구사항 — 작업 브리핑 참고).
+     *
+     * 신청 마감(2026-09-16 사용자 지시): 일정 3일 전이 지나면 신규 신청을 막는다
+     * (SESSION_APPLY_WINDOW_CLOSED). */
     fun apply(sessionId: String, userId: String, request: ApplySocialSessionRequest) {
         val row = findSessionOr404(sessionId)
 
         if (row.status == SocialSessionStatus.CANCELLED) {
             throw ConflictException(ErrorCodes.SESSION_CANCELLED, "취소된 세션이에요.")
+        }
+        if (Instant.now().isAfter(row.scheduledAt.minus(APPLICATION_CLOSE_WINDOW))) {
+            throw BadRequestException(ErrorCodes.SESSION_APPLY_WINDOW_CLOSED, "마감 3일 전까지만 신청할 수 있어요.")
         }
         if (row.hostUserId == userId) {
             throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "본인이 만든 세션에는 신청할 수 없어요.")

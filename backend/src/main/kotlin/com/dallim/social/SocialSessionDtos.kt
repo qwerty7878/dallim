@@ -101,6 +101,10 @@ data class SocialSessionDetailResponse(
     // 비로그인이거나 신청한 적 없으면 null. 호스트는 참가자가 아니므로 항상 null.
     val myApplicationStatus: SocialSessionApplicantStatus?,
     val participants: List<SocialSessionParticipantItem>,
+    // 신청 가능 여부(2026-09-16 사용자 지시) -- `now <= scheduledAt - 3일`. 안드로이드가 이 값으로
+    // "신청하기" 버튼을 미리 비활성화할 수 있다. false여도 실제 신청 시도는 서버가
+    // SESSION_APPLY_WINDOW_CLOSED로 다시 막는다(클라이언트 값은 UX 프리뷰일 뿐).
+    val applicationOpen: Boolean,
 )
 
 /** POST /social-sessions/{id}/apply (17.4) request body. */
