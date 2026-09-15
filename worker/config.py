@@ -18,10 +18,17 @@ def _require(name: str) -> str:
     return value
 
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://dallim:dallim@localhost:5432/dallim")
+def _default(name: str, default: str) -> str:
+    # os.environ.get(name, default)는 "키가 아예 없을 때"만 default를 쓴다 -- 루트 .env가
+    # `OPENAI_MODEL=`처럼 값 없이 선언해 둔 키는 "빈 문자열"로 존재하므로 그대로 새어나간다.
+    # 빈 문자열도 "안 채운 것"으로 취급해야 이런 플레이스홀더 줄이 안전하게 기본값으로 대체된다.
+    return os.environ.get(name) or default
+
+
+REDIS_URL = _default("REDIS_URL", "redis://localhost:6379/0")
+DATABASE_URL = _default("DATABASE_URL", "postgresql://dallim:dallim@localhost:5432/dallim")
 OPENAI_API_KEY = _require("OPENAI_API_KEY")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = _default("OPENAI_MODEL", "gpt-4o-mini")
 DISCORD_REPORT_WEBHOOK_URL = os.environ.get("DISCORD_REPORT_WEBHOOK_URL") or None
 
 STREAM_KEY = "reports:triage"
