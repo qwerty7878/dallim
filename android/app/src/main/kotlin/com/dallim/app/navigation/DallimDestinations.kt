@@ -34,6 +34,20 @@ object DallimDestinations {
     const val HOME = "s10_home" // S-10
     const val EXPLORE = "s11_explore" // S-11
 
+    /**
+     * 대회 탭 (2026-09-16 재편) — 2026-09-15에 도입했던 "소셜" 통합 허브 탭을 사용자 지시로
+     * 폐기하고, 대회(S-80)를 다시 독립 최상위 탭으로 되돌렸다. v1.3 SPEC(S-00~S-86) 번호
+     * 체계에 이 화면 자체의 번호가 없다 — RaceListBody를 그대로 재사용한 순수 IA 변경이라
+     * 가짜 S-번호를 붙이지 않고 설명적 id를 쓴다.
+     */
+    const val RACE_TAB = "race_tab"
+
+    /**
+     * 채팅 탭 (2026-09-16 신규, docs/02-api-spec.md 18장 — v1.3 SPEC 밖). 내가 호스트/`APPROVED`
+     * 참가자인 소셜 세션들의 채팅 인박스. v1.3 번호 체계에 없어 설명적 id를 쓴다.
+     */
+    const val CHAT_TAB = "chat_tab"
+
     const val ARG_ROUTE_ID = "routeId"
     const val ARG_RUN_ID = "runId"
     const val ARG_MEETUP_ID = "meetupId"
@@ -119,13 +133,11 @@ object DallimDestinations {
     const val ARG_RACE_ID = "raceId"
 
     /**
-     * S-80 대회 캘린더 (2026-09-07 신규, docs/달림_화면별_상세기획서_v1.3.md PART 3-H 664~692행,
-     * docs/02-api-spec.md 16장). 15장 러닝 커리어(`com.dallim.app.career`, 내가 과거에 뛴 대회의
+     * S-80 대회 캘린더 — 15장 러닝 커리어(`com.dallim.app.career`, 내가 과거에 뛴 대회의
      * 자기신고 완주 이력)와 완전히 별개 도메인이니 혼동 금지 — 이건 "앞으로 열릴 대회"다.
-     * 탐색(S-11)의 세그먼트 탭에서 진입한다(DiscoverScreen 참고).
+     * 2026-09-16부터 [RACE_TAB](독립 최상위 탭)에서 `RaceListBody`로 렌더링된다(2026-09-15에
+     * 잠깐 있었던 소셜 허브 세그먼트 통합은 폐기됨).
      */
-    const val RACE_LIST = "s80_race_list" // S-80
-
     private const val RACE_DETAIL_BASE = "s81_race_detail" // S-81
     const val RACE_DETAIL = "$RACE_DETAIL_BASE/{$ARG_RACE_ID}"
     fun raceDetail(raceId: String) = "$RACE_DETAIL_BASE/$raceId"
@@ -142,14 +154,24 @@ object DallimDestinations {
     const val ARG_SOCIAL_SESSION_ID = "sessionId"
 
     /**
-     * S-30~S-34 소셜 세션 1단계 (2026-09-13 신규, docs/달림_화면별_상세기획서_v1.3.md PART 3-D,
-     * docs/02-api-spec.md 17장). 탐색(S-11)의 세그먼트 탭에서 진입한다(DiscoverScreen 참고,
-     * 대회(S-80) 탭과 동일한 왕복 push 구조). 팀채팅/체크인/Ready Check/평가/Running Mate
-     * (S-35~S-39)는 2단계라 여기 없다.
+     * S-30~S-34 소셜 세션 1단계 (docs/달림_화면별_상세기획서_v1.3.md PART 3-D,
+     * docs/02-api-spec.md 17장). S-30(세션 탐색)은 2026-09-16부터 탐색([EXPLORE])의
+     * `[그림 코스]/[소셜]` 세그먼트 안에 `SocialSessionListBody`로 직접 렌더링된다(2026-09-15에
+     * 잠깐 있었던 소셜 허브 통합 탭은 폐기됨 — 과거 SOCIAL_SESSION_LIST 독립 라우트도 그 전에
+     * 이미 삭제됨). 팀채팅/체크인/Ready Check/평가/Running Mate(S-35~S-39)는 2단계라 여기 없다.
      */
-    const val SOCIAL_SESSION_LIST = "s30_social_session_list" // S-30
+    private const val SOCIAL_SESSION_CREATE_BASE = "s31_social_session_create" // S-31
 
-    const val SOCIAL_SESSION_CREATE = "s31_social_session_create" // S-31
+    /**
+     * `routeId`는 optional query-string 인자다 — 코스 상세(S-16)의 "같이 뛸 사람 모으기"에서
+     * 진입하면 그 코스가 이미 선택된 채로 폼이 열리고(2026-09-16 신규,
+     * [com.dallim.app.social.create.SocialSessionCreateViewModel] 참고), 기존 "세션 열기" FAB
+     * (탐색의 소셜 세그먼트)에서 진입하면 이 인자 없이 코스 선택 스텝부터 시작한다 —
+     * `RACE_RECORD_EDIT`와 동일한 optional query-string nav-arg 패턴.
+     */
+    const val SOCIAL_SESSION_CREATE = "$SOCIAL_SESSION_CREATE_BASE?$ARG_ROUTE_ID={$ARG_ROUTE_ID}"
+    fun socialSessionCreate(routeId: String? = null) =
+        if (routeId != null) "$SOCIAL_SESSION_CREATE_BASE?$ARG_ROUTE_ID=$routeId" else SOCIAL_SESSION_CREATE_BASE
 
     private const val SOCIAL_SESSION_DETAIL_BASE = "s32_social_session_detail" // S-32
     const val SOCIAL_SESSION_DETAIL = "$SOCIAL_SESSION_DETAIL_BASE/{$ARG_SOCIAL_SESSION_ID}"

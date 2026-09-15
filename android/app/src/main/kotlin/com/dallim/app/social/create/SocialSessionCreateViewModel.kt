@@ -1,11 +1,14 @@
 package com.dallim.app.social.create
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dallim.app.common.UiResult
 import com.dallim.app.common.safeApiCall
+import com.dallim.app.navigation.DallimDestinations
 import com.dallim.app.social.SocialSessionFormat
 import com.dallim.network.route.RouteApi
+import com.dallim.network.route.RouteDetailResponseBody
 import com.dallim.network.route.RouteListItem
 import com.dallim.network.social.CreateSocialSessionRequest
 import com.dallim.network.social.SocialSessionApi
@@ -118,6 +121,7 @@ val SUGGESTED_RUNNING_STYLES = listOf("대화하면서", "페이스러닝", "땀
 class SocialSessionCreateViewModel @Inject constructor(
     private val socialSessionApi: SocialSessionApi,
     private val routeApi: RouteApi,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SocialSessionCreateUiState())
@@ -125,6 +129,27 @@ class SocialSessionCreateViewModel @Inject constructor(
 
     private val _navigationEvents = MutableSharedFlow<SocialSessionCreateNavigationEvent>()
     val navigationEvents: SharedFlow<SocialSessionCreateNavigationEvent> = _navigationEvents.asSharedFlow()
+
+    init {
+        // 코스 상세(S-16) "같이 뛸 사람 모으기"에서 routeId를 들고 진입했으면(2026-09-16 신규,
+        // 작업 브리핑 "구현 4") 그 코스를 미리 선택된 상태로 채운다. "세션 열기" FAB(탐색의
+        // 소셜 세그먼트)로 진입하면 이 인자가 없어 기존처럼 코스 선택 스텝부터 시작한다.
+        val initialRouteId: String? = savedStateHandle[DallimDestinations.ARG_ROUTE_ID]
+        if (initialRouteId != null) loadInitialRoute(initialRouteId)
+    }
+
+    private fun loadInitialRoute(routeId: String) {
+        viewModelScope.launch {
+            when (val result = safeApiCall { routeApi.getRouteDetail(routeId) }) {
+                is UiResult.Success -> _uiState.value =
+                    _uiState.value.copy(selectedRoute = result.data.toRouteListItem())
+                // 실패해도 폼 자체는 그대로 쓸 수 있어야 하니 조용히 무시하고 코스 선택 스텝을
+                // 수동으로 열 수 있는 상태로 남겨둔다(과설계 금지 — 별도 에러 배너 없음).
+                is UiResult.Error -> Unit
+                UiResult.Loading -> Unit
+            }
+        }
+    }
 
     fun onOpenRoutePicker() {
         _uiState.value = _uiState.value.copy(isRoutePickerOpen = true)
@@ -279,3 +304,17 @@ class SocialSessionCreateViewModel @Inject constructor(
         }
     }
 }
+
+/** `GET /routes/{routeId}` -> 코스 피커가 쓰는 [RouteListItem] 모양으로 변환(2026-09-16 신규,
+ * routeId 프리필용). 두 DTO가 겹치는 필드만 옮기고 `shapeVotes` 등 상세 전용 필드는 버린다. */
+private fun RouteDetailResponseBody.toRouteListItem() = RouteListItem(
+    routeId = routeId,
+    name = name,
+    emoji = emoji,
+    distanceKm = distanceKm,
+    estimatedMinutes = estimatedMinutes,
+    status = status,
+    finisherCount = finisherCount,
+    thumbnailGeoJson = geoJson,
+    isSaved = isSaved,
+)

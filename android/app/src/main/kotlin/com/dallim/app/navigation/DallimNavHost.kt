@@ -48,7 +48,6 @@ import com.dallim.app.social.detail.SocialSessionApplicantsRoute
 import com.dallim.app.social.detail.SocialSessionDetailRoute
 import com.dallim.app.social.detail.SocialSessionDetailViewModel
 import com.dallim.app.social.feedback.SocialSessionFeedbackRoute
-import com.dallim.app.social.list.SocialSessionListRoute
 import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.app.social.runningmate.RunningMateListRoute
 import com.dallim.ui.components.DallimTab
@@ -74,8 +73,8 @@ import com.dallim.ui.components.DallimTab
  * 이벤트를 [SessionEventViewModel]을 통해 여기서 구독해, 사용자가 어느 화면에 있든 그래프
  * 전체를 비우고 로그인으로 보낸다.
  *
- * 홈(S-10)/탐색(S-11)/달림북 그리드(S-40)/마이(S-42) 4개 최상위 화면은 하단 탭바로 서로
- * 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고.
+ * 홈(S-10)/탐색(S-11)/대회 탭(RACE_TAB)/채팅 탭(CHAT_TAB)/달림북 그리드(S-40)/마이(S-42) 6개
+ * 최상위 화면은 하단 탭바로 서로 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고.
  */
 @Composable
 fun DallimNavHost(
@@ -221,17 +220,14 @@ fun DallimNavHost(
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onCreateCourseClick = { navController.navigate(DallimDestinations.COURSE_CREATE_ENTRY) },
-                onRaceTabClick = { navController.navigate(DallimDestinations.RACE_LIST) },
-                onSocialTabClick = { navController.navigate(DallimDestinations.SOCIAL_SESSION_LIST) },
+                onSessionClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionDetail(sessionId)) },
+                onCreateSessionClick = { navController.navigate(DallimDestinations.socialSessionCreate()) },
             )
         }
 
-        composable(DallimDestinations.RACE_LIST) {
+        composable(DallimDestinations.RACE_TAB) {
             RaceListRoute(
-                onBackClick = { navController.popBackStack() },
-                // 탐색(S-11)이 이미 백스택에 있는 왕복 구조이므로 새로 navigate하지 않고
-                // 뒤로가기만으로 돌아간다 (RaceListScreen.kt 상단 주석).
-                onExploreCoursesClick = { navController.popBackStack() },
+                onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onRaceClick = { raceId -> navController.navigate(DallimDestinations.raceDetail(raceId)) },
             )
         }
@@ -257,22 +253,26 @@ fun DallimNavHost(
             )
         }
 
-        composable(DallimDestinations.SOCIAL_SESSION_LIST) {
-            SocialSessionListRoute(
-                onBackClick = { navController.popBackStack() },
-                onSessionClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionDetail(sessionId)) },
-                onCreateClick = { navController.navigate(DallimDestinations.SOCIAL_SESSION_CREATE) },
-            )
-        }
-
-        composable(DallimDestinations.SOCIAL_SESSION_CREATE) {
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_CREATE,
+            arguments = listOf(
+                navArgument(DallimDestinations.ARG_ROUTE_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) {
             SocialSessionCreateRoute(
                 onBackClick = { navController.popBackStack() },
                 onCreated = {
-                    // S-30(세션 탐색) back stack entry의 SavedStateHandle에 결과 플래그를 심어
-                    // 돌아갔을 때 목록이 자동으로 새로고침되게 한다
+                    // 직전 백스택 엔트리의 SavedStateHandle에 결과 플래그를 심는다 — 탐색(EXPLORE)
+                    // 의 "세션 열기" FAB로 진입했으면 그 엔트리가 바로 EXPLORE라 `[소셜]` 세그먼트
+                    // 목록이 돌아갔을 때 자동으로 새로고침된다. 코스 상세(S-16)의 "같이 뛸 사람
+                    // 모으기"로 진입했으면 직전 엔트리가 ROUTE_DETAIL이라 이 플래그는 조용히
+                    // 쓰이지 않는다(그 화면엔 세션 목록이 없다) — 무해하다
                     // (com.dallim.app.meetup.list.MeetupListViewModel.RESULT_MEETUP_CREATED와
-                    // 동일 패턴).
+                    // 동일한 결과 전달 패턴).
                     navController.previousBackStackEntry
                         ?.savedStateHandle
                         ?.set(SocialSessionListViewModel.RESULT_SESSION_CREATED, true)
@@ -414,6 +414,9 @@ fun DallimNavHost(
                 onBackClick = { navController.popBackStack() },
                 onStartRunClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
                 onMeetupsClick = { routeId -> navController.navigate(DallimDestinations.meetupList(routeId)) },
+                onOpenSocialSessionClick = { routeId ->
+                    navController.navigate(DallimDestinations.socialSessionCreate(routeId))
+                },
             )
         }
 
@@ -549,6 +552,8 @@ private fun NavHostController.navigateToTab(tab: DallimTab) {
     val route = when (tab) {
         DallimTab.HOME -> DallimDestinations.HOME
         DallimTab.EXPLORE -> DallimDestinations.EXPLORE
+        DallimTab.RACE -> DallimDestinations.RACE_TAB
+        DallimTab.CHAT -> DallimDestinations.CHAT_TAB
         DallimTab.DALLIMBOOK -> DallimDestinations.DALLIMBOOK_GRID
         DallimTab.MY -> DallimDestinations.MY
     }

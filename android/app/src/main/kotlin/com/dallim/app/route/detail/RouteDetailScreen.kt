@@ -56,6 +56,7 @@ import com.dallim.network.route.ShapeVoteTallyBody
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
@@ -81,15 +82,17 @@ import com.dallim.ui.theme.Spacing
  * 하단 [FinishersRow]의 88dp 완주자 GPS 그림 아바타는 지도가 아니라 스타일라이즈드 썸네일이므로
  * 이 폴백 정책과 무관하게 항상 [RouteThumbnailView]를 쓴다 — "제네릭 아이콘 금지" 원칙 유지.
  *
- * MVP1은 소셜/대회를 범위에서 제외하므로(CLAUDE.md) 하단 CTA는 "혼자 달리기" 하나만 둔다 — 단,
- * "같이 달리기 모집"(§1.8)만은 2026-09-05부로 예외로 범위에 포함돼 [MeetupEntryRow] 섹션으로
- * 별도 노출한다(하단 고정 CTA가 아니라 스크롤 본문 안의 진입 섹션, §1.8.1).
+ * 하단 고정 CTA는 "혼자 달리기"(기존)와 "같이 뛸 사람 모으기"(2026-09-16 신규 — 이 코스의
+ * routeId를 미리 채운 채 [SOCIAL_SESSION_CREATE]로 이동) 둘이다. "같이 달리기 모집"(§1.8,
+ * 2026-09-05부로 범위 포함)은 별개 도메인이라 하단 CTA가 아니라 [MeetupEntryRow] 섹션으로
+ * 스크롤 본문 안에 따로 노출한다(§1.8.1).
  */
 @Composable
 fun RouteDetailRoute(
     onBackClick: () -> Unit,
     onStartRunClick: (routeId: String) -> Unit,
     onMeetupsClick: (routeId: String) -> Unit,
+    onOpenSocialSessionClick: (routeId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RouteDetailViewModel = hiltViewModel(),
 ) {
@@ -101,6 +104,7 @@ fun RouteDetailRoute(
         onToggleSaveClick = viewModel::onToggleSave,
         onStartRunClick = onStartRunClick,
         onMeetupsClick = onMeetupsClick,
+        onOpenSocialSessionClick = onOpenSocialSessionClick,
         onRetryClick = viewModel::load,
         onVoteClick = viewModel::onVoteClick,
         onVoteDialogDismiss = viewModel::onVoteDialogDismiss,
@@ -117,6 +121,7 @@ private fun RouteDetailScreen(
     onToggleSaveClick: () -> Unit,
     onStartRunClick: (String) -> Unit,
     onMeetupsClick: (String) -> Unit,
+    onOpenSocialSessionClick: (String) -> Unit,
     onRetryClick: () -> Unit,
     onVoteClick: () -> Unit,
     onVoteDialogDismiss: () -> Unit,
@@ -280,11 +285,25 @@ private fun RouteDetailScreen(
                     }
                 }
 
-                DallimPrimaryButton(
-                    text = "혼자 달리기",
-                    onClick = { onStartRunClick(uiState.route.routeId) },
-                    modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    // 2026-09-16 신규 — 코스 상세에서 바로 이 코스로 소셜 세션을 열 수 있게 한다
+                    // (SOCIAL_SESSION_CREATE에 routeId를 미리 채워 진입, 작업 브리핑 "구현 4").
+                    DallimSecondaryButton(
+                        text = "같이 뛸 사람 모으기",
+                        onClick = { onOpenSocialSessionClick(uiState.route.routeId) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    DallimPrimaryButton(
+                        text = "혼자 달리기",
+                        onClick = { onStartRunClick(uiState.route.routeId) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
                 if (uiState.isVoteDialogOpen) {
                     ShapeVoteDialog(
@@ -550,6 +569,7 @@ private fun RouteDetailScreenPreview() {
             onToggleSaveClick = {},
             onStartRunClick = {},
             onMeetupsClick = {},
+            onOpenSocialSessionClick = {},
             onRetryClick = {},
             onVoteClick = {},
             onVoteDialogDismiss = {},

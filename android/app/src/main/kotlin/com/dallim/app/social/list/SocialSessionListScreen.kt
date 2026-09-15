@@ -12,26 +12,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.social.SocialAvatarBadge
 import com.dallim.app.social.SocialSessionFormat
 import com.dallim.network.common.GeoJsonLineString
@@ -54,91 +48,50 @@ import com.dallim.ui.theme.Spacing
  * S-30 세션 탐색 — 소셜 세션(호스트 승인 워크플로우가 있는 무거운 모집, S-30~S-39) 목록
  * (docs/달림_화면별_상세기획서_v1.3.md PART 3-D, docs/02-api-spec.md 17.2). 지도 핀/리스트
  * 토글과 세밀한 필터는 이번 1단계 범위 밖 — 리스트만 구현한다(과설계 금지, 작업 브리핑 참고).
- * 탐색(S-11)의 "소셜" 세그먼트 칩에서 push로 진입한다(DiscoverScreen 참고).
+ * 2026-09-16부터 탐색(S-11, [com.dallim.app.discover.DiscoverScreen])의
+ * `[그림 코스]/[소셜]` 세그먼트 중 `[소셜]` 안에서 인라인으로 렌더링된다 — 이 컴포저블은
+ * 헤더나 세그먼트 칩을 그리지 않고 목록+FAB만 담당한다(2026-09-15에 잠깐 있었던 소셜 허브
+ * 통합 탭은 폐기됨).
  */
 @Composable
-fun SocialSessionListRoute(
-    onBackClick: () -> Unit,
-    onSessionClick: (sessionId: String) -> Unit,
-    onCreateClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: SocialSessionListViewModel = hiltViewModel(),
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    SocialSessionListScreen(
-        uiState = uiState,
-        onBackClick = onBackClick,
-        onSessionClick = onSessionClick,
-        onCreateClick = onCreateClick,
-        onRetryClick = viewModel::load,
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun SocialSessionListScreen(
+fun SocialSessionListBody(
     uiState: SocialSessionListUiState,
-    onBackClick: () -> Unit,
-    onSessionClick: (String) -> Unit,
+    onSessionClick: (sessionId: String) -> Unit,
     onCreateClick: () -> Unit,
     onRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize().background(DallimColors.Background)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
+        when (uiState) {
+            SocialSessionListUiState.Loading -> DallimLoadingState(modifier = Modifier.fillMaxSize())
+            is SocialSessionListUiState.Error -> DallimErrorState(
+                title = "세션 목록을 불러오지 못했어요",
+                description = uiState.message,
+                onRetry = onRetryClick,
+                modifier = Modifier.fillMaxSize(),
+            )
+            is SocialSessionListUiState.Success -> {
+                if (uiState.items.isEmpty()) {
+                    DallimEmptyState(
+                        title = "이 지역엔 아직 모집 중인 달림이 없어요",
+                        description = "내가 첫 세션을 열어 같이 달릴 사람을 모아보세요.",
+                        actionText = "내가 첫 세션 열기",
+                        onActionClick = onCreateClick,
+                        modifier = Modifier.fillMaxSize(),
                     )
-                }
-                Text(text = "소셜 세션", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
-
-            when (uiState) {
-                SocialSessionListUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
-                is SocialSessionListUiState.Error -> DallimErrorState(
-                    title = "세션 목록을 불러오지 못했어요",
-                    description = uiState.message,
-                    onRetry = onRetryClick,
-                    modifier = Modifier.weight(1f),
-                )
-                is SocialSessionListUiState.Success -> {
-                    if (uiState.items.isEmpty()) {
-                        DallimEmptyState(
-                            title = "이 지역엔 아직 모집 중인 달림이 없어요",
-                            description = "내가 첫 세션을 열어 같이 달릴 사람을 모아보세요.",
-                            actionText = "내가 첫 세션 열기",
-                            onActionClick = onCreateClick,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(
-                                start = Spacing.ScreenHorizontal,
-                                end = Spacing.ScreenHorizontal,
-                                top = Spacing.sm,
-                                bottom = Spacing.xxl + FabClearance,
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
-                        ) {
-                            items(uiState.items, key = { it.sessionId }) { session ->
-                                SocialSessionRow(session = session, onClick = { onSessionClick(session.sessionId) })
-                            }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = Spacing.ScreenHorizontal,
+                            end = Spacing.ScreenHorizontal,
+                            top = Spacing.sm,
+                            bottom = Spacing.xxl + FabClearance,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+                    ) {
+                        items(uiState.items, key = { it.sessionId }) { session ->
+                            SocialSessionRow(session = session, onClick = { onSessionClick(session.sessionId) })
                         }
                     }
                 }
@@ -239,9 +192,9 @@ private val FabClearance = 64.dp
 
 @Preview(showBackground = true, heightDp = 900)
 @Composable
-private fun SocialSessionListScreenPreview() {
+private fun SocialSessionListBodyPreview() {
     DallimTheme {
-        SocialSessionListScreen(
+        SocialSessionListBody(
             uiState = SocialSessionListUiState.Success(
                 items = listOf(
                     SocialSessionListItem(
@@ -282,7 +235,6 @@ private fun SocialSessionListScreenPreview() {
                     ),
                 ),
             ),
-            onBackClick = {},
             onSessionClick = {},
             onCreateClick = {},
             onRetryClick = {},
@@ -292,11 +244,10 @@ private fun SocialSessionListScreenPreview() {
 
 @Preview(showBackground = true, heightDp = 900)
 @Composable
-private fun SocialSessionListScreenEmptyPreview() {
+private fun SocialSessionListBodyEmptyPreview() {
     DallimTheme {
-        SocialSessionListScreen(
+        SocialSessionListBody(
             uiState = SocialSessionListUiState.Success(items = emptyList()),
-            onBackClick = {},
             onSessionClick = {},
             onCreateClick = {},
             onRetryClick = {},

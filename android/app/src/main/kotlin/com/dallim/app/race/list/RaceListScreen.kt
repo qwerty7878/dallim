@@ -8,19 +8,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,52 +31,75 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.race.RaceFormat
 import com.dallim.network.race.RaceSummaryItem
+import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTab
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
 
 /**
- * S-80 대회 캘린더 — 리스트 뷰만 구현(월별 캘린더 뷰는 이번 라운드 범위 밖,
- * docs/02-api-spec.md 16.6). 탐색(S-11)의 세그먼트 탭 `[대회]`에서 진입한다
- * (docs/달림_화면별_상세기획서_v1.3.md 666행) — [DiscoverRoute]가 이 destination으로 push하고,
- * 이 화면 상단의 "그림 코스" 탭이 다시 뒤로가기로 돌아가는 왕복 구조다.
+ * 대회 탭([com.dallim.app.navigation.DallimDestinations.RACE_TAB], 2026-09-16 재편) — S-80
+ * 대회 캘린더의 최상위 탭 진입점. 홈(S-10)/마이(S-42)와 동일한 최상위 탭 화면 패턴(뒤로가기
+ * 버튼 없음, 하단 탭바로만 진입/이탈)을 따르고 본문은 [RaceListBody]를 그대로 재사용한다
+ * (2026-09-15에 잠깐 있었던 소셜 허브 세그먼트 통합은 사용자 지시로 폐기됨).
  */
 @Composable
 fun RaceListRoute(
-    onBackClick: () -> Unit,
-    onExploreCoursesClick: () -> Unit,
+    onTabSelected: (DallimTab) -> Unit,
     onRaceClick: (raceId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RaceListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    RaceListScreen(
-        uiState = uiState,
-        onBackClick = onBackClick,
-        onExploreCoursesClick = onExploreCoursesClick,
-        onRaceClick = onRaceClick,
-        onRegionFilterChange = viewModel::onRegionFilterChange,
-        onCategoryFilterChange = viewModel::onCategoryFilterChange,
-        onStatusFilterChange = viewModel::onStatusFilterChange,
-        onRetryClick = viewModel::retry,
-        onToggleSaveClick = viewModel::onToggleSaveClick,
+    Scaffold(
         modifier = modifier,
-    )
+        containerColor = DallimColors.Background,
+        bottomBar = {
+            DallimBottomNavigation(selectedTab = DallimTab.RACE, onTabSelected = onTabSelected)
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DallimColors.Background)
+                .padding(innerPadding),
+        ) {
+            Text(
+                text = "대회",
+                style = DallimTypography.Title1,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
+            )
+            RaceListBody(
+                uiState = uiState,
+                onRaceClick = onRaceClick,
+                onRegionFilterChange = viewModel::onRegionFilterChange,
+                onCategoryFilterChange = viewModel::onCategoryFilterChange,
+                onStatusFilterChange = viewModel::onStatusFilterChange,
+                onRetryClick = viewModel::retry,
+                onToggleSaveClick = viewModel::onToggleSaveClick,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 }
 
+/**
+ * S-80 대회 캘린더 — 리스트 뷰만 구현(월별 캘린더 뷰는 이번 라운드 범위 밖,
+ * docs/02-api-spec.md 16.6). [RaceListRoute](대회 탭)의 본문 — 헤더나 탭바는 그리지 않고
+ * 필터+목록만 담당한다.
+ */
 @Composable
-private fun RaceListScreen(
+fun RaceListBody(
     uiState: RaceListUiState,
-    onBackClick: () -> Unit,
-    onExploreCoursesClick: () -> Unit,
-    onRaceClick: (String) -> Unit,
+    onRaceClick: (raceId: String) -> Unit,
     onRegionFilterChange: (RaceRegionFilter) -> Unit,
     onCategoryFilterChange: (RaceCategoryFilter) -> Unit,
     onStatusFilterChange: (RaceStatusFilter) -> Unit,
@@ -89,35 +110,8 @@ private fun RaceListScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DallimColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+            .background(DallimColors.Background),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
-
-        // 탐색(S-11)과 왕복하는 세그먼트 탭 — "그림 코스"를 탭하면 뒤로가기와 동일하게 동작한다.
-        Row(
-            modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            DallimFilterChip(label = "그림 코스", selected = false, onClick = onExploreCoursesClick)
-            DallimFilterChip(label = "대회", selected = true, onClick = {})
-        }
-
         RaceFilterSection(
             regionFilter = uiState.regionFilter,
             categoryFilter = uiState.categoryFilter,
@@ -315,9 +309,9 @@ private fun RaceStatusChip(status: String) {
 
 @Preview(showBackground = true, heightDp = 1000)
 @Composable
-private fun RaceListScreenPreview() {
+private fun RaceListBodyPreview() {
     DallimTheme {
-        RaceListScreen(
+        RaceListBody(
             uiState = RaceListUiState(
                 items = listOf(
                     RaceSummaryItem(
@@ -355,8 +349,6 @@ private fun RaceListScreenPreview() {
                 ),
                 isLoading = false,
             ),
-            onBackClick = {},
-            onExploreCoursesClick = {},
             onRaceClick = {},
             onRegionFilterChange = {},
             onCategoryFilterChange = {},

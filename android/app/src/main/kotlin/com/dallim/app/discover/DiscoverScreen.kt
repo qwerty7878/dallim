@@ -30,6 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.running.RunFormat
+import com.dallim.app.social.list.SocialSessionListBody
+import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.RouteListItem
 import com.dallim.ui.components.DallimBottomNavigation
@@ -58,9 +63,19 @@ import com.dallim.ui.theme.Spacing
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * S-11 탐색(코스 리스트) — 필터 + 무한스크롤 (docs/01-feature-spec.md §1.2).
- * 하단 탭바 도입(§1.0) 후에도 다른 화면(저장한 코스 등)에서 push로 진입할 수 있어
- * 상단 뒤로가기 버튼은 유지한다 — 탭 클릭으로 들어왔을 때는 눌러도 홈으로 돌아갈 뿐이라 무해하다.
+ * S-11 탐색 — 코스 리스트(필터 + 무한스크롤, docs/01-feature-spec.md §1.2) / 소셜 세션(S-30)
+ * `[그림 코스]/[소셜]` 2단 세그먼트. 하단 탭바 도입(§1.0) 후에도 다른 화면(저장한 코스 등)에서
+ * push로 진입할 수 있어 상단 뒤로가기 버튼은 유지한다 — 탭 클릭으로 들어왔을 때는 눌러도
+ * 홈으로 돌아갈 뿐이라 무해하다.
+ *
+ * 2026-09-16 재편: 2026-09-15에 대회/소셜 세션을 별도 "소셜" 통합 탭으로 옮겼던 것을 사용자
+ * 지시로 되돌렸다. 대회(S-80)는 독립 [DallimTab.RACE] 탭으로 승격했고, 소셜 세션(S-30)은 이
+ * 화면의 `[소셜]` 세그먼트로 돌아왔다(대회 칩은 넣지 않는다 — 이제 독립 탭이 있으므로). `[소셜]`
+ * 세그먼트를 선택하면 push 이동 없이 그 자리에서 [SocialSessionListBody]를 인라인 렌더링한다 —
+ * 이 화면(EXPLORE) 자신의 NavBackStackEntry가 [SocialSessionListViewModel]의
+ * `SavedStateHandle` owner가 되어, 세션 생성(S-31) 후 돌아왔을 때 자동 새로고침되는 결과 플래그
+ * 릴레이([com.dallim.app.navigation.DallimNavHost]의 `SOCIAL_SESSION_CREATE.onCreated` 참고)가
+ * 그대로 동작한다.
  */
 @Composable
 fun DiscoverRoute(
@@ -68,21 +83,24 @@ fun DiscoverRoute(
     onRouteClick: (routeId: String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
-    onRaceTabClick: () -> Unit,
-    onSocialTabClick: () -> Unit,
+    onSessionClick: (sessionId: String) -> Unit,
+    onCreateSessionClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var segment by rememberSaveable { mutableStateOf(DiscoverSegment.COURSE) }
 
     DiscoverScreen(
+        segment = segment,
+        onSegmentChange = { segment = it },
         uiState = uiState,
         onBackClick = onBackClick,
         onRouteClick = onRouteClick,
         onTabSelected = onTabSelected,
         onCreateCourseClick = onCreateCourseClick,
-        onRaceTabClick = onRaceTabClick,
-        onSocialTabClick = onSocialTabClick,
+        onSessionClick = onSessionClick,
+        onCreateSessionClick = onCreateSessionClick,
         onDistanceFilterChange = viewModel::onDistanceFilterChange,
         onStatusFilterChange = viewModel::onStatusFilterChange,
         onSortChange = viewModel::onSortChange,
@@ -93,15 +111,19 @@ fun DiscoverRoute(
     )
 }
 
+private enum class DiscoverSegment { COURSE, SOCIAL }
+
 @Composable
 private fun DiscoverScreen(
+    segment: DiscoverSegment,
+    onSegmentChange: (DiscoverSegment) -> Unit,
     uiState: DiscoverUiState,
     onBackClick: () -> Unit,
     onRouteClick: (String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
-    onRaceTabClick: () -> Unit,
-    onSocialTabClick: () -> Unit,
+    onSessionClick: (String) -> Unit,
+    onCreateSessionClick: () -> Unit,
     onDistanceFilterChange: (DistanceFilter) -> Unit,
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
@@ -129,15 +151,17 @@ private fun DiscoverScreen(
             DallimBottomNavigation(selectedTab = DallimTab.EXPLORE, onTabSelected = onTabSelected)
         },
         floatingActionButton = {
-            // S-43 코스 만들기 진입점 (오케스트레이터 지시로 신설 — docs/01-feature-spec.md에는
-            // 없던 화면, docs/02-api-spec.md 8장 API에 맞춰 조기 구현).
-            ExtendedFloatingActionButton(
-                onClick = onCreateCourseClick,
-                containerColor = DallimColors.Primary,
-                contentColor = DallimColors.Surface,
-                icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
-                text = { Text(text = "코스 만들기") },
-            )
+            // S-43 코스 만들기 진입점(코스 세그먼트 전용) — 소셜 세그먼트는 SocialSessionListBody가
+            // 자체 "세션 열기" FAB를 그리므로 여기서는 아무것도 띄우지 않는다.
+            if (segment == DiscoverSegment.COURSE) {
+                ExtendedFloatingActionButton(
+                    onClick = onCreateCourseClick,
+                    containerColor = DallimColors.Primary,
+                    contentColor = DallimColors.Surface,
+                    icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
+                    text = { Text(text = "코스 만들기") },
+                )
+            }
         },
     ) { innerPadding ->
         Column(
@@ -162,66 +186,87 @@ private fun DiscoverScreen(
                 Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
             }
 
-            // 대회(S-80)/소셜 세션(S-30)과 왕복하는 세그먼트 탭 — 탭하면 각각의 목록 화면으로
-            // push한다(RaceListScreen.kt 상단 주석에 이미 명시된 왕복 구조와 동일한 방식을
-            // 소셜 세션에도 그대로 적용, 인라인 탭 전환이 아니라 별도 화면 push — 작업 브리핑 참고).
             Row(
-                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                DallimFilterChip(label = "그림 코스", selected = true, onClick = {})
-                DallimFilterChip(label = "대회", selected = false, onClick = onRaceTabClick)
-                DallimFilterChip(label = "소셜", selected = false, onClick = onSocialTabClick)
+                DallimFilterChip(
+                    label = "그림 코스",
+                    selected = segment == DiscoverSegment.COURSE,
+                    onClick = { onSegmentChange(DiscoverSegment.COURSE) },
+                )
+                DallimFilterChip(
+                    label = "소셜",
+                    selected = segment == DiscoverSegment.SOCIAL,
+                    onClick = { onSegmentChange(DiscoverSegment.SOCIAL) },
+                )
             }
 
-            FilterSection(
-                distanceFilter = uiState.distanceFilter,
-                statusFilter = uiState.statusFilter,
-                sort = uiState.sort,
-                onDistanceFilterChange = onDistanceFilterChange,
-                onStatusFilterChange = onStatusFilterChange,
-                onSortChange = onSortChange,
-            )
+            when (segment) {
+                DiscoverSegment.COURSE -> {
+                    FilterSection(
+                        distanceFilter = uiState.distanceFilter,
+                        statusFilter = uiState.statusFilter,
+                        sort = uiState.sort,
+                        onDistanceFilterChange = onDistanceFilterChange,
+                        onStatusFilterChange = onStatusFilterChange,
+                        onSortChange = onSortChange,
+                    )
 
-            when {
-                uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
-                uiState.errorMessage != null && uiState.items.isEmpty() -> DallimErrorState(
-                    title = "코스를 불러오지 못했어요",
-                    description = uiState.errorMessage,
-                    onRetry = onRetryClick,
-                    modifier = Modifier.weight(1f),
-                )
-                uiState.items.isEmpty() -> DallimEmptyState(
-                    title = "조건에 맞는 코스가 없어요",
-                    description = "필터를 바꿔서 다시 찾아보세요.",
-                    modifier = Modifier.weight(1f),
-                )
-                else -> LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(
-                        start = Spacing.ScreenHorizontal,
-                        end = Spacing.ScreenHorizontal,
-                        top = Spacing.sm,
-                        bottom = Spacing.xxl,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
-                ) {
-                    items(uiState.items, key = { it.routeId }) { route ->
-                        RouteRow(
-                            route = route,
-                            isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
-                            onClick = { onRouteClick(route.routeId) },
-                            onToggleSaveClick = { onToggleSaveClick(route.routeId) },
+                    when {
+                        uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
+                        uiState.errorMessage != null && uiState.items.isEmpty() -> DallimErrorState(
+                            title = "코스를 불러오지 못했어요",
+                            description = uiState.errorMessage,
+                            onRetry = onRetryClick,
+                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    if (uiState.isLoadingMore) {
-                        item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = DallimColors.Primary)
+                        uiState.items.isEmpty() -> DallimEmptyState(
+                            title = "조건에 맞는 코스가 없어요",
+                            description = "필터를 바꿔서 다시 찾아보세요.",
+                            modifier = Modifier.weight(1f),
+                        )
+                        else -> LazyColumn(
+                            state = listState,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(
+                                start = Spacing.ScreenHorizontal,
+                                end = Spacing.ScreenHorizontal,
+                                top = Spacing.sm,
+                                bottom = Spacing.xxl,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+                        ) {
+                            items(uiState.items, key = { it.routeId }) { route ->
+                                RouteRow(
+                                    route = route,
+                                    isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
+                                    onClick = { onRouteClick(route.routeId) },
+                                    onToggleSaveClick = { onToggleSaveClick(route.routeId) },
+                                )
+                            }
+                            if (uiState.isLoadingMore) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = DallimColors.Primary)
+                                    }
+                                }
                             }
                         }
                     }
+                }
+                DiscoverSegment.SOCIAL -> {
+                    val socialViewModel: SocialSessionListViewModel = hiltViewModel()
+                    val socialUiState by socialViewModel.uiState.collectAsStateWithLifecycle()
+                    SocialSessionListBody(
+                        uiState = socialUiState,
+                        onSessionClick = onSessionClick,
+                        onCreateClick = onCreateSessionClick,
+                        onRetryClick = socialViewModel::load,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -348,6 +393,8 @@ private const val LOAD_MORE_THRESHOLD = 4
 private fun DiscoverScreenPreview() {
     DallimTheme {
         DiscoverScreen(
+            segment = DiscoverSegment.COURSE,
+            onSegmentChange = {},
             uiState = DiscoverUiState(
                 items = listOf(
                     RouteListItem(
@@ -392,8 +439,8 @@ private fun DiscoverScreenPreview() {
             onRouteClick = {},
             onTabSelected = {},
             onCreateCourseClick = {},
-            onRaceTabClick = {},
-            onSocialTabClick = {},
+            onSessionClick = {},
+            onCreateSessionClick = {},
             onDistanceFilterChange = {},
             onStatusFilterChange = {},
             onSortChange = {},
