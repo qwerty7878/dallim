@@ -2424,3 +2424,107 @@ running_mates
   생겼다.
 - Android 화면(S-30~S-39) — 2026-09-15 전체 구현 완료(1단계 2026-09-15 1차, 2단계 같은 날
   후속), `docs/01-feature-spec.md` 1.11절 참고.
+
+## 18. 채팅 인박스 / 유저 차단 (2026-09-15 — 사용자 지시로 신규 도입, v1.3 SPEC 밖)
+
+> `docs/달림_화면별_상세기획서_v1.3.md`에는 없는 신규 범위다. 바텀 네비게이션에 "채팅" 탭을
+> 올리려면 내가 속한 소셜 세션들의 채팅 목록(인박스)이 필요하다는 이 세션의 판단을 사용자가
+> 승인했고, 같은 자리에서 유저 차단(채팅 발신자 한정)도 함께 승인됐다. **API만 이번 라운드에
+> 구현했고, 안드로이드 화면(채팅 탭/차단 버튼)은 다음 라운드**다.
+
+### 18.1 `GET /users/me/social-sessions` — 채팅 인박스 🔒
+
+호스트이거나 `APPROVED` 참가자인 모든 소셜 세션. 페이지네이션 없음(한 유저가 동시에 속한 세션
+수는 자연히 적어 전체 반환).
+
+**정렬**: 가장 최근 채팅 메시지 시각(`lastMessage.createdAt`) 내림차순. 채팅이 한 번도 없었던
+세션은 뒤로 밀리고, 그 안에서는 `scheduledAt` 오름차순(다음 예정 순)으로 정렬한다.
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "sessionId": "ss_05ge0doe",
+        "title": "인박스 테스트 세션",
+        "routeThumbnailGeoJson": { "type": "LineString", "coordinates": [[126.93, 37.358], [126.939, 37.3655]] },
+        "scheduledAt": "2026-12-01T10:00:00Z",
+        "isHost": true,
+        "approvedCount": 1,
+        "maxParticipants": 5,
+        "status": "NEAR_CONFIRMATION",
+        "lastMessage": {
+          "body": "테스트 메시지입니다",
+          "type": "TEXT",
+          "createdAt": "2026-09-15T14:36:56.061747Z",
+          "senderNickname": "달림이"
+        }
+      }
+    ]
+  },
+  "error": null
+}
+```
+- `status`는 17장과 동일한 `SocialSessionDisplayStatus`(`RECRUITING`/`NEAR_CONFIRMATION`/
+  `CONFIRMED`/`CANCELLED`).
+- `lastMessage`는 채팅이 없으면 `null`. 시스템 메시지(`type=SYSTEM`)면 `senderNickname`도
+  `null`.
+- `routeThumbnailGeoJson`은 코스가 조회되지 않으면(드묾) `null`.
+- **읽음/안읽음 카운트는 이번 라운드 범위 밖** — 마지막 읽은 시각을 저장하는 인프라가 전혀
+  없다. 만들지 않았다(과설계 금지).
+
+### 18.2 유저 차단 — 채팅 메시지 발신자 차단 한정
+
+스코프를 **채팅 메시지 발신자 차단**으로 좁힌다. 세션 신청/매칭 등 다른 곳에 차단 효과를
+전파하지 않는다(이번 라운드 범위 밖). 서버는 차단 관계를 CRUD로만 노출하고 메시지 자체를
+필터링하지 않는다 — **클라이언트가 `GET /users/me/blocks` 결과로 채팅 화면에서 발신자를 직접
+걸러낸다**. 그래서 채팅 히스토리(17.11)/WebSocket(17.12) 응답 스키마는 전혀 바뀌지 않았다.
+
+#### `POST /users/me/blocks` 🔒
+
+```json
+// Request
+{ "blockedUserId": "usr_hkfob938" }
+```
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 이미 차단한 상대면 그대로 `200`(멱등, 중복 INSERT 없음).
+- 자기 자신을 차단하려 하면 `400 VALIDATION_ERROR`.
+- `blockedUserId`가 존재하지 않는 유저면 `404 BLOCK_TARGET_NOT_FOUND`.
+
+#### `DELETE /users/me/blocks/{blockedUserId}` 🔒
+
+```json
+// Response 200
+{ "success": true, "data": null, "error": null }
+```
+- 차단 관계가 없어도 `200`(멱등).
+
+#### `GET /users/me/blocks` 🔒
+
+```json
+// Response 200
+{
+  "success": true,
+  "data": {
+    "items": [
+      { "userId": "usr_hkfob938", "nickname": "달림이", "avatarId": null, "blockedAt": "2026-09-15T14:37:22.296603Z" }
+    ]
+  },
+  "error": null
+}
+```
+- 최근 차단순 정렬, 페이지네이션 없음.
+- `gender`는 CLAUDE.md 규칙 2에 따라 어떤 응답에도 없다.
+
+### 18.3 이번 라운드에 만들지 않은 것
+- 채팅 인박스의 읽음/안읽음 카운트(마지막 읽은 시각 저장 인프라 없음).
+- 차단의 세션 신청/매칭/추천 파급 효과 — 차단해도 상대는 여전히 내 세션에 신청할 수 있고 나도
+  상대 세션에 신청할 수 있다(이번 라운드는 채팅 화면에서만 가려지는 순수 클라이언트 필터).
+- 차단 사유 입력 UI/차단 알림 — 차단은 조용히, 상대에게 어떤 알림도 가지 않는다.
+- 안드로이드 화면(채팅 탭 바텀 네비게이션 진입점, 차단/차단 목록 화면) — API만 이번 라운드,
+  화면은 다음 라운드.

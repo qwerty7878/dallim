@@ -18,6 +18,7 @@ import com.dallim.social.socialSessionChatRoutes
 import com.dallim.social.socialSessionFeedbackRoutes
 import com.dallim.social.socialSessionInboxRoutes
 import com.dallim.social.socialSessionRoutes
+import com.dallim.user.blockedUserRoutes
 import com.dallim.user.savedRouteRoutes
 import com.dallim.user.userRoutes
 import io.ktor.server.application.Application
@@ -59,6 +60,7 @@ fun Application.configureRouting() {
             socialSessionFeedbackRoutes()
             runningMateRoutes()
             socialSessionInboxRoutes()
+            blockedUserRoutes()
         }
     }
 }

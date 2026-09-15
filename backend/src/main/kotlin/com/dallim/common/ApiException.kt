@@ -95,6 +95,11 @@ object ErrorCodes {
     const val SESSION_FEEDBACK_NOT_ELIGIBLE = "SESSION_FEEDBACK_NOT_ELIGIBLE"
     const val SESSION_FEEDBACK_TARGET_NOT_ELIGIBLE = "SESSION_FEEDBACK_TARGET_NOT_ELIGIBLE"
 
+    // user block (docs/02-api-spec.md 18장, com.dallim.user.BlockedUser — 채팅 발신자 차단만,
+    // 세션 신청/매칭 파급 효과 없음). 자기 자신 차단은 별도 코드 없이 기존 VALIDATION_ERROR를
+    // 그대로 쓴다(사용자 지시).
+    const val BLOCK_TARGET_NOT_FOUND = "BLOCK_TARGET_NOT_FOUND"
+
     // generic
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
     const val UNAUTHORIZED = "UNAUTHORIZED"

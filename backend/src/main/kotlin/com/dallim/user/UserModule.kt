@@ -16,4 +16,8 @@ val userModule = module {
     single { SavedRouteService(get(), get()) }
     single { UserRepository(get()) }
     single { UserService(get()) }
+    // 유저 차단(18장, 사용자 지시로 신규 도입) -- 채팅 메시지 발신자 차단 CRUD만, 세션 신청/매칭
+    // 파급 효과 없음.
+    single { BlockedUserRepository(get()) }
+    single { BlockedUserService(get(), get()) }
 }
