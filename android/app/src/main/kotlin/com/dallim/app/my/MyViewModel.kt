@@ -36,8 +36,9 @@ sealed interface MyNavigationEvent {
 
 /**
  * S-42 마이 — 아바타/닉네임/총 러닝 횟수/총 거리 조회 + 로그아웃 (docs/01-feature-spec.md §1.5,
- * `GET /users/me`, `POST /auth/logout`). 닉네임/아바타 수정 기능은 없다 — `PATCH /users/me` 같은
- * 수정용 API가 SPEC에 없어 이번 범위(조회+로그아웃)를 넘기지 않는다.
+ * `GET /users/me`, `POST /auth/logout`). 닉네임/아바타 수정 자체는 별도 화면
+ * ([com.dallim.app.my.edit.ProfileEditViewModel], `PATCH /users/me`)이 담당하고, 이 화면은 그
+ * 화면에서 돌아왔을 때(RESUME) [load]를 다시 호출해 갱신된 값을 반영하기만 한다.
  */
 @HiltViewModel
 class MyViewModel @Inject constructor(

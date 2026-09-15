@@ -19,6 +19,7 @@ import com.dallim.app.meetup.detail.MeetupDetailRoute
 import com.dallim.app.meetup.list.MeetupListRoute
 import com.dallim.app.meetup.list.MeetupListViewModel
 import com.dallim.app.my.MyRoute
+import com.dallim.app.my.edit.ProfileEditRoute
 import com.dallim.app.notification.NotificationListRoute
 import com.dallim.app.onboarding.career.CareerEntryRoute
 import com.dallim.app.onboarding.carousel.OnboardingCarouselScreen
@@ -368,6 +369,7 @@ fun DallimNavHost(
         composable(DallimDestinations.MY) {
             MyRoute(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
+                onEditProfileClick = { navController.navigate(DallimDestinations.PROFILE_EDIT) },
                 onMedalShelfClick = { navController.navigate(DallimDestinations.MEDAL_SHELF) },
                 onRunningMatesClick = { navController.navigate(DallimDestinations.RUNNING_MATE_LIST) },
                 onBlockedUsersClick = { navController.navigate(DallimDestinations.BLOCKED_USER_LIST) },
@@ -384,6 +386,15 @@ fun DallimNavHost(
 
         composable(DallimDestinations.BLOCKED_USER_LIST) {
             BlockedUserListRoute(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(DallimDestinations.PROFILE_EDIT) {
+            ProfileEditRoute(
+                onBackClick = { navController.popBackStack() },
+                // 마이(S-42)는 RESUME 시 무조건 새로고침하므로 별도 결과 플래그 없이 그냥
+                // popBackStack만 하면 된다(MyRoute의 LifecycleResumeEffect 참고).
+                onSaved = { navController.popBackStack() },
+            )
         }
 
         composable(DallimDestinations.MEDAL_SHELF) {

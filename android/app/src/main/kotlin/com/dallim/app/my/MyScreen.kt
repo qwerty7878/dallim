@@ -14,8 +14,10 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.onboarding.profile.ComfortablePace
@@ -49,7 +52,8 @@ import com.dallim.ui.theme.Spacing
  * 온보딩(S-04, [RunningExperience]/[ComfortablePace])의 한글 라벨 매핑으로 표시한다 — 값이
  * 비어있으면(온보딩 프로필 설정 미완료 계정) 해당 행을 "미설정"으로 대체한다.
  * 홈(S-10)과 마찬가지로 오직 하단 탭바로만 진입하는 최상위 화면이라 상단 뒤로가기 버튼은 두지
- * 않는다. 닉네임/아바타 수정 기능은 없다(스코프 밖 — `PATCH /users/me`가 SPEC에 없음).
+ * 않는다. 프로필 카드의 연필 아이콘(2026-09-16 신규, 사용자 지시 — v1.3 SPEC 밖)이 닉네임/아바타
+ * 수정 화면([com.dallim.app.my.edit.ProfileEditRoute], `PATCH /users/me`)으로 보낸다.
  *
  * S-91(완주 메달 선반) 진입점을 카드 하나로 둔다(2026-09-06 신규) — 새 탭을 만들지 않고 기존
  * 4탭 구조를 유지한다는 원칙에 따라, 마이 안에서만 진입 가능하게 한다.
@@ -57,6 +61,7 @@ import com.dallim.ui.theme.Spacing
 @Composable
 fun MyRoute(
     onTabSelected: (DallimTab) -> Unit,
+    onEditProfileClick: () -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
     onBlockedUsersClick: () -> Unit,
@@ -74,9 +79,18 @@ fun MyRoute(
         }
     }
 
+    // 프로필 수정(신규 화면)에서 닉네임/아바타를 바꾸고 돌아왔을 때 반영하는 새로고침 — 이 화면은
+    // 탭 루트라 SavedStateHandle 플래그 릴레이 대신 RESUME마다 다시 불러오는 더 단순한 방식을
+    // 쓴다(app/discover/DiscoverScreen.kt의 소셜 세그먼트와 동일 패턴, 실측으로 검증된 방식).
+    LifecycleResumeEffect(Unit) {
+        viewModel.load()
+        onPauseOrDispose { }
+    }
+
     MyScreen(
         uiState = uiState,
         onTabSelected = onTabSelected,
+        onEditProfileClick = onEditProfileClick,
         onMedalShelfClick = onMedalShelfClick,
         onRunningMatesClick = onRunningMatesClick,
         onBlockedUsersClick = onBlockedUsersClick,
@@ -90,6 +104,7 @@ fun MyRoute(
 private fun MyScreen(
     uiState: MyUiState,
     onTabSelected: (DallimTab) -> Unit,
+    onEditProfileClick: () -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
     onBlockedUsersClick: () -> Unit,
@@ -130,7 +145,7 @@ private fun MyScreen(
                         .weight(1f)
                         .padding(horizontal = Spacing.ScreenHorizontal),
                 ) {
-                    ProfileCard(user = uiState.user)
+                    ProfileCard(user = uiState.user, onEditClick = onEditProfileClick)
 
                     MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.lg))
 
@@ -151,12 +166,19 @@ private fun MyScreen(
 }
 
 @Composable
-private fun ProfileCard(user: UserMeResponseBody) {
+private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
     DallimCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AvatarBadge(avatarId = user.avatarId)
-            Column(modifier = Modifier.padding(start = Spacing.md)) {
+            Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
                 Text(text = user.nickname, style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+            }
+            IconButton(onClick = onEditClick) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = "프로필 수정",
+                    tint = DallimColors.TextSecondary,
+                )
             }
         }
 
@@ -316,6 +338,7 @@ private fun MyScreenPreview() {
                 ),
             ),
             onTabSelected = {},
+            onEditProfileClick = {},
             onMedalShelfClick = {},
             onRunningMatesClick = {},
             onBlockedUsersClick = {},

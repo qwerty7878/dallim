@@ -6,6 +6,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -20,6 +21,15 @@ interface UserApi {
 
     @GET("users/me")
     suspend fun getMe(): Response<ApiResponse<UserMeResponseBody>>
+
+    /**
+     * 닉네임/아바타 수정 (2026-09-16 신규, 사용자 지시 — v1.3 SPEC 밖, docs/02-api-spec.md 2장).
+     * 온보딩 1회성 등록([submitProfile])과 별개. 두 필드 모두 optional이지만 이 앱은 항상 둘 다
+     * 채워서 보낸다(과설계 방지 — 바뀐 필드만 골라 보내는 diff 로직을 두지 않는다).
+     * 닉네임이 본인의 현재 값과 같으면 서버가 충돌 처리하지 않고 통과시킨다.
+     */
+    @PATCH("users/me")
+    suspend fun patchMe(@Body request: PatchMeRequest): Response<ApiResponse<UserMeResponseBody>>
 
     @GET("users/me/saved-routes")
     suspend fun getSavedRoutes(
@@ -62,6 +72,14 @@ data class ProfileRequest(
 
 @Serializable
 data class ProfileResponseBody(val userId: String, val nickname: String)
+
+/** `PATCH /users/me` (2026-09-16 신규) request body — 둘 다 optional, `gender`는 포함하지 않는다
+ * (CLAUDE.md 규칙 2, 애초에 이 엔드포인트로 바꿀 수 있는 값도 아니다). */
+@Serializable
+data class PatchMeRequest(
+    val nickname: String? = null,
+    val avatarId: String? = null,
+)
 
 @Serializable
 data class UserMeResponseBody(

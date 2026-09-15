@@ -136,6 +136,12 @@ object DallimDestinations {
      */
     const val BLOCKED_USER_LIST = "blocked_user_list"
 
+    /**
+     * 프로필 수정 (2026-09-16 신규, 사용자 지시 — v1.3 SPEC 밖, `PATCH /users/me`). 마이(S-42)의
+     * 프로필 카드 연필 아이콘에서만 진입한다(BLOCKED_USER_LIST와 동일한 관례 — 새 탭 없음).
+     */
+    const val PROFILE_EDIT = "profile_edit"
+
     const val ARG_RACE_ID = "raceId"
 
     /**
