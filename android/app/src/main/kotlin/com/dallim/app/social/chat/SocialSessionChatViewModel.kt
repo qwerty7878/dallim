@@ -7,6 +7,7 @@ import com.dallim.app.common.UiResult
 import com.dallim.app.common.safeApiCall
 import com.dallim.app.navigation.DallimDestinations
 import com.dallim.network.social.ChatMessageItem
+import com.dallim.network.social.SocialChatMessageType
 import com.dallim.network.social.SocialQuickMessages
 import com.dallim.network.social.SocialReportRequest
 import com.dallim.network.social.SocialSessionApi
@@ -43,8 +44,20 @@ sealed interface SocialSessionChatUiState {
         val isSessionReportDialogOpen: Boolean = false,
         val reportReasonDraft: String = "",
         val isSubmittingReport: Boolean = false,
+        /**
+         * 2026-09-16 신규(사용자 지시 "호스트가 채팅방을 열 때 공지방이나 모집장소를 가져올 수
+         * 있게") — 세션 상세(17.3)의 `meetingPointDetail ?: meetingPointHint`. 새 상태를 만들지
+         * 않고 이미 있는 값을 상단에 고정 노출하는 것으로 구현한다. 세션 상세 조회가 실패해도
+         * 채팅 자체는 그대로 쓸 수 있어야 하니 null로 남고 카드는 조용히 숨는다.
+         */
+        val meetingPointText: String? = null,
     ) : SocialSessionChatUiState {
         val isReportDialogOpen: Boolean get() = reportTargetMessageId != null || isSessionReportDialogOpen
+
+        /** 최신순으로 오는 [messages]에서 가장 최근 호스트 공지 — 새 API 없이 이미 로드된
+         * 메시지 목록에서 계산한다. 없으면 null(고정 카드에서 공지 줄을 생략). */
+        val latestAnnouncement: ChatMessageItem?
+            get() = messages.firstOrNull { it.type == SocialChatMessageType.HOST_ANNOUNCEMENT }
     }
 }
 
@@ -78,6 +91,7 @@ class SocialSessionChatViewModel @Inject constructor(
                 is UiResult.Success -> {
                     _uiState.value = SocialSessionChatUiState.Success(messages = result.data.items)
                     connectSocket()
+                    loadMeetingPointInfo()
                 }
                 is UiResult.Error -> {
                     val isExpired = result.code == "SESSION_CHAT_ACCESS_EXPIRED"
@@ -90,6 +104,23 @@ class SocialSessionChatViewModel @Inject constructor(
                         isAccessExpired = isExpired,
                     )
                 }
+                UiResult.Loading -> Unit
+            }
+        }
+    }
+
+    /** 이미 호스트/`APPROVED` 참가자로서 채팅에 들어온 것이므로 `meetingPointDetail`이 채워져
+     * 있을 것이다 — 없으면 항상 채워지는 `meetingPointHint`로 대체한다. 실패해도 채팅 자체를
+     * 막지 않는다(고정 카드만 조용히 숨김). */
+    private fun loadMeetingPointInfo() {
+        viewModelScope.launch {
+            when (val result = safeApiCall { socialSessionApi.getSocialSessionDetail(sessionId) }) {
+                is UiResult.Success -> {
+                    val detail = result.data
+                    val text = detail.meetingPointDetail ?: detail.meetingPointHint
+                    updateSuccess { it.copy(meetingPointText = text) }
+                }
+                is UiResult.Error -> Unit
                 UiResult.Loading -> Unit
             }
         }

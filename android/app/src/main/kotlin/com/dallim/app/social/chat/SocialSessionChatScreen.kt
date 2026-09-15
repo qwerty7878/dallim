@@ -23,7 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -210,6 +212,8 @@ private fun ChatContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
+        MeetingInfoCard(meetingPointText = state.meetingPointText, announcement = state.latestAnnouncement)
+
         if (state.messages.isEmpty()) {
             Text(
                 text = "아직 대화가 없어요. 첫 메시지를 남겨보세요.",
@@ -255,6 +259,59 @@ private fun ChatContent(
             )
             IconButton(onClick = onSendClick) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "전송", tint = DallimColors.Primary)
+            }
+        }
+    }
+}
+
+/**
+ * 상단 고정(스크롤 안 되는) 카드 — 집결지 정보 + 가장 최근 호스트 공지(2026-09-16 신규, 사용자
+ * 지시). 둘 다 없으면 아무것도 그리지 않는다(과설계 금지 — 새 "공지 작성" 폼 없음, 기존 채팅
+ * 입력창으로 TEXT를 보내는 것 자체가 서버에서 자동으로 공지 승격됨).
+ */
+@Composable
+private fun MeetingInfoCard(meetingPointText: String?, announcement: ChatMessageItem?, modifier: Modifier = Modifier) {
+    if (meetingPointText == null && announcement == null) return
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(DallimColors.PrimaryLight)
+            .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.sm),
+    ) {
+        if (meetingPointText != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Place,
+                    contentDescription = null,
+                    tint = DallimColors.Primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = meetingPointText,
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextPrimary,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                )
+            }
+        }
+        if (announcement != null) {
+            Row(
+                modifier = Modifier.padding(top = if (meetingPointText != null) Spacing.xs else 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Campaign,
+                    contentDescription = null,
+                    tint = DallimColors.Primary,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = announcement.body,
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextPrimary,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                )
             }
         }
     }
