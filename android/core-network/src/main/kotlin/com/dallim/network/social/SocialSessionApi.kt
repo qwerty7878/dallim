@@ -246,6 +246,9 @@ data class SocialSessionDetailResponseBody(
     // null | "PENDING" | "APPROVED" | "EXPIRED" | "CANCELLED"
     val myApplicationStatus: String?,
     val participants: List<SocialSessionParticipantItem>,
+    /** `now <= scheduledAt - 3일`(2026-09-16 신규, docs/02-api-spec.md 17.4). false면 "신청하기"를
+     * 미리 비활성화한다 — 최종 방어선은 여전히 apply(17.5)의 서버 검증(`SESSION_APPLY_WINDOW_CLOSED`). */
+    val applicationOpen: Boolean = true,
 )
 
 /** POST /social-sessions/{id}/apply (17.4) request body. */
@@ -265,6 +268,9 @@ data class SocialSessionApplicantItem(
     val message: String?,
     val appliedAt: String,
     val status: String,
+    /** `appliedAt` + 5시간(2026-09-16 신규, docs/02-api-spec.md 17.6) — PENDING일 때 호스트
+     * 응답 마감 시각. "N시간 남음" 표시용, [status]가 PENDING이 아니면 의미 없음. */
+    val respondByAt: String = appliedAt,
 )
 
 @Serializable

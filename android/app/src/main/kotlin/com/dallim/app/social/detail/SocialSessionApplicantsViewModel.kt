@@ -88,9 +88,19 @@ class SocialSessionApplicantsViewModel @Inject constructor(
                     }
                 }
                 is UiResult.Error -> {
-                    _uiState.value = (_uiState.value as? SocialSessionApplicantsUiState.Success)
-                        ?.copy(approvingUserId = null, actionErrorMessage = result.message)
-                        ?: _uiState.value
+                    // 신청 상태가 방금 EXPIRED로 전환됐을 수 있으니(2026-09-16, docs/02-api-spec.md
+                    // 17.7 `SESSION_APPLICATION_EXPIRED`) 실패 시에도 목록을 다시 불러와 뱃지가
+                    // "만료됨"으로 바뀐 걸 보여준다. 다른 실패(정원초과 등)도 최신 상태를 다시
+                    // 보여주는 편이 안전해 분기 없이 항상 새로고침한다.
+                    when (val reload = safeApiCall { socialSessionApi.getSocialSessionApplicants(sessionId) }) {
+                        is UiResult.Success -> _uiState.value = SocialSessionApplicantsUiState.Success(
+                            items = reload.data.items,
+                            actionErrorMessage = result.message,
+                        )
+                        else -> _uiState.value = (_uiState.value as? SocialSessionApplicantsUiState.Success)
+                            ?.copy(approvingUserId = null, actionErrorMessage = result.message)
+                            ?: _uiState.value
+                    }
                 }
                 UiResult.Loading -> Unit
             }

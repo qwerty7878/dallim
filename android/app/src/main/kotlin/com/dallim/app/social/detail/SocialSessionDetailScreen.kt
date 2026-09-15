@@ -171,6 +171,9 @@ private fun SocialSessionDetailScreen(
 private sealed interface SocialSessionDetailAction {
     data object ManageApplicants : SocialSessionDetailAction
     data object Apply : SocialSessionDetailAction
+    /** `applicationOpen == false`(2026-09-16 신규, 행사 3일 전 마감) — 아직 신청한 적 없는데
+     * 신청 창이 닫힌 경우. "신청하기" 버튼을 비활성화 상태로 바꿔 보여준다. */
+    data object ApplicationClosed : SocialSessionDetailAction
     data object CancelApply : SocialSessionDetailAction
     data class StatusOnly(val label: String, val color: androidx.compose.ui.graphics.Color) : SocialSessionDetailAction
     data object None : SocialSessionDetailAction
@@ -179,7 +182,7 @@ private sealed interface SocialSessionDetailAction {
 private fun resolveAction(detail: SocialSessionDetailResponseBody): SocialSessionDetailAction {
     if (detail.isHost) return SocialSessionDetailAction.ManageApplicants
     return when (detail.myApplicationStatus) {
-        null -> SocialSessionDetailAction.Apply
+        null -> if (detail.applicationOpen) SocialSessionDetailAction.Apply else SocialSessionDetailAction.ApplicationClosed
         SocialSessionApplicantStatus.PENDING -> SocialSessionDetailAction.CancelApply
         SocialSessionApplicantStatus.APPROVED ->
             SocialSessionDetailAction.StatusOnly("참가가 확정됐어요", DallimColors.Success)
@@ -357,6 +360,19 @@ private fun SocialSessionDetailContent(
                     text = "참가 신청",
                     onClick = onApplyClick,
                 )
+                SocialSessionDetailAction.ApplicationClosed -> Column {
+                    Text(
+                        text = "마감 3일 전까지만 신청할 수 있어요.",
+                        style = DallimTypography.Caption,
+                        color = DallimColors.TextSecondary,
+                        modifier = Modifier.padding(bottom = Spacing.xs),
+                    )
+                    DallimPrimaryButton(
+                        text = "신청 마감",
+                        onClick = {},
+                        enabled = false,
+                    )
+                }
                 SocialSessionDetailAction.CancelApply -> Column {
                     Text(
                         text = "호스트가 확인 중이에요",
@@ -481,6 +497,7 @@ private fun previewDetail(
     isHost: Boolean,
     myApplicationStatus: String? = null,
     status: String = "RECRUITING",
+    applicationOpen: Boolean = true,
 ) = SocialSessionDetailResponseBody(
     sessionId = "ss_001",
     hostUserId = "usr_1",
@@ -513,6 +530,7 @@ private fun previewDetail(
     participants = listOf(
         SocialSessionParticipantItem(userId = "usr_2", nickname = "러너B", avatarId = "avatar_01"),
     ),
+    applicationOpen = applicationOpen,
 )
 
 @Preview(showBackground = true, heightDp = 900)
@@ -542,6 +560,28 @@ private fun SocialSessionDetailScreenPendingPreview() {
         SocialSessionDetailScreen(
             uiState = SocialSessionDetailUiState.Success(
                 detail = previewDetail(isHost = false, myApplicationStatus = "PENDING"),
+            ),
+            onBackClick = {},
+            onRetryClick = {},
+            onApplicantsClick = {},
+            onChatClick = {},
+            onCheckinClick = {},
+            onApplyClick = {},
+            onApplyDialogDismiss = {},
+            onApplyMessageChange = {},
+            onApplySubmit = {},
+            onCancelApplyClick = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 900)
+@Composable
+private fun SocialSessionDetailScreenApplicationClosedPreview() {
+    DallimTheme {
+        SocialSessionDetailScreen(
+            uiState = SocialSessionDetailUiState.Success(
+                detail = previewDetail(isHost = false, applicationOpen = false, status = "CLOSED"),
             ),
             onBackClick = {},
             onRetryClick = {},

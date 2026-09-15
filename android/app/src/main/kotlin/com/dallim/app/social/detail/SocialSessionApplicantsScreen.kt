@@ -198,6 +198,13 @@ private fun ApplicantCard(
         )
 
         if (applicant.status == SocialSessionApplicantStatus.PENDING) {
+            // 화면 진입/새로고침 시점 1회 계산 — 실시간 카운트다운은 과설계(작업 브리핑 지시).
+            Text(
+                text = "호스트 응답 ${SocialSessionFormat.respondByRemainingLabel(applicant.respondByAt)}",
+                style = DallimTypography.Caption,
+                color = DallimColors.Warning,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
             DallimPrimaryButton(
                 text = if (isApproving) "승인하는 중..." else "승인",
                 onClick = onApproveClick,
@@ -252,6 +259,7 @@ private fun SocialSessionApplicantsScreenPreview() {
                         message = "초보인데 같이 뛰어도 될까요?",
                         appliedAt = "2026-09-14T10:00:00Z",
                         status = "PENDING",
+                        respondByAt = "2026-09-14T15:00:00Z",
                     ),
                     SocialSessionApplicantItem(
                         userId = "usr_3",

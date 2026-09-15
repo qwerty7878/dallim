@@ -1,5 +1,6 @@
 package com.dallim.app.social
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -49,4 +50,19 @@ object SocialSessionFormat {
         "CANCEL" -> "무조건 취소"
         else -> "당일 판단"
     }
+
+    /**
+     * S-34 `respondByAt`(2026-09-16 신규, docs/02-api-spec.md 17.6) 기준 "N시간 남음" 표시.
+     * 화면 진입/새로고침 시점 1회 계산이면 충분하다(작업 브리핑 지시 — 실시간 카운트다운
+     * 타이머는 과설계). 이미 지났으면(다음 조회 시 서버가 EXPIRED로 전환하기 직전 순간) "곧 마감".
+     */
+    fun respondByRemainingLabel(respondByAtIsoInstant: String): String = runCatching {
+        val remaining = Duration.between(Instant.now(), Instant.parse(respondByAtIsoInstant))
+        val hours = remaining.toHours()
+        when {
+            remaining.isNegative || remaining.isZero -> "곧 마감"
+            hours < 1 -> "곧 마감"
+            else -> "${hours}시간 남음"
+        }
+    }.getOrDefault("곧 마감")
 }
