@@ -138,4 +138,24 @@ object DallimDestinations {
     private const val RACE_COURSE_PREVIEW_BASE = "s85_race_course_preview"
     const val RACE_COURSE_PREVIEW = "$RACE_COURSE_PREVIEW_BASE/{$ARG_RACE_ID}"
     fun raceCoursePreview(raceId: String) = "$RACE_COURSE_PREVIEW_BASE/$raceId"
+
+    const val ARG_SOCIAL_SESSION_ID = "sessionId"
+
+    /**
+     * S-30~S-34 소셜 세션 1단계 (2026-09-13 신규, docs/달림_화면별_상세기획서_v1.3.md PART 3-D,
+     * docs/02-api-spec.md 17장). 탐색(S-11)의 세그먼트 탭에서 진입한다(DiscoverScreen 참고,
+     * 대회(S-80) 탭과 동일한 왕복 push 구조). 팀채팅/체크인/Ready Check/평가/Running Mate
+     * (S-35~S-39)는 2단계라 여기 없다.
+     */
+    const val SOCIAL_SESSION_LIST = "s30_social_session_list" // S-30
+
+    const val SOCIAL_SESSION_CREATE = "s31_social_session_create" // S-31
+
+    private const val SOCIAL_SESSION_DETAIL_BASE = "s32_social_session_detail" // S-32
+    const val SOCIAL_SESSION_DETAIL = "$SOCIAL_SESSION_DETAIL_BASE/{$ARG_SOCIAL_SESSION_ID}"
+    fun socialSessionDetail(sessionId: String) = "$SOCIAL_SESSION_DETAIL_BASE/$sessionId"
+
+    private const val SOCIAL_SESSION_APPLICANTS_BASE = "s34_social_session_applicants" // S-34
+    const val SOCIAL_SESSION_APPLICANTS = "$SOCIAL_SESSION_APPLICANTS_BASE/{$ARG_SOCIAL_SESSION_ID}"
+    fun socialSessionApplicants(sessionId: String) = "$SOCIAL_SESSION_APPLICANTS_BASE/$sessionId"
 }

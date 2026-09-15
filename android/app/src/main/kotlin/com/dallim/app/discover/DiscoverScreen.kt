@@ -69,6 +69,7 @@ fun DiscoverRoute(
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
     onRaceTabClick: () -> Unit,
+    onSocialTabClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
@@ -81,6 +82,7 @@ fun DiscoverRoute(
         onTabSelected = onTabSelected,
         onCreateCourseClick = onCreateCourseClick,
         onRaceTabClick = onRaceTabClick,
+        onSocialTabClick = onSocialTabClick,
         onDistanceFilterChange = viewModel::onDistanceFilterChange,
         onStatusFilterChange = viewModel::onStatusFilterChange,
         onSortChange = viewModel::onSortChange,
@@ -99,6 +101,7 @@ private fun DiscoverScreen(
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
     onRaceTabClick: () -> Unit,
+    onSocialTabClick: () -> Unit,
     onDistanceFilterChange: (DistanceFilter) -> Unit,
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
@@ -159,14 +162,16 @@ private fun DiscoverScreen(
                 Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
             }
 
-            // 대회(S-80)와 왕복하는 세그먼트 탭 — "대회"를 탭하면 RaceListRoute로 push한다
-            // (RaceListScreen.kt 상단 주석에 이미 명시된 왕복 구조의 반대쪽 절반).
+            // 대회(S-80)/소셜 세션(S-30)과 왕복하는 세그먼트 탭 — 탭하면 각각의 목록 화면으로
+            // push한다(RaceListScreen.kt 상단 주석에 이미 명시된 왕복 구조와 동일한 방식을
+            // 소셜 세션에도 그대로 적용, 인라인 탭 전환이 아니라 별도 화면 push — 작업 브리핑 참고).
             Row(
                 modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 DallimFilterChip(label = "그림 코스", selected = true, onClick = {})
                 DallimFilterChip(label = "대회", selected = false, onClick = onRaceTabClick)
+                DallimFilterChip(label = "소셜", selected = false, onClick = onSocialTabClick)
             }
 
             FilterSection(
@@ -388,6 +393,7 @@ private fun DiscoverScreenPreview() {
             onTabSelected = {},
             onCreateCourseClick = {},
             onRaceTabClick = {},
+            onSocialTabClick = {},
             onDistanceFilterChange = {},
             onStatusFilterChange = {},
             onSortChange = {},

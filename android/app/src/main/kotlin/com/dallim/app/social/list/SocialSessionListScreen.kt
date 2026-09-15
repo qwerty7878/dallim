@@ -1,0 +1,305 @@
+package com.dallim.app.social.list
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dallim.app.social.SocialAvatarBadge
+import com.dallim.app.social.SocialSessionFormat
+import com.dallim.network.common.GeoJsonLineString
+import com.dallim.network.social.SocialSessionListItem
+import com.dallim.ui.components.DallimEmptyState
+import com.dallim.ui.components.DallimErrorState
+import com.dallim.ui.components.DallimFilterChip
+import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.GeoPoint
+import com.dallim.ui.components.RouteThumbnailView
+import com.dallim.ui.components.SocialSessionStatusBadge
+import com.dallim.ui.components.socialSessionBadgeState
+import com.dallim.ui.theme.DallimColors
+import com.dallim.ui.theme.DallimShapes
+import com.dallim.ui.theme.DallimTheme
+import com.dallim.ui.theme.DallimTypography
+import com.dallim.ui.theme.Spacing
+
+/**
+ * S-30 세션 탐색 — 소셜 세션(호스트 승인 워크플로우가 있는 무거운 모집, S-30~S-39) 목록
+ * (docs/달림_화면별_상세기획서_v1.3.md PART 3-D, docs/02-api-spec.md 17.2). 지도 핀/리스트
+ * 토글과 세밀한 필터는 이번 1단계 범위 밖 — 리스트만 구현한다(과설계 금지, 작업 브리핑 참고).
+ * 탐색(S-11)의 "소셜" 세그먼트 칩에서 push로 진입한다(DiscoverScreen 참고).
+ */
+@Composable
+fun SocialSessionListRoute(
+    onBackClick: () -> Unit,
+    onSessionClick: (sessionId: String) -> Unit,
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: SocialSessionListViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    SocialSessionListScreen(
+        uiState = uiState,
+        onBackClick = onBackClick,
+        onSessionClick = onSessionClick,
+        onCreateClick = onCreateClick,
+        onRetryClick = viewModel::load,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun SocialSessionListScreen(
+    uiState: SocialSessionListUiState,
+    onBackClick: () -> Unit,
+    onSessionClick: (String) -> Unit,
+    onCreateClick: () -> Unit,
+    onRetryClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.fillMaxSize().background(DallimColors.Background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = DallimColors.TextPrimary,
+                    )
+                }
+                Text(text = "소셜 세션", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+            }
+
+            when (uiState) {
+                SocialSessionListUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
+                is SocialSessionListUiState.Error -> DallimErrorState(
+                    title = "세션 목록을 불러오지 못했어요",
+                    description = uiState.message,
+                    onRetry = onRetryClick,
+                    modifier = Modifier.weight(1f),
+                )
+                is SocialSessionListUiState.Success -> {
+                    if (uiState.items.isEmpty()) {
+                        DallimEmptyState(
+                            title = "이 지역엔 아직 모집 중인 달림이 없어요",
+                            description = "내가 첫 세션을 열어 같이 달릴 사람을 모아보세요.",
+                            actionText = "내가 첫 세션 열기",
+                            onActionClick = onCreateClick,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(
+                                start = Spacing.ScreenHorizontal,
+                                end = Spacing.ScreenHorizontal,
+                                top = Spacing.sm,
+                                bottom = Spacing.xxl + FabClearance,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+                        ) {
+                            items(uiState.items, key = { it.sessionId }) { session ->
+                                SocialSessionRow(session = session, onClick = { onSessionClick(session.sessionId) })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ExtendedFloatingActionButton(
+            onClick = onCreateClick,
+            containerColor = DallimColors.Primary,
+            contentColor = DallimColors.Surface,
+            icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
+            text = { Text(text = "세션 열기") },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(Spacing.ScreenHorizontal),
+        )
+    }
+}
+
+@Composable
+private fun SocialSessionRow(session: SocialSessionListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(DallimShapes.CardCorner)
+            .background(DallimColors.Surface)
+            .clickable { onClick() }
+            .padding(Spacing.md),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            RouteThumbnailView(
+                coordinates = session.routeThumbnailGeoJson?.toGeoPoints() ?: emptyList(),
+                modifier = Modifier.size(64.dp),
+            )
+            Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        text = session.title,
+                        style = DallimTypography.Body,
+                        color = DallimColors.TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SocialSessionStatusBadge(state = socialSessionBadgeState(session.status))
+                }
+                Text(
+                    text = SocialSessionFormat.displayDateTime(session.scheduledAt),
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+                Text(
+                    text = "승인됨 ${session.approvedCount}/${session.maxParticipants}명",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SocialAvatarBadge(avatarId = session.hostAvatarId, size = 24.dp)
+            Text(
+                text = "${session.hostNickname} · ${SocialSessionFormat.displayTemperature(session.hostRunningTemperature)}",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(start = Spacing.xs),
+            )
+        }
+
+        if (session.beginnerFriendly || session.runningStyles.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                if (session.beginnerFriendly) {
+                    item { DallimFilterChip(label = "초보환영", selected = false, onClick = {}) }
+                }
+                items(session.runningStyles) { style ->
+                    DallimFilterChip(label = style, selected = false, onClick = {})
+                }
+            }
+        }
+    }
+}
+
+private fun GeoJsonLineString.toGeoPoints(): List<GeoPoint> =
+    toLngLatPairs().map { (lng, lat) -> GeoPoint(lng = lng, lat = lat) }
+
+private val FabClearance = 64.dp
+
+@Preview(showBackground = true, heightDp = 900)
+@Composable
+private fun SocialSessionListScreenPreview() {
+    DallimTheme {
+        SocialSessionListScreen(
+            uiState = SocialSessionListUiState.Success(
+                items = listOf(
+                    SocialSessionListItem(
+                        sessionId = "ss_001",
+                        title = "안양천 야간 러닝",
+                        scheduledAt = "2026-09-20T21:00:00Z",
+                        routeId = "rt_004",
+                        routeThumbnailGeoJson = GeoJsonLineString(
+                            coordinates = listOf(listOf(126.9, 37.5), listOf(126.91, 37.51), listOf(126.92, 37.505)),
+                        ),
+                        approvedCount = 3,
+                        minParticipants = 4,
+                        maxParticipants = 6,
+                        runningStyles = listOf("대화하면서", "초보환영조합"),
+                        hostUserId = "usr_1",
+                        hostNickname = "달림이",
+                        hostAvatarId = "avatar_02",
+                        hostRunningTemperature = 37.2,
+                        beginnerFriendly = true,
+                        status = "NEAR_CONFIRMATION",
+                    ),
+                    SocialSessionListItem(
+                        sessionId = "ss_002",
+                        title = "판교 러닝 크루 정모",
+                        scheduledAt = "2026-09-25T10:00:00Z",
+                        routeId = "rt_010",
+                        routeThumbnailGeoJson = null,
+                        approvedCount = 6,
+                        minParticipants = 6,
+                        maxParticipants = 8,
+                        runningStyles = emptyList(),
+                        hostUserId = "usr_2",
+                        hostNickname = "러너B",
+                        hostAvatarId = null,
+                        hostRunningTemperature = 36.5,
+                        beginnerFriendly = false,
+                        status = "CONFIRMED",
+                    ),
+                ),
+            ),
+            onBackClick = {},
+            onSessionClick = {},
+            onCreateClick = {},
+            onRetryClick = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 900)
+@Composable
+private fun SocialSessionListScreenEmptyPreview() {
+    DallimTheme {
+        SocialSessionListScreen(
+            uiState = SocialSessionListUiState.Success(items = emptyList()),
+            onBackClick = {},
+            onSessionClick = {},
+            onCreateClick = {},
+            onRetryClick = {},
+        )
+    }
+}

@@ -41,6 +41,12 @@ import com.dallim.app.running.navigation.RunNavigationRoute
 import com.dallim.app.running.prepare.RunPrepareRoute
 import com.dallim.app.running.result.RunResultRoute
 import com.dallim.app.running.share.ShareCardRoute
+import com.dallim.app.social.create.SocialSessionCreateRoute
+import com.dallim.app.social.detail.SocialSessionApplicantsRoute
+import com.dallim.app.social.detail.SocialSessionDetailRoute
+import com.dallim.app.social.detail.SocialSessionDetailViewModel
+import com.dallim.app.social.list.SocialSessionListRoute
+import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.ui.components.DallimTab
 
 /**
@@ -212,6 +218,7 @@ fun DallimNavHost(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onCreateCourseClick = { navController.navigate(DallimDestinations.COURSE_CREATE_ENTRY) },
                 onRaceTabClick = { navController.navigate(DallimDestinations.RACE_LIST) },
+                onSocialTabClick = { navController.navigate(DallimDestinations.SOCIAL_SESSION_LIST) },
             )
         }
 
@@ -243,6 +250,59 @@ fun DallimNavHost(
                 onBackClick = { navController.popBackStack() },
                 // S-20 러닝 준비로 그대로 진입 — RouteDetailRoute.onStartRunClick과 동일한 패턴.
                 onRunSegmentClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
+            )
+        }
+
+        composable(DallimDestinations.SOCIAL_SESSION_LIST) {
+            SocialSessionListRoute(
+                onBackClick = { navController.popBackStack() },
+                onSessionClick = { sessionId -> navController.navigate(DallimDestinations.socialSessionDetail(sessionId)) },
+                onCreateClick = { navController.navigate(DallimDestinations.SOCIAL_SESSION_CREATE) },
+            )
+        }
+
+        composable(DallimDestinations.SOCIAL_SESSION_CREATE) {
+            SocialSessionCreateRoute(
+                onBackClick = { navController.popBackStack() },
+                onCreated = {
+                    // S-30(세션 탐색) back stack entry의 SavedStateHandle에 결과 플래그를 심어
+                    // 돌아갔을 때 목록이 자동으로 새로고침되게 한다
+                    // (com.dallim.app.meetup.list.MeetupListViewModel.RESULT_MEETUP_CREATED와
+                    // 동일 패턴).
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(SocialSessionListViewModel.RESULT_SESSION_CREATED, true)
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_DETAIL,
+            arguments = listOf(navArgument(DallimDestinations.ARG_SOCIAL_SESSION_ID) { type = NavType.StringType }),
+        ) {
+            SocialSessionDetailRoute(
+                onBackClick = { navController.popBackStack() },
+                onApplicantsClick = { sessionId ->
+                    navController.navigate(DallimDestinations.socialSessionApplicants(sessionId))
+                },
+            )
+        }
+
+        composable(
+            route = DallimDestinations.SOCIAL_SESSION_APPLICANTS,
+            arguments = listOf(navArgument(DallimDestinations.ARG_SOCIAL_SESSION_ID) { type = NavType.StringType }),
+        ) {
+            SocialSessionApplicantsRoute(
+                onBackClick = {
+                    // 승인으로 approvedCount가 바뀌었을 수 있으니 S-32(세션 상세)로 돌아갈 때
+                    // 항상 새로고침 플래그를 심는다 — 승인이 없었으면 SocialSessionDetailViewModel
+                    // 이 다시 같은 값을 받아올 뿐 무해하다.
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(SocialSessionDetailViewModel.RESULT_SOCIAL_SESSION_UPDATED, true)
+                    navController.popBackStack()
+                },
             )
         }
 
