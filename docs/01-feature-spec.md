@@ -159,8 +159,14 @@ POST /runs/{runId}/gps-batch
 |---|---|---|---|
 | S-42 | 마이 | 아바타/닉네임/총 러닝 횟수/총 거리 표시, 로그아웃 | `GET /users/me` |
 
-- **범위**: 조회 + 로그아웃만. 닉네임/아바타 **수정은 이번 범위 아님** —
-  `PATCH /users/me` 같은 수정용 API가 SPEC에 없으므로 새 백엔드 작업 없이는 만들지 않는다.
+- **범위**: 조회 + 로그아웃 + (2026-09-16부터) 닉네임/아바타 수정 API.
+  `PATCH /users/me` 🔒(사용자 지시, v1.3 SPEC 밖 — 백엔드 API만 이번 라운드에 추가했고
+  안드로이드 화면 연동은 다음 라운드)로 닉네임/아바타 중 보낸 필드만 갱신한다. 온보딩 1회성
+  등록(`POST /users/me/profile` — runningExperience/comfortablePace/gender까지 받는 최초 등록
+  전용)과는 별개 엔드포인트다. 닉네임 변경 시 기존 `checkNickname`/`NICKNAME_TAKEN` 로직을
+  재사용하되, 본인의 현재 닉네임과 동일하면 충돌시키지 않고 통과시킨다. 아바타 값 화이트리스트
+  검증은 하지 않는다(안드로이드가 정해진 6종 중에서만 보냄, 과설계 금지). 응답은 `GET
+  /users/me`와 동일한 `UserMeResponse` 스키마.
 - 로그아웃 버튼 탭 → `POST /auth/logout` 호출(실패해도 클라이언트는 진행 — 서버 세션 폐기는
   best-effort, 로컬 토큰 삭제가 실제 로그아웃의 핵심) → 로컬 토큰(DataStore) 삭제 →
   `S-02`(로그인)로 이동하며 그 아래 전체 백스택(홈/탭 포함)을 비운다.
@@ -411,6 +417,9 @@ POST /runs/{runId}/gps-batch
 > 도메인(`com.dallim.social`)이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 모듈은
 > 호스트 승인 워크플로우 + 참가 조건(성별/온도) + 채팅/체크인/평가까지 있는 별개의 무거운
 > 기능이라 재사용/확장하지 않는다.
+>
+> 2026-09-16: v1.3 SPEC에 없는 사용자 직접 지시로 참가/마감 정책 3종(신청 마감 3일 전, 세션
+> 자동 마감 CLOSED, 호스트 응답 5시간 자동 만료)을 백엔드 API에 추가했다 — 1.11.5절 참고.
 
 | 화면 ID | 화면명 | 단계 | 기능 | 데이터 소스 |
 |---|---|---|---|---|
@@ -488,9 +497,10 @@ POST /runs/{runId}/gps-batch
 - S-30~S-39(1단계+2단계) Android 화면 전부 2026-09-15 구현 완료
   (`app/src/main/kotlin/com/dallim/app/social/{list,create,detail,chat,checkin,feedback,
   runningmate}/`). S-36/S-37은 별도 화면이 아니라 한 화면(`social/checkin/`)으로 합쳤다.
-- 날짜·시간대·페이스·거리 정밀 필터, 신청 24시간 무응답 자동 만료 배치(`EXPIRED` 상태값은
-  만들었지만 전환 로직은 없음), 호스트 응답률 지표, `com.dallim.notification` 연동(신청/승인/
-  체크인/평가 알림 전부 없음), 1:1 DM/별점 평가/신고 자동 조치(기록만).
+- 날짜·시간대·페이스·거리 정밀 필터, 호스트 응답률 지표, `com.dallim.notification` 연동(신청/
+  승인/체크인/평가 알림 전부 없음), 1:1 DM/별점 평가/신고 자동 조치(기록만).
+  (신청 마감 3일 전 규칙과 호스트 응답 5시간 자동 만료는 2026-09-16에 구현 완료 —
+  1.11.5절 참고.)
 - 1:1 DM, 별점 평가, 신고에 대한 자동 조치/모더레이션 큐(기록만).
 - 채팅 이모지 반응, 집결 위치 카드 지도 렌더링 등 클라이언트 전용 UI 요소(백엔드 데이터로는
   이미 충분 -- `meetingPointLat/Lng` 등 1단계 응답 필드 재사용).
@@ -514,6 +524,34 @@ POST /runs/{runId}/gps-batch
   `400 VALIDATION_ERROR`, 존재하지 않는 유저는 `404 BLOCK_TARGET_NOT_FOUND`, 차단/해제 모두
   멱등.
 - 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 18장 참고.
+
+#### 1.11.5 참가/마감 정책 3종 (2026-09-16 신규 — 사용자 지시, v1.3 SPEC 밖, API만)
+
+> v1.3 문서에 없는, 사용자가 직접 지시한 소셜 세션 비즈니스 규칙 3개. **백엔드 API만 — 안드로이드
+> 반영은 다음 라운드.**
+
+- **참가 신청 마감(3일 전)**: `POST /social-sessions/{id}/apply`는 행사 시작(`scheduledAt`) 3일
+  전이 지나면 `400 SESSION_APPLY_WINDOW_CLOSED`("마감 3일 전까지만 신청할 수 있어요")로 막는다.
+  `GET /social-sessions/{id}` 응답에 `applicationOpen: Boolean`(`now <= scheduledAt - 3일`)을
+  추가해 안드로이드가 "신청하기" 버튼을 미리 비활성화할 수 있게 했다 — 이 값은 UX 프리뷰일 뿐,
+  실제 신청 시도는 서버가 항상 다시 검증한다.
+- **세션 자동 마감(CLOSED)**: `SocialSessionDisplayStatus`에 `CLOSED`를 추가했다. 우선순위는
+  `CANCELLED`(최우선, 시간이 지나도 유지) > `CLOSED`(현재 시각이 `scheduledAt`을 지났으면) >
+  `CONFIRMED` > `NEAR_CONFIRMATION` > `RECRUITING`. 배치 없이 매 조회 시점(`GET
+  /social-sessions`, `GET /social-sessions/{id}`, `GET /users/me/social-sessions` 전부)에
+  계산한다.
+- **호스트 응답 5시간 자동 만료**: `PENDING` 참가 신청이 `appliedAt` 기준 5시간을 넘기면
+  `EXPIRED`로 전환된다. 별도 스케줄러 없이 "터치 시점에 지연 전환" 방식 —
+  `listApplicants`/`approve`/`apply`(재신청 체크 직전) 호출 시점에 해당 세션의 만료 대상
+  `PENDING` 행을 실제로 `UPDATE`한 뒤 계속 진행한다. `EXPIRED`된 신청은 **재신청을 막지
+  않는다**(그 외 PENDING/APPROVED/CANCELLED는 여전히 `409 SESSION_ALREADY_APPLIED`) — 같은
+  (세션, 유저) 복합 PK 행을 재활용(UPDATE)해서 재신청을 반영한다. 이미 `EXPIRED`가 된 신청을
+  승인하려 하면 `SESSION_APPLICATION_NOT_PENDING`보다 더 명확한 `400
+  SESSION_APPLICATION_EXPIRED`를 던진다. 신청자 응답(`SocialSessionApplicantItem`)에
+  `respondByAt`(= `appliedAt` + 5시간) 필드를 추가해 호스트 쪽에서 "N시간 남음" 표시가 가능하게
+  했다.
+- 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 17장(신청 마감/CLOSED/5시간 만료 반영 부분)
+  참고.
 
 ---
 

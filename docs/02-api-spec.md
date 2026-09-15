@@ -267,6 +267,48 @@ Refresh Token으로 Access Token 재발급
 
 ---
 
+### `PATCH /users/me` 🔒 (2026-09-16 신규 — 사용자 지시, v1.3 SPEC 밖)
+닉네임/아바타 수정 (온보딩 1회성 등록인 `POST /users/me/profile`과는 별개 엔드포인트)
+
+**Request** (둘 다 optional, 보낸 필드만 갱신 — null/미포함이면 변경 안 함)
+```json
+{ "nickname": "새로운닉네임", "avatarId": "avatar_05" }
+```
+```json
+{ "nickname": "새로운닉네임" }
+```
+```json
+{ "avatarId": "avatar_05" }
+```
+
+**Response 200** — `GET /users/me`와 동일 스키마
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "usr_8f2a",
+    "nickname": "새로운닉네임",
+    "avatarId": "avatar_05",
+    "runningExperience": "UNDER_3_MONTHS",
+    "comfortablePace": "PACE_6_7",
+    "totalRuns": 12,
+    "totalDistanceKm": 48.2
+  }
+}
+```
+- 닉네임 변경 시 기존 `checkNickname`/`NICKNAME_TAKEN` 로직을 재사용해 중복 검사한다. **본인의
+  현재 닉네임과 동일하게 보내면(실질적 무변경) 충돌 처리하지 않고 통과시킨다.**
+- 아바타 값은 온보딩과 같은 6종 집합을 쓰지만 서버는 화이트리스트 검증을 하지 않는다(안드로이드가
+  정해진 값만 보냄, 과설계 금지).
+- `runningExperience`/`comfortablePace`/`gender`는 이 엔드포인트로 바꿀 수 없다(범위 밖).
+- `gender`는 응답에 포함하지 않음(CLAUDE.md 규칙 2).
+
+**Error**
+- `409 NICKNAME_TAKEN`
+- `400 VALIDATION_ERROR` — `nickname`을 빈 문자열로 보낸 경우
+
+---
+
 ### `GET /users/me/saved-routes` 🔒
 저장한 코스 목록
 
@@ -1897,6 +1939,11 @@ idempotent 성공).
 > **주의**: `com.dallim.meetup`(14장, 같이 달리기 모집)과 완전히 별개 도메인(`com.dallim.social`)
 > 이다. meetup은 승인 없이 즉시 참가하는 1회성 게시판이고, 이 도메인은 호스트 승인 워크플로우 +
 > 참가 조건(성별/온도) + 채팅/체크인/평가까지 있는 별개의 무거운 기능이라 재사용하지 않는다.
+>
+> **2026-09-16 추가(사용자 직접 지시, v1.3 SPEC 밖)**: 참가/마감 정책 3종 — ① 신청 마감(일정
+> 3일 전부터 신규 신청 차단, 17.4/17.5), ② 세션 자동 마감(`CLOSED`, 17.1/전 조회 API), ③ 호스트
+> 응답 5시간 자동 만료(17.5/17.7/17.8, `EXPIRED`는 이전부터 있었지만 이제 실제로 전환된다). 아래
+> 각 절에 반영했다.
 
 ### 17.1 데이터 모델
 
@@ -1946,10 +1993,22 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
                                                               -- 노출만 한다.
 ```
 
-- **`SocialSessionDisplayStatus`(계산값, 저장 안 됨)**: `status == CANCELLED`면 `CANCELLED`.
-  아니면 승인된(`APPROVED`) 참가자 수 `approvedCount` vs `minParticipants`로: `approvedCount >=
-  minParticipants`면 `CONFIRMED`, 남은 인원(`minParticipants - approvedCount`)이 2명 이하면
-  `NEAR_CONFIRMATION`(S-32 예시 "성사까지 2명"을 일반화), 그 외엔 `RECRUITING`.
+- **`SocialSessionDisplayStatus`(계산값, 저장 안 됨)** — 우선순위(2026-09-16 `CLOSED` 추가):
+  `status == CANCELLED`면 최우선으로 `CANCELLED`(시간이 지나도 유지). 아니면 현재 시각이
+  `scheduledAt`을 지났으면 `CLOSED`. 아니면 승인된(`APPROVED`) 참가자 수 `approvedCount` vs
+  `minParticipants`로: `approvedCount >= minParticipants`면 `CONFIRMED`, 남은 인원
+  (`minParticipants - approvedCount`)이 2명 이하면 `NEAR_CONFIRMATION`(S-32 예시 "성사까지
+  2명"을 일반화), 그 외엔 `RECRUITING`. 이 계산은 `GET /social-sessions`, `GET
+  /social-sessions/{id}`, `GET /users/me/social-sessions`(18장) 전부에 동일하게 적용된다.
+  배치 없음 — 매 조회 시점에 계산.
+- **참가 신청 마감(2026-09-16)**: `scheduledAt`의 3일 전이 지나면 `POST .../apply`는 `400
+  SESSION_APPLY_WINDOW_CLOSED`로 막힌다(17.5). 세션 상세(17.4)의 `applicationOpen` 필드로
+  안드로이드가 미리 버튼을 비활성화할 수 있다.
+- **호스트 응답 5시간 자동 만료(2026-09-16)**: `PENDING` 신청이 `appliedAt` 기준 5시간을
+  넘기면 `EXPIRED`로 전환된다. 스케줄러 없이 `listApplicants`(17.7)/`approve`(17.8)/
+  `apply`의 재신청 체크(17.5) 호출 시점에 해당 세션의 대상 행을 실제로 `UPDATE`하는 "터치
+  시점 지연 전환" 방식이다. `EXPIRED`된 신청은 재신청을 막지 않는다(같은 (session, user) PK
+  행을 재활용) — 그 외 상태(PENDING/APPROVED/CANCELLED)는 여전히 재신청 불가.
 - **참가 조건은 성별/온도만 서버가 실제로 막는다.** `running_styles`(페이스 대체)와
   `beginner_friendly`는 카드/상세에 표시되는 정보일 뿐 신청을 막는 조건으로 쓰지 않는다 — SPEC이
   이 두 값의 구체적인 매칭 규칙을 정의하지 않아서, 임의로 매칭 알고리즘을 발명하지 않기 위한
@@ -2085,7 +2144,8 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
     "myApplicationStatus": null,
     "participants": [
       { "userId": "usr_2", "nickname": "러너B", "avatarId": "avatar_05" }
-    ]
+    ],
+    "applicationOpen": true
   },
   "error": null
 }
@@ -2095,6 +2155,10 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
   그 외엔 `null`이고 대신 `meetingPointHint`(대략적인 지역명, 항상 채워짐)로 대체 — 17.1 참고.
 - `myApplicationStatus`: 비로그인/미신청이면 `null`. 호스트는 참가자가 아니므로 항상 `null`.
 - `participants`: `APPROVED` 상태만.
+- **`applicationOpen`**(2026-09-16 신규): `now <= scheduledAt - 3일`. 안드로이드가 이 값으로
+  "신청하기" 버튼을 미리 비활성화할 수 있다 — UX 프리뷰일 뿐, 실제 신청 시도는 17.5의 서버
+  검증이 최종 기준이다.
+- `status`는 `CLOSED`(2026-09-16 신규)를 포함할 수 있다 — 17.1 우선순위 참고.
 
 ### 17.5 `POST /social-sessions/{sessionId}/apply` — S-33 참가 신청 🔒
 
@@ -2107,9 +2171,15 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
 { "success": true, "data": null, "error": null }
 ```
 - `sessionId`가 없으면 `404 SESSION_NOT_FOUND`. 취소된 세션이면 `409 SESSION_CANCELLED`.
+- **신청 마감(2026-09-16)**: `scheduledAt`의 3일 전이 지났으면 `400
+  SESSION_APPLY_WINDOW_CLOSED`("마감 3일 전까지만 신청할 수 있어요").
 - 본인이 만든 세션에는 신청 불가(`400 VALIDATION_ERROR`).
-- 동일 세션에 이미 신청한 적 있으면(복합 PK) `409 SESSION_ALREADY_APPLIED` — 재신청 불가(취소/
-  만료된 신청도 포함, 과설계 금지로 단순하게 둠).
+- 이 호출 직전에 해당 세션의 5시간 초과 `PENDING` 신청을 `EXPIRED`로 지연 전환한다(2026-09-16,
+  17.1 참고) — 그 다음에 아래 중복 신청 체크를 한다.
+- 동일 세션에 이미 신청한 적 있고 그 상태가 `PENDING`/`APPROVED`/`CANCELLED`면(복합 PK)
+  `409 SESSION_ALREADY_APPLIED`. **단, 기존 신청이 `EXPIRED`(호스트 응답 5시간 초과로 자동
+  만료)라면 재신청을 막지 않는다**(2026-09-16 변경 — 같은 PK 행을 재활용해서 `PENDING`으로
+  되살린다).
 - `max_participants`가 이미 `APPROVED`로 찼으면 `400 SESSION_FULL`.
 - **참가 조건(성별/온도) 미충족이면 `400 SESSION_CONDITION_NOT_MET`, 문구는 항상
   "참가 조건이 맞지 않아요" 하나로 통일한다** — 성별 조건이든 온도 조건이든 사유를 구분해서
@@ -2142,6 +2212,7 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
         "runningExperience": "UNDER_3_MONTHS",
         "message": "천천히 페이스로 함께 달리고 싶어요",
         "appliedAt": "2026-09-15T10:00:00Z",
+        "respondByAt": "2026-09-15T15:00:00Z",
         "status": "PENDING"
       }
     ]
@@ -2155,6 +2226,11 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
   있어야 계산 가능해서 이번 응답에는 없음 — 없는 데이터를 placeholder로 채우지 않는다(과설계
   금지). 2단계에서 필드가 새로 추가된다.
 - `CANCELLED`(신청 취소)된 신청자는 목록에서 제외. `applied_at` 오름차순(먼저 신청한 순).
+- **호스트 응답 5시간 자동 만료(2026-09-16)**: 이 조회 직전에 해당 세션의 5시간 초과 `PENDING`
+  신청을 `EXPIRED`로 지연 전환한다(스케줄러 없음, 17.1 참고) — 그래서 응답에 방금 `EXPIRED`가
+  된 항목이 보일 수 있다.
+- **`respondByAt`**(2026-09-16 신규) = `appliedAt` + 5시간. 호스트가 "N시간 남음"을 표시할 수
+  있다. 이미 처리된 신청에도 참고용으로 그대로 채워진다.
 
 ### 17.8 `POST /social-sessions/{sessionId}/applicants/{userId}/approve` — S-34 승인 🔒(호스트만)
 
@@ -2163,8 +2239,12 @@ users.running_temperature   double, default 36.5, NOT NULL   -- 신규 컬럼. �
 { "success": true, "data": null, "error": null }
 ```
 - 호스트가 아니면 `403 SESSION_NOT_HOST`.
+- 이 호출 직전에 해당 세션의 5시간 초과 `PENDING` 신청을 `EXPIRED`로 지연 전환한다(2026-09-16,
+  17.1 참고).
 - 해당 신청자가 없으면 `404 SESSION_APPLICANT_NOT_FOUND`.
-- 신청 상태가 `PENDING`이 아니면(이미 승인/만료/취소) `400 SESSION_APPLICATION_NOT_PENDING`.
+- 신청 상태가 방금(또는 이미) `EXPIRED`면 `400 SESSION_APPLICATION_EXPIRED`("신청이 만료돼서
+  승인할 수 없어요", 2026-09-16 신규 — `SESSION_APPLICATION_NOT_PENDING`보다 명확한 사유 안내).
+- 그 외 `PENDING`이 아닌 상태(이미 승인/취소)면 `400 SESSION_APPLICATION_NOT_PENDING`.
 - 이미 `APPROVED` 수가 `maxParticipants`에 도달했으면 `409 SESSION_FULL`(정원 초과 승인 방지).
 
 ### 17.9 `DELETE /social-sessions/{sessionId}` — 세션 취소 🔒(호스트만)
