@@ -75,8 +75,9 @@ import com.dallim.ui.components.DallimTab
  * 이벤트를 [SessionEventViewModel]을 통해 여기서 구독해, 사용자가 어느 화면에 있든 그래프
  * 전체를 비우고 로그인으로 보낸다.
  *
- * 홈(S-10)/탐색(S-11)/대회 탭(RACE_TAB)/채팅 탭(CHAT_TAB)/달림북 그리드(S-40)/마이(S-42) 6개
- * 최상위 화면은 하단 탭바로 서로 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고.
+ * 홈(S-10)/탐색(S-11)/대회 탭(RACE_TAB)/채팅 탭(CHAT_TAB)/마이(S-42) 5개 최상위 화면은 하단
+ * 탭바로 서로 전환된다 (01-feature-spec.md §1.0) — [navigateToTab] 참고. 달림북 그리드(S-40)는
+ * 2026-09-16 재편으로 탭에서 빠져 마이(S-42)의 카드 진입점에서 push로 들어가는 화면이 됐다.
  */
 @Composable
 fun DallimNavHost(
@@ -203,7 +204,6 @@ fun DallimNavHost(
                 onBackClick = { navController.popBackStack() },
                 onArtworkClick = { runId -> navController.navigate(DallimDestinations.dallimbookDetail(runId)) },
                 onEmptySlotClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
-                onTabSelected = { tab -> navController.navigateToTab(tab) },
             )
         }
 
@@ -370,6 +370,7 @@ fun DallimNavHost(
             MyRoute(
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onEditProfileClick = { navController.navigate(DallimDestinations.PROFILE_EDIT) },
+                onDallimbookClick = { navController.navigate(DallimDestinations.DALLIMBOOK_GRID) },
                 onMedalShelfClick = { navController.navigate(DallimDestinations.MEDAL_SHELF) },
                 onRunningMatesClick = { navController.navigate(DallimDestinations.RUNNING_MATE_LIST) },
                 onBlockedUsersClick = { navController.navigate(DallimDestinations.BLOCKED_USER_LIST) },
@@ -573,7 +574,6 @@ private fun NavHostController.navigateToTab(tab: DallimTab) {
         DallimTab.EXPLORE -> DallimDestinations.EXPLORE
         DallimTab.RACE -> DallimDestinations.RACE_TAB
         DallimTab.CHAT -> DallimDestinations.CHAT_TAB
-        DallimTab.DALLIMBOOK -> DallimDestinations.DALLIMBOOK_GRID
         DallimTab.MY -> DallimDestinations.MY
     }
     navigate(route) {

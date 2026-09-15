@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -57,11 +58,16 @@ import com.dallim.ui.theme.Spacing
  *
  * S-91(완주 메달 선반) 진입점을 카드 하나로 둔다(2026-09-06 신규) — 새 탭을 만들지 않고 기존
  * 4탭 구조를 유지한다는 원칙에 따라, 마이 안에서만 진입 가능하게 한다.
+ *
+ * 달림북(S-40) 진입점도 카드 하나로 둔다(2026-09-16 재편) — 바텀탭이 UI/UX상 4~5개가
+ * 적정하다는 사용자 지적과 "달림북은 내 기록이니 마이 안에 있는 게 자연스럽다"는 지시에 따라
+ * 최상위 탭에서 빼서 [DallimbookEntryCard]로 옮겼다.
  */
 @Composable
 fun MyRoute(
     onTabSelected: (DallimTab) -> Unit,
     onEditProfileClick: () -> Unit,
+    onDallimbookClick: () -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
     onBlockedUsersClick: () -> Unit,
@@ -91,6 +97,7 @@ fun MyRoute(
         uiState = uiState,
         onTabSelected = onTabSelected,
         onEditProfileClick = onEditProfileClick,
+        onDallimbookClick = onDallimbookClick,
         onMedalShelfClick = onMedalShelfClick,
         onRunningMatesClick = onRunningMatesClick,
         onBlockedUsersClick = onBlockedUsersClick,
@@ -105,6 +112,7 @@ private fun MyScreen(
     uiState: MyUiState,
     onTabSelected: (DallimTab) -> Unit,
     onEditProfileClick: () -> Unit,
+    onDallimbookClick: () -> Unit,
     onMedalShelfClick: () -> Unit,
     onRunningMatesClick: () -> Unit,
     onBlockedUsersClick: () -> Unit,
@@ -147,7 +155,9 @@ private fun MyScreen(
                 ) {
                     ProfileCard(user = uiState.user, onEditClick = onEditProfileClick)
 
-                    MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.lg))
+                    DallimbookEntryCard(onClick = onDallimbookClick, modifier = Modifier.padding(top = Spacing.lg))
+
+                    MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.md))
 
                     RunningMatesEntryCard(onClick = onRunningMatesClick, modifier = Modifier.padding(top = Spacing.md))
 
@@ -239,6 +249,30 @@ private fun AvatarBadge(avatarId: String) {
             tint = DallimColors.Primary,
             modifier = Modifier.size(32.dp),
         )
+    }
+}
+
+/**
+ * S-40 달림북 진입점 (2026-09-16 재편, 사용자 지시) — 바텀탭이 UI/UX상 4~5개가 적정하다는
+ * 지적과 "달림북은 내 기록이니 마이 안에 있는 게 자연스럽다"는 지시에 따라 최상위 탭에서
+ * 빼서 여기 카드 하나로 옮겼다. 아이콘은 기존 바텀탭에서 쓰던 것과 동일한
+ * [Icons.AutoMirrored.Filled.MenuBook]을 그대로 쓴다.
+ */
+@Composable
+private fun DallimbookEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = DallimColors.Primary)
+            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
+                Text(text = "달림북", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "완주한 GPS 그림을 모아보세요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
+            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        }
     }
 }
 
@@ -339,6 +373,7 @@ private fun MyScreenPreview() {
             ),
             onTabSelected = {},
             onEditProfileClick = {},
+            onDallimbookClick = {},
             onMedalShelfClick = {},
             onRunningMatesClick = {},
             onBlockedUsersClick = {},

@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -38,14 +36,18 @@ import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.Spacing
 
 /**
- * 홈(S-10)/탐색(S-11)/대회(S-80)/채팅(신규)/달림북(S-40)/마이(S-42) 6개 최상위 화면의 탭
+ * 홈(S-10)/탐색(S-11)/대회(S-80)/채팅(신규)/마이(S-42) 5개 최상위 화면의 탭
  * (docs/01-feature-spec.md §1.0 표). 비활성 상태는 outlined, 선택 상태는 filled 아이콘으로
  * 표시한다.
  *
  * 2026-09-16 재편: 2026-09-15에 도입했던 단일 "소셜" 통합 탭(대회+소셜세션 세그먼트 허브)을
  * 사용자 지시로 폐기하고, 대회(S-80)는 독립 탭으로, 소셜 세션(S-30)은 탐색(S-11) 안의
  * `[그림 코스]/[소셜]` 세그먼트로 되돌렸다. 대신 채팅 인박스(docs/02-api-spec.md 18장, v1.3 SPEC
- * 밖 신규 범위)를 위한 CHAT 탭을 새로 추가했다 — 그 결과 5탭에서 6탭 구조가 됐다.
+ * 밖 신규 범위)를 위한 CHAT 탭을 새로 추가했다.
+ *
+ * 2026-09-16 추가 재편: 바텀탭이 UI/UX상 4~5개가 적정하다는 사용자 지적에 따라 달림북(S-40)
+ * 탭을 제거했다 — 달림북은 "내 기록"이라 마이(S-42) 안의 카드 진입점으로 옮기는 게 자연스럽다
+ * (마이 화면의 `DallimbookEntryCard` 참고). 그 결과 6탭에서 다시 5탭 구조가 됐다.
  */
 enum class DallimTab(
     val label: String,
@@ -56,15 +58,14 @@ enum class DallimTab(
     EXPLORE("탐색", Icons.Outlined.Search, Icons.Filled.Search),
     RACE("대회", Icons.Outlined.Flag, Icons.Filled.Flag),
     CHAT("채팅", Icons.AutoMirrored.Outlined.Chat, Icons.AutoMirrored.Filled.Chat),
-    DALLIMBOOK("달림북", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
     MY("마이", Icons.Outlined.Person, Icons.Filled.Person),
 }
 
 /**
- * 홈(S-10)/탐색(S-11)/대회(S-80)/채팅(신규)/달림북(S-40)/마이(S-42) 6개 최상위 화면 전용 하단
+ * 홈(S-10)/탐색(S-11)/대회(S-80)/채팅(신규)/마이(S-42) 5개 최상위 화면 전용 하단
  * 탭바 (docs/01-feature-spec.md §1.0, docs/04-ui-guide.md §6). 그 외 화면(Route 상세, 저장한
- * 코스, 러닝 플로우, 온보딩, 달림북 상세, 소셜 세션 상세 등)에는 쓰지 않는다 — 그 화면들은
- * 지금처럼 push 이동만 한다.
+ * 코스, 러닝 플로우, 온보딩, 달림북 그리드/상세, 소셜 세션 상세 등)에는 쓰지 않는다 — 그
+ * 화면들은 지금처럼 push 이동만 한다.
  */
 @Composable
 fun DallimBottomNavigation(
