@@ -24,6 +24,15 @@ data class ProfileRequest(
 @Serializable
 data class ProfileResponse(val userId: String, val nickname: String)
 
+/** PATCH /users/me (2026-09-16 사용자 지시) request body — 온보딩 1회성 등록(ProfileRequest)과
+ * 별개로, 나중에 닉네임/아바타만 바꾸는 용도. 둘 다 optional, 보낸 필드만 갱신(null은 "변경 안
+ * 함"). gender/runningExperience/comfortablePace는 이 엔드포인트로 바꿀 수 없다(범위 밖). */
+@Serializable
+data class PatchMeRequest(
+    val nickname: String? = null,
+    val avatarId: String? = null,
+)
+
 @Serializable
 data class UserMeResponse(
     val userId: String,

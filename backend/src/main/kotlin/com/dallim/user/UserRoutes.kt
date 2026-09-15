@@ -12,14 +12,16 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import org.koin.ktor.ext.inject
 
 /**
  * Profile endpoints — GET /users/nickname-check (public), POST /users/me/profile (🔒),
- * GET /users/me (🔒) — docs/02-api-spec.md 2장. Saved-route endpoints are mounted separately
- * (see SavedRouteRoutes.kt).
+ * GET /users/me (🔒), PATCH /users/me (🔒, 2026-09-16 사용자 지시 — 온보딩 이후 닉네임/아바타만
+ * 바꾸는 용도, POST /users/me/profile과 별개) — docs/02-api-spec.md 2장. Saved-route endpoints
+ * are mounted separately (see SavedRouteRoutes.kt).
  */
 fun Route.userRoutes() {
     val userService by inject<UserService>()
@@ -42,6 +44,13 @@ fun Route.userRoutes() {
             get {
                 val userId = call.currentUserId()!!
                 call.respond(HttpStatusCode.OK, ApiResponse.success(userService.getMe(userId)))
+            }
+
+            patch {
+                val userId = call.currentUserId()!!
+                val request = call.receive<PatchMeRequest>()
+                val response = userService.updateProfileFields(userId, request)
+                call.respond(HttpStatusCode.OK, ApiResponse.success(response))
             }
         }
     }

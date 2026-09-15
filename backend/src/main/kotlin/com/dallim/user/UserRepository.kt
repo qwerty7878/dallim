@@ -87,6 +87,26 @@ class UserRepository(private val database: Database) {
         }
     }
 
+    /**
+     * PATCH /users/me (2026-09-16 사용자 지시) — [nickname]/[avatarId] 각각 null이 아닌 값만
+     * 갱신한다(둘 다 null이면 아무 것도 안 함). registerProfile과 마찬가지로 nickname unique
+     * 인덱스 위반은 [NicknameTakenException]으로 변환한다.
+     */
+    fun updateProfileFields(userId: String, nickname: String?, avatarId: String?) {
+        if (nickname == null && avatarId == null) return
+        try {
+            transaction(database) {
+                UserTable.update({ UserTable.id eq userId }) {
+                    if (nickname != null) it[UserTable.nickname] = nickname
+                    if (avatarId != null) it[UserTable.avatarId] = avatarId
+                    it[UserTable.updatedAt] = Instant.now()
+                }
+            }
+        } catch (e: ExposedSQLException) {
+            throw NicknameTakenException(e)
+        }
+    }
+
     private fun ResultRow.toUser() = User(
         id = this[UserTable.id],
         provider = this[UserTable.provider],
