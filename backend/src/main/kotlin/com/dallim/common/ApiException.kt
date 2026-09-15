@@ -83,6 +83,10 @@ object ErrorCodes {
     const val SESSION_APPLICANT_NOT_FOUND = "SESSION_APPLICANT_NOT_FOUND"
     // 신청 마감(2026-09-16 사용자 지시) — 일정 3일 전이 지나면 신규 신청을 막는다.
     const val SESSION_APPLY_WINDOW_CLOSED = "SESSION_APPLY_WINDOW_CLOSED"
+    // 호스트 응답 5시간 제한(2026-09-16 사용자 지시) — approve() 시점에 방금 EXPIRED로 전환된
+    // 신청을 SESSION_APPLICATION_NOT_PENDING보다 더 명확히 알리기 위한 전용 코드(다른
+    // 비-PENDING 사유는 여전히 SESSION_APPLICATION_NOT_PENDING).
+    const val SESSION_APPLICATION_EXPIRED = "SESSION_APPLICATION_EXPIRED"
 
     // social session 2단계 (docs/02-api-spec.md 17장 이어서 -- S-35~S-39, 2026-09-13)
     // 채팅(S-35)/체크인(S-36)/Ready Check(S-37)/평가(S-38) 전부 "호스트도 아니고 승인된 참가자도

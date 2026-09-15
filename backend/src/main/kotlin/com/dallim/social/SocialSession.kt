@@ -44,7 +44,15 @@ enum class SocialSessionRainPolicy {
     DECIDE_LATER,
 }
 
-/** 참가 신청 상태 — S-33/34. 호스트는 이 테이블에 들어가지 않는다(주최자는 참가자가 아님). */
+/**
+ * 참가 신청 상태 — S-33/34. 호스트는 이 테이블에 들어가지 않는다(주최자는 참가자가 아님).
+ *
+ * EXPIRED(2026-09-16 사용자 지시로 실제 전환 로직 추가): `PENDING` 상태로 5시간이 지나면
+ * 호스트 응답 제한 시간 초과로 자동 만료된다. 별도 스케줄러 없이 "터치 시점에 지연 전환"
+ * 방식(SocialSessionRepository.expirePendingApplicants)으로 처리한다 — displayStatus()가 매
+ * 요청마다 계산되는 것과 동일한 철학. EXPIRED된 신청은 재신청을 막지 않는다(SocialSessionService
+ * .apply() 참고).
+ */
 enum class SocialSessionApplicantStatus {
     PENDING,
     APPROVED,

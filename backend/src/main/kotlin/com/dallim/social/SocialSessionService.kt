@@ -31,6 +31,9 @@ class SocialSessionService(
     companion object {
         /** 신청 마감: 일정 3일 전부터 신규 신청 차단(2026-09-16 사용자 지시). */
         private val APPLICATION_CLOSE_WINDOW: Duration = Duration.ofDays(3)
+
+        /** 호스트 응답 제한: PENDING 신청은 5시간이 지나면 자동 EXPIRED(2026-09-16 사용자 지시). */
+        private val APPLICANT_RESPONSE_WINDOW: Duration = Duration.ofHours(5)
     }
 
     /** POST /social-sessions — 17.2. 완주 0회면 호스트가 될 수 없다(SESSION_HOST_REQUIRES_FIRST_RUN,
@@ -175,7 +178,9 @@ class SocialSessionService(
      * (역추론 방지, S-32 SPEC 핵심 요구사항 — 작업 브리핑 참고).
      *
      * 신청 마감(2026-09-16 사용자 지시): 일정 3일 전이 지나면 신규 신청을 막는다
-     * (SESSION_APPLY_WINDOW_CLOSED). */
+     * (SESSION_APPLY_WINDOW_CLOSED). 재신청 허용(같은 지시): 기존 신청이 있어도 그게
+     * `EXPIRED`(호스트 응답 5시간 초과로 자동 만료)라면 막지 않는다 — 그 외 상태(PENDING/
+     * APPROVED/CANCELLED)는 기존 그대로 SESSION_ALREADY_APPLIED. */
     fun apply(sessionId: String, userId: String, request: ApplySocialSessionRequest) {
         val row = findSessionOr404(sessionId)
 
@@ -188,7 +193,9 @@ class SocialSessionService(
         if (row.hostUserId == userId) {
             throw BadRequestException(ErrorCodes.VALIDATION_ERROR, "본인이 만든 세션에는 신청할 수 없어요.")
         }
-        if (sessionRepository.findApplicant(sessionId, userId) != null) {
+        sessionRepository.expirePendingApplicants(sessionId, Instant.now().minus(APPLICANT_RESPONSE_WINDOW))
+        val existing = sessionRepository.findApplicant(sessionId, userId)
+        if (existing != null && existing.status != SocialSessionApplicantStatus.EXPIRED) {
             throw ConflictException(ErrorCodes.SESSION_ALREADY_APPLIED, "이미 신청한 세션이에요.")
         }
         val approvedCount = sessionRepository.countApproved(sessionId)
@@ -217,10 +224,12 @@ class SocialSessionService(
         sessionRepository.updateApplicantStatus(sessionId, userId, SocialSessionApplicantStatus.CANCELLED)
     }
 
-    /** GET /social-sessions/{id}/applicants — 17.6, 호스트 본인만. */
+    /** GET /social-sessions/{id}/applicants — 17.6, 호스트 본인만. 조회 전에 5시간 넘은 PENDING을
+     * EXPIRED로 지연 전환한다(2026-09-16 사용자 지시, 스케줄러 없이 터치 시점 전환). */
     fun listApplicants(sessionId: String, callerUserId: String): SocialSessionApplicantsResponse {
         val row = findSessionOr404(sessionId)
         requireHost(row, callerUserId)
+        sessionRepository.expirePendingApplicants(sessionId, Instant.now().minus(APPLICANT_RESPONSE_WINDOW))
 
         val items = sessionRepository.findApplicants(sessionId).map {
             SocialSessionApplicantItem(
@@ -232,6 +241,7 @@ class SocialSessionService(
                 runningExperience = it.runningExperience,
                 message = it.message,
                 appliedAt = it.appliedAt.toString(),
+                respondByAt = it.appliedAt.plus(APPLICANT_RESPONSE_WINDOW).toString(),
                 status = it.status,
             )
         }
@@ -239,13 +249,19 @@ class SocialSessionService(
     }
 
     /** POST /social-sessions/{id}/applicants/{userId}/approve — 17.7, 호스트만. 정원 초과 승인
-     * 방지(409). */
+     * 방지(409). 승인 전에 5시간 넘은 PENDING을 EXPIRED로 지연 전환하고(2026-09-16 사용자 지시)
+     * 그 결과 방금 EXPIRED가 된 신청이면 SESSION_APPLICATION_NOT_PENDING보다 더 명확한
+     * SESSION_APPLICATION_EXPIRED로 알려준다. */
     fun approve(sessionId: String, callerUserId: String, targetUserId: String) {
         val row = findSessionOr404(sessionId)
         requireHost(row, callerUserId)
+        sessionRepository.expirePendingApplicants(sessionId, Instant.now().minus(APPLICANT_RESPONSE_WINDOW))
 
         val applicant = sessionRepository.findApplicant(sessionId, targetUserId)
             ?: throw NotFoundException(ErrorCodes.SESSION_APPLICANT_NOT_FOUND, "신청자를 찾을 수 없습니다.")
+        if (applicant.status == SocialSessionApplicantStatus.EXPIRED) {
+            throw BadRequestException(ErrorCodes.SESSION_APPLICATION_EXPIRED, "신청이 만료돼서 승인할 수 없어요.")
+        }
         if (applicant.status != SocialSessionApplicantStatus.PENDING) {
             throw BadRequestException(ErrorCodes.SESSION_APPLICATION_NOT_PENDING, "이미 처리된 신청이에요.")
         }

@@ -243,14 +243,52 @@ open class SocialSessionRepository(private val database: Database) {
             .map { it.toApplicantRow() }
     }
 
-    /** POST /social-sessions/{id}/apply (17.4) success path. */
+    /** POST /social-sessions/{id}/apply (17.4) success path. Upsert, not a plain insert: the PK
+     * is (sessionId, userId), and a user whose previous application EXPIRED is allowed to
+     * re-apply (SocialSessionService.apply()) -- a second INSERT would violate that PK, so this
+     * first tries to UPDATE (reactivate) an existing EXPIRED row back to PENDING with a fresh
+     * appliedAt/message, and only INSERTs a brand-new row when there was nothing to update
+     * (first-time applicant). Caller already guarantees no other status (PENDING/APPROVED/
+     * CANCELLED) reaches here -- see SocialSessionService.apply()'s already-applied check. */
     open fun addApplicant(sessionId: String, userId: String, message: String?) {
         transaction(database) {
-            SocialSessionApplicantTable.insert {
-                it[SocialSessionApplicantTable.sessionId] = sessionId
-                it[SocialSessionApplicantTable.userId] = userId
+            val now = Instant.now()
+            val reactivated = SocialSessionApplicantTable.update({
+                (SocialSessionApplicantTable.sessionId eq sessionId) and (SocialSessionApplicantTable.userId eq userId)
+            }) {
                 it[SocialSessionApplicantTable.status] = SocialSessionApplicantStatus.PENDING
                 it[SocialSessionApplicantTable.message] = message
+                it[SocialSessionApplicantTable.appliedAt] = now
+                it[SocialSessionApplicantTable.respondedAt] = null
+            }
+            if (reactivated == 0) {
+                SocialSessionApplicantTable.insert {
+                    it[SocialSessionApplicantTable.sessionId] = sessionId
+                    it[SocialSessionApplicantTable.userId] = userId
+                    it[SocialSessionApplicantTable.status] = SocialSessionApplicantStatus.PENDING
+                    it[SocialSessionApplicantTable.message] = message
+                    it[SocialSessionApplicantTable.appliedAt] = now
+                }
+            }
+        }
+    }
+
+    /**
+     * 호스트 응답 5시간 제한(2026-09-16 사용자 지시) — [sessionId]의 `PENDING` 신청 중
+     * `appliedAt < cutoff`인 행을 전부 `EXPIRED`로 전환한다. 별도 스케줄러 없이 호출부
+     * (SocialSessionService의 apply/listApplicants/approve)가 매 요청마다 호출해서 지연
+     * 전환한다 -- displayStatus()와 동일한 철학. 반환값 없음: 호출부는 이 UPDATE 이후 다시
+     * SELECT(findApplicant/findApplicants)해서 최신 상태를 읽는다.
+     */
+    fun expirePendingApplicants(sessionId: String, cutoff: Instant) {
+        transaction(database) {
+            SocialSessionApplicantTable.update({
+                (SocialSessionApplicantTable.sessionId eq sessionId) and
+                    (SocialSessionApplicantTable.status eq SocialSessionApplicantStatus.PENDING) and
+                    (SocialSessionApplicantTable.appliedAt less cutoff)
+            }) {
+                it[SocialSessionApplicantTable.status] = SocialSessionApplicantStatus.EXPIRED
+                it[SocialSessionApplicantTable.respondedAt] = Instant.now()
             }
         }
     }

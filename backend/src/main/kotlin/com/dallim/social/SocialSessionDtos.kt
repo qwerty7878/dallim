@@ -124,6 +124,10 @@ data class SocialSessionApplicantItem(
     val runningExperience: String?,
     val message: String?,
     val appliedAt: String,
+    // 호스트 응답 제한 시각(2026-09-16 사용자 지시) = appliedAt + 5시간. PENDING이 이 시각을
+    // 지나면 다음 조회/승인 시도 시 EXPIRED로 자동 전환된다. 이미 처리된(EXPIRED/APPROVED/
+    // CANCELLED) 신청에도 참고용으로 그대로 채워진다.
+    val respondByAt: String,
     val status: SocialSessionApplicantStatus,
 )
 
