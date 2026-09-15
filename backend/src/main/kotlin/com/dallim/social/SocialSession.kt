@@ -155,10 +155,16 @@ data class SocialSessionApplicant(
  * 화면에 보이는 계산된 상태 — SocialSessionStatus(저장값)와 별개, SocialSessionService에서만
  * 만들어진다. RECRUITING/NEAR_CONFIRMATION/CONFIRMED는 APPROVED 참가자 수 vs
  * min/maxParticipants로, CANCELLED는 저장된 status를 그대로 반영한다.
+ *
+ * 우선순위(2026-09-16 사용자 지시로 CLOSED 추가): CANCELLED(최우선, 시간이 지나도 여전히
+ * CANCELLED) > CLOSED(취소되지 않았는데 현재 시각이 scheduledAt을 지났으면) > CONFIRMED >
+ * NEAR_CONFIRMATION > RECRUITING. 배치 잡 없이 SocialSessionService.displayStatus()가 매 조회
+ * 시점에 계산한다(이 파일 상단 철학과 동일).
  */
 enum class SocialSessionDisplayStatus {
     RECRUITING,
     NEAR_CONFIRMATION,
     CONFIRMED,
+    CLOSED,
     CANCELLED,
 }

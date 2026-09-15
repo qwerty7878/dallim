@@ -105,7 +105,7 @@ class SocialSessionService(
                 hostAvatarId = row.hostAvatarId,
                 hostRunningTemperature = row.hostRunningTemperature,
                 beginnerFriendly = row.beginnerFriendly,
-                status = displayStatus(row.status, approvedCount, row.minParticipants),
+                status = displayStatus(row.status, approvedCount, row.minParticipants, row.scheduledAt),
             )
         }
         return SocialSessionListResponse(items = items, totalCount = totalCount, page = page, size = size)
@@ -155,7 +155,7 @@ class SocialSessionService(
             meetingPointDetail = meetingPointDetail,
             meetingPointHint = meetingPointHint,
             rainPolicy = row.rainPolicy,
-            status = displayStatus(row.status, approvedCount, row.minParticipants),
+            status = displayStatus(row.status, approvedCount, row.minParticipants, row.scheduledAt),
             isHost = isHost,
             myApplicationStatus = myApplication?.status,
             participants = participants,
@@ -275,7 +275,7 @@ class SocialSessionService(
                 isHost = row.hostUserId == userId,
                 approvedCount = approvedCount,
                 maxParticipants = row.maxParticipants,
-                status = displayStatus(row.status, approvedCount, row.minParticipants),
+                status = displayStatus(row.status, approvedCount, row.minParticipants, row.scheduledAt),
                 lastMessage = lastMessageRow?.let {
                     MySocialSessionLastMessage(
                         body = it.body,
@@ -308,15 +308,21 @@ class SocialSessionService(
     private fun findSessionOr404(sessionId: String): SocialSessionRepository.SessionRow =
         sessionRepository.findById(sessionId) ?: throw NotFoundException(ErrorCodes.SESSION_NOT_FOUND, "세션을 찾을 수 없습니다.")
 
-    /** RECRUITING/NEAR_CONFIRMATION/CONFIRMED는 저장되지 않고 매 조회 시 계산된다 (com.dallim
-     * .social.SocialSession 문서 참고). "성사까지 2명"(S-32 예시)을 일반화해 남은 인원이 2명
-     * 이하면 NEAR_CONFIRMATION으로 본다. */
+    /** RECRUITING/NEAR_CONFIRMATION/CONFIRMED/CLOSED는 저장되지 않고 매 조회 시 계산된다
+     * (com.dallim.social.SocialSession 문서 참고). "성사까지 2명"(S-32 예시)을 일반화해 남은
+     * 인원이 2명 이하면 NEAR_CONFIRMATION으로 본다.
+     *
+     * 우선순위(2026-09-16 사용자 지시로 CLOSED 추가): CANCELLED(최우선 — 취소된 세션은 시간이
+     * 지나도 여전히 CANCELLED) > CLOSED(현재 시각이 scheduledAt을 지났으면) > CONFIRMED >
+     * NEAR_CONFIRMATION > RECRUITING. */
     private fun displayStatus(
         stored: SocialSessionStatus,
         approvedCount: Int,
         minParticipants: Int,
+        scheduledAt: Instant,
     ): SocialSessionDisplayStatus {
         if (stored == SocialSessionStatus.CANCELLED) return SocialSessionDisplayStatus.CANCELLED
+        if (Instant.now().isAfter(scheduledAt)) return SocialSessionDisplayStatus.CLOSED
         if (approvedCount >= minParticipants) return SocialSessionDisplayStatus.CONFIRMED
         val remaining = minParticipants - approvedCount
         return if (remaining <= 2) SocialSessionDisplayStatus.NEAR_CONFIRMATION else SocialSessionDisplayStatus.RECRUITING
