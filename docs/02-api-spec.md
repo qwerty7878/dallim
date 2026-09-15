@@ -2315,7 +2315,12 @@ running_mates
 ```
 - 둘 다 호스트/`APPROVED` 참가자 확인은 메시지 신고에만 적용(`403 SESSION_NOT_PARTICIPANT`),
   세션 자체 신고는 세션 존재 여부만 확인. 메시지가 없으면 `404 CHAT_MESSAGE_NOT_FOUND`.
-- 자동 조치 전혀 없음(기록만) — `content_reports`에 적재, 모더레이션 큐는 이번 범위 밖.
+- `content_reports` INSERT에 대한 자동 조치는 여전히 없다(신고 자체를 자동 승인/차단하는 로직은
+  없음). 다만 **2026-09-15 신규**: INSERT 직후 Redis Stream(`reports:triage`)에 job을 발행해서,
+  별도 프로세스(`worker/`, Python + LangGraph + OpenAI + Discord 웹훅)가 비동기로 category/
+  severity를 분류해 `content_report_triage`에 기록하고, `severity=HIGH`면 Discord로 운영자
+  알림까지 보낸다 — "운영자 우선순위 판단을 돕는 트리아지"이지, 신고 처리 자체를 자동화한 게
+  아니다. 이 응답(`POST .../report`)의 스키마/타이밍에는 영향 없음(발행은 fire-and-forget).
 
 ### 17.14 `POST /social-sessions/{sessionId}/checkin` — S-36 GPS 체크인 🔒
 
@@ -2413,6 +2418,9 @@ running_mates
   전환시키는 배치/스케줄러는 아직 없다.
 - 호스트 "24시간 내 응답률" 프로필 지표.
 - `com.dallim.notification` 연동(신청/승인/체크인/평가 알림) — 여전히 전혀 없음.
-- 1:1 DM, 별점 평가, 신고에 대한 자동 조치/모더레이션 큐(기록만).
+- 1:1 DM, 별점 평가.
+- ~~신고에 대한 자동 조치/모더레이션 큐(기록만)~~ — **2026-09-15 부분적으로 뒤집힘**: 17.13 참고,
+  신고 자체에 대한 자동 승인/차단은 여전히 없지만 category/severity 자동 분류 + HIGH 알림은
+  생겼다.
 - Android 화면(S-30~S-39) — 2026-09-15 전체 구현 완료(1단계 2026-09-15 1차, 2단계 같은 날
   후속), `docs/01-feature-spec.md` 1.11절 참고.

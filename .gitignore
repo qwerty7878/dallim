@@ -17,3 +17,9 @@ osrm-data/
 backend/secrets/
 android/app/google-services.json
 *firebase-adminsdk*.json
+
+### Python (worker/) ###
+worker/.venv/
+worker/__pycache__/
+worker/**/__pycache__/
+*.pyc

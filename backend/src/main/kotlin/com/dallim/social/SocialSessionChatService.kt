@@ -4,6 +4,7 @@ import com.dallim.common.BadRequestException
 import com.dallim.common.ErrorCodes
 import com.dallim.common.ForbiddenException
 import com.dallim.common.NotFoundException
+import com.dallim.moderation.ReportTriageQueue
 import com.dallim.user.UserRepository
 import java.time.Duration
 import java.time.Instant
@@ -19,6 +20,7 @@ class SocialSessionChatService(
     private val chatRepository: SocialSessionChatRepository,
     private val userRepository: UserRepository,
     private val chatHub: SocialSessionChatHub,
+    private val reportTriageQueue: ReportTriageQueue,
 ) {
     companion object {
         // 세션 "종료"를 이 앱엔 없는 별도 액션 대신 달림 시작(started_at, S-37)으로 근사한다 --
@@ -149,18 +151,26 @@ class SocialSessionChatService(
         }
     }
 
-    /** POST .../chat/messages/{messageId}/report (🔒). */
+    /**
+     * POST .../chat/messages/{messageId}/report (🔒). INSERT 직후 Redis Stream에 트리아지 job을
+     * 발행한다 -- 실제 분류/알림은 `worker/`(Python + LangGraph)가 비동기로 처리하므로 이 요청의
+     * 응답 시간에는 영향이 없다(신고 INSERT는 여전히 즉시 반환).
+     */
     fun reportMessage(sessionId: String, messageId: String, reporterUserId: String, reason: String?) {
         requireAccess(sessionId, reporterUserId)
         chatRepository.findById(sessionId, messageId)
             ?: throw NotFoundException(ErrorCodes.CHAT_MESSAGE_NOT_FOUND, "메시지를 찾을 수 없습니다.")
-        chatRepository.report(reporterUserId, ContentReportTargetType.CHAT_MESSAGE, messageId, reason?.trim()?.takeIf { it.isNotBlank() })
+        val trimmedReason = reason?.trim()?.takeIf { it.isNotBlank() }
+        val reportId = chatRepository.report(reporterUserId, ContentReportTargetType.CHAT_MESSAGE, messageId, trimmedReason)
+        reportTriageQueue.publish(reportId, ContentReportTargetType.CHAT_MESSAGE, messageId, reporterUserId, trimmedReason)
     }
 
     /** POST /social-sessions/{id}/report (🔒) -- 1단계 S-32 "[신고]" gap을 이번에 같이 닫는다. */
     fun reportSession(sessionId: String, reporterUserId: String, reason: String?) {
         sessionRepository.findById(sessionId) ?: throw NotFoundException(ErrorCodes.SESSION_NOT_FOUND, "세션을 찾을 수 없습니다.")
-        chatRepository.report(reporterUserId, ContentReportTargetType.SOCIAL_SESSION, sessionId, reason?.trim()?.takeIf { it.isNotBlank() })
+        val trimmedReason = reason?.trim()?.takeIf { it.isNotBlank() }
+        val reportId = chatRepository.report(reporterUserId, ContentReportTargetType.SOCIAL_SESSION, sessionId, trimmedReason)
+        reportTriageQueue.publish(reportId, ContentReportTargetType.SOCIAL_SESSION, sessionId, reporterUserId, trimmedReason)
     }
 
     private fun SocialSessionChatRepository.ChatMessageRow.toItem() = ChatMessageItem(

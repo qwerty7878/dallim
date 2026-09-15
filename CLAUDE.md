@@ -38,6 +38,9 @@
 dallim/
  ├─ backend/     ← Ktor 프로젝트 (IntelliJ에서 이 폴더를 열기)
  ├─ android/     ← Android 프로젝트 (Android Studio에서 이 폴더를 열기)
+ ├─ worker/      ← 신고 트리아지 파이프라인 워커 (Python + LangGraph, 2026-09-15 신규.
+ │                 backend가 Redis Stream에 발행한 신고를 구독해 OpenAI로 분류하고
+ │                 심각도 HIGH면 Discord로 알린다 — docs/02-api-spec.md 17.13 참고)
  ├─ docs/        ← SPEC 문서 (공용)
  └─ scripts/     ← 개발 스크립트
 ```
@@ -59,6 +62,8 @@ API 구현, 화면 구현, UI 개선 관련 작업 요청 시 `dallim-orchestrat
 | 2026-09-05 | 범위를 "같이 달리기 모집" 기능만 예외로 공식 확장 (그 외 소셜/수익화/대회는 계속 범위 밖) | 전체 | 사용자 요청 — 기존 코스 기반 일회성 모집 게시판 |
 | 2026-09-06 | MVP1/2 경계 폐기, `docs/달림_화면별_상세기획서_v1.3.md`(S-00~S-86 전체)를 SPEC으로 정식 편입. PART 8 로드맵을 구현 우선순위 기본값으로 채택 | 전체 | 사용자 요청 — "MVP 경계 무시하고 전부 구현" |
 | 2026-09-06 | v1.3 PART 8 로드맵이 권장한 "굿즈(S-54) CTA를 MVP1 결과화면에 배치"를 기각하고 **S-54(굿즈/POD) 전체를 초기 서비스 범위에서 제외**. 이미 구현 중이던 backend `goods-cta-tap` 엔드포인트/마이그레이션/android 결과화면 CTA는 커밋 전 전량 되돌림 | 수익화 | 사용자 요청 — "굿즈로 만들기 이런건 빼. 초기엔 결제 기능 없이 광고로만 수익". PART 8 로드맵보다 이 결정이 우선 |
+| 2026-09-15 | 바텀 네비게이션에 "소셜" 탭 신설(홈/탐색/소셜/달림북/마이 5탭) — 대회(S-80)/소셜세션(S-30~34)을 이 탭 안 세그먼트로 통합, 탐색 탭은 순수 코스 탐색으로 환원. 2026-09-06 "새 탭을 만들지 않고 기존 4탭 구조를 유지" 원칙을 이번 결정이 대체함 | Android IA | 사용자 요청 — "마라톤이나 세션의 접근이 잘 안되는거같으니까 바텀네비게이션에 적절하게 추가" |
+| 2026-09-15 | 신고(content_reports) 트리아지 파이프라인 신설: backend가 신고 INSERT 직후 Redis Stream(`reports:triage`)에 발행 → 신규 `worker/`(Python + LangGraph)가 구독해 OpenAI(GPT)로 category/severity 자동 분류 → `content_report_triage`에 기록, severity=HIGH면 Discord 웹훅으로 운영자 알림. `docs/02-api-spec.md` 17.18의 "모더레이션 큐는 범위 밖" 결정을 부분적으로 뒤집음(신고 자체의 자동 승인/차단은 여전히 없음, 분류/알림만) | 신고 처리 | 사용자 요청 — 실서비스 필요(신고가 쌓이기만 하고 아무도 안 보는 문제) + 이력서용 이벤트-큐-LangGraph-LLM 파이프라인 아키텍처 데모 목적. LLM은 GPT(OpenAI) API, Discord 웹훅은 사용자가 직접 발급해 제공 |
 
 ## 공통 규칙 (모든 에이전트 공통, 예외 없음)
 

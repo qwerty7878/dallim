@@ -7,5 +7,5 @@ import org.koin.dsl.module
 val socialSessionChatModule = module {
     single { SocialSessionChatHub() }
     single { SocialSessionChatRepository(get()) }
-    single { SocialSessionChatService(get(), get(), get(), get()) }
+    single { SocialSessionChatService(get(), get(), get(), get(), get()) }
 }

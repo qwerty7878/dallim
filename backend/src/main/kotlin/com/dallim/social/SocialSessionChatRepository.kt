@@ -80,16 +80,19 @@ open class SocialSessionChatRepository(private val database: Database) {
             .singleOrNull()
     }
 
-    open fun report(reporterUserId: String, targetType: ContentReportTargetType, targetId: String, reason: String?) {
+    /** @return 생성된 report id -- 호출자가 [com.dallim.moderation.ReportTriageQueue]에 그대로 발행한다. */
+    open fun report(reporterUserId: String, targetType: ContentReportTargetType, targetId: String, reason: String?): String {
+        val id = IdGenerator.contentReport()
         transaction(database) {
             ContentReportTable.insert {
-                it[ContentReportTable.id] = IdGenerator.contentReport()
+                it[ContentReportTable.id] = id
                 it[ContentReportTable.reporterUserId] = reporterUserId
                 it[ContentReportTable.targetType] = targetType
                 it[ContentReportTable.targetId] = targetId
                 it[ContentReportTable.reason] = reason
             }
         }
+        return id
     }
 
     private fun ResultRow.toChatMessageRow(): ChatMessageRow {

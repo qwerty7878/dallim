@@ -5,6 +5,7 @@ import com.dallim.common.HttpClientFactory
 import com.dallim.dallimbook.dallimbookModule
 import com.dallim.discovery.discoveryModule
 import com.dallim.meetup.meetupModule
+import com.dallim.moderation.moderationModule
 import com.dallim.notification.notificationModule
 import com.dallim.push.pushModule
 import com.dallim.race.raceModule
@@ -55,6 +56,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             meetupModule,
             raceRecordModule,
             raceModule,
+            moderationModule,
             socialSessionModule,
             socialSessionChatModule,
             socialSessionCheckinModule,
