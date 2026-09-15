@@ -50,7 +50,6 @@ import com.dallim.app.social.detail.SocialSessionDetailRoute
 import com.dallim.app.social.detail.SocialSessionDetailViewModel
 import com.dallim.app.social.feedback.SocialSessionFeedbackRoute
 import com.dallim.app.social.inbox.ChatInboxRoute
-import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.app.social.runningmate.RunningMateListRoute
 import com.dallim.ui.components.DallimTab
 
@@ -275,16 +274,11 @@ fun DallimNavHost(
             SocialSessionCreateRoute(
                 onBackClick = { navController.popBackStack() },
                 onCreated = {
-                    // 직전 백스택 엔트리의 SavedStateHandle에 결과 플래그를 심는다 — 탐색(EXPLORE)
-                    // 의 "세션 열기" FAB로 진입했으면 그 엔트리가 바로 EXPLORE라 `[소셜]` 세그먼트
-                    // 목록이 돌아갔을 때 자동으로 새로고침된다. 코스 상세(S-16)의 "같이 뛸 사람
-                    // 모으기"로 진입했으면 직전 엔트리가 ROUTE_DETAIL이라 이 플래그는 조용히
-                    // 쓰이지 않는다(그 화면엔 세션 목록이 없다) — 무해하다
-                    // (com.dallim.app.meetup.list.MeetupListViewModel.RESULT_MEETUP_CREATED와
-                    // 동일한 결과 전달 패턴).
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(SocialSessionListViewModel.RESULT_SESSION_CREATED, true)
+                    // 탐색(EXPLORE)의 `[소셜]` 세그먼트는 화면 RESUME마다 자체적으로 새로고침한다
+                    // (DiscoverScreen.kt의 LifecycleResumeEffect 참고) — 여기서는 그냥 돌아가기만
+                    // 하면 된다. SavedStateHandle 플래그 릴레이는 EXPLORE가 탭 루트라 정체성이
+                    // 흔들려 신뢰할 수 없었다(실측으로 확인, com.dallim.app.social.list.
+                    // SocialSessionListViewModel 문서 참고).
                     navController.popBackStack()
                 },
             )

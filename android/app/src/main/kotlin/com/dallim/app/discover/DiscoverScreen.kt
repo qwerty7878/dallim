@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.running.RunFormat
 import com.dallim.app.social.list.SocialSessionListBody
@@ -260,6 +261,15 @@ private fun DiscoverScreen(
                 DiscoverSegment.SOCIAL -> {
                     val socialViewModel: SocialSessionListViewModel = hiltViewModel()
                     val socialUiState by socialViewModel.uiState.collectAsStateWithLifecycle()
+                    // 세션 생성(S-31) 후 돌아왔을 때 새로고침 — 이 화면(EXPLORE)은 탭 루트라
+                    // navigateToTab의 popUpTo/saveState/restoreState 때문에 NavBackStackEntry의
+                    // SavedStateHandle 정체성이 SocialSessionListViewModel 생성 시점과 달라질 수
+                    // 있어(실측 확인됨), SavedStateHandle 플래그 릴레이 대신 화면이 다시 보일
+                    // 때(RESUME)마다 무조건 새로고침하는 더 단순하고 견고한 방식을 쓴다.
+                    LifecycleResumeEffect(Unit) {
+                        socialViewModel.load()
+                        onPauseOrDispose { }
+                    }
                     SocialSessionListBody(
                         uiState = socialUiState,
                         onSessionClick = onSessionClick,

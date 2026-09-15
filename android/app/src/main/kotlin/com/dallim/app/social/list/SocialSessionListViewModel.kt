@@ -1,6 +1,5 @@
 package com.dallim.app.social.list
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dallim.app.common.UiResult
@@ -25,11 +24,17 @@ sealed interface SocialSessionListUiState {
  * 볼 수 있다(참가/생성은 각 화면에서 로그인이 요구됨). 지도 핀 토글/지역 거점 제한/세밀한 필터는
  * 이번 1단계 범위 밖(과설계 금지, 작업 브리핑 참고) — 페이지네이션도 없이 한 번에 불러온다
  * ([com.dallim.app.meetup.list.MeetupListViewModel]과 동일한 단순함 원칙).
+ *
+ * 세션 생성(S-31) 후 돌아왔을 때의 새로고침은 SavedStateHandle 플래그 릴레이가 아니라
+ * [com.dallim.app.discover.DiscoverScreen]이 화면 RESUME마다 [load]를 호출하는 방식으로 처리한다
+ * — 이 ViewModel은 탐색(EXPLORE) 탭 루트 안에서 세그먼트에 따라 조건부로 생성되는데, 탭
+ * 전환(navigateToTab)의 popUpTo/saveState/restoreState 때문에 NavBackStackEntry의
+ * SavedStateHandle 정체성이 이 인스턴스 생성 시점과 달라질 수 있어(실측으로 확인된 버그)
+ * SavedStateHandle 플래그 방식이 신뢰할 수 없었다.
  */
 @HiltViewModel
 class SocialSessionListViewModel @Inject constructor(
     private val socialSessionApi: SocialSessionApi,
-    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SocialSessionListUiState>(SocialSessionListUiState.Loading)
@@ -37,17 +42,6 @@ class SocialSessionListViewModel @Inject constructor(
 
     init {
         load()
-
-        // S-31에서 세션 생성에 성공하고 돌아오면 목록을 다시 불러온다
-        // (com.dallim.app.meetup.list.MeetupListViewModel의 RESULT_MEETUP_CREATED와 동일 패턴).
-        viewModelScope.launch {
-            savedStateHandle.getStateFlow(RESULT_SESSION_CREATED, false).collect { created ->
-                if (created) {
-                    savedStateHandle[RESULT_SESSION_CREATED] = false
-                    load()
-                }
-            }
-        }
     }
 
     fun load() {
@@ -62,8 +56,6 @@ class SocialSessionListViewModel @Inject constructor(
     }
 
     companion object {
-        const val RESULT_SESSION_CREATED = "result_social_session_created"
-
         /** 페이지네이션 없이 한 번에 불러오는 상한 — 1단계 트래픽 규모에서 충분하다. */
         private const val MAX_PAGE_SIZE = 50
     }
