@@ -118,8 +118,10 @@ private fun DrawScope.drawMapGridDots() {
     val columns = 6
     val stepX = size.width / columns
     val stepY = size.height / columns
-    val dotRadius = (minOf(stepX, stepY) * 0.06f).coerceAtLeast(1f)
-    val dotColor = DallimColors.Primary.copy(alpha = 0.14f)
+    // 14% 알파는 스크린샷 확대 없이 실기기에서 보면 거의 안 보였다(실사용 피드백) — 확실히
+    // 눈에 띄도록 반지름/알파 모두 올림.
+    val dotRadius = (minOf(stepX, stepY) * 0.09f).coerceAtLeast(1.5f)
+    val dotColor = DallimColors.Primary.copy(alpha = 0.35f)
     for (row in 0 until columns) {
         for (col in 0 until columns) {
             drawCircle(
