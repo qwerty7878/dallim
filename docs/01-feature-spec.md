@@ -340,7 +340,8 @@ POST /runs/{runId}/gps-batch
 - ~~대회 캘린더/대회 상세/참가 예정 대회 담기(S-80/81)~~ → 2026-09-07 구현됨, 1.10절/
   `docs/02-api-spec.md` 16장 참고. 목표 대회 D-day/훈련 진행률(S-82 상단)은 여전히 범위 밖.
 - ~~코스 미리 달리기(S-85)~~ → 2026-09-12 구현됨, 1.10.2절/`docs/02-api-spec.md` 16.6 참고.
-  대회 목표 훈련 플랜(S-86)은 여전히 범위 밖.
+  ~~대회 목표 훈련 플랜(S-86)~~ → 2026-09-18 백엔드/워커 구현됨(RUN+ 게이트 없이 전면 무료,
+  CLAUDE.md 2026-09-18 결정), 1.10.3절/`docs/02-api-spec.md` 19장 참고.
 - 기록 인증(S-84) — `verified`는 항상 `false`
 - 대회 DB 검색(현재는 `raceName` 자유 입력만)
 - 완주 이력 개수 기반 마일스톤 배지 부여 로직 — 배지 시스템 자체가 범위 밖
@@ -399,18 +400,69 @@ POST /runs/{runId}/gps-batch
   검증용 축소 예시.
 - 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 16.6 참고.
 
-#### 1.10.3 이번 라운드에 만들지 않은 것 (`docs/02-api-spec.md` 16.7과 동일)
+#### 1.10.3 S-86 대회 목표 훈련 플랜 (2026-09-18 신규 — CLAUDE.md 2026-09-18 결정으로
+PART 8 로드맵(MVP5권)보다 앞당겨 구현, RUN+ 결제 게이트 없이 전면 무료)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` S-86 근거. 이번 라운드는 **백엔드 + 별도 워커
+> (`worker/`) + Android 화면까지** 구현했다(2026-09-26 Android 화면 추가 완료 — 최초 구현 시엔
+> 백엔드/워커만 있었으나 같은 작업 내에서 이어서 화면까지 마쳤다). "담아둔 대회"
+> (1.10절 `POST /races/{raceId}/save`)가 곧 SPEC상 "목표 대회" 개념이라 별도 목표 설정 API를
+> 새로 만들지 않았다.
+
+| 화면 ID | 화면명 | 기능 | 데이터 소스 |
+|---|---|---|---|
+| S-86 | 대회 목표 훈련 플랜 | D-day 역산 주차별 목표 거리(점진적 증가 + 테이퍼) + 세션(롱런/템포·인터벌/휴식) + 세션별 코스 매칭 + LLM 개인화 코멘트 + 고정 면책 문구 | `POST`/`GET /races/{raceId}/training-plan` |
+
+- **Android 화면**(`com.dallim.app.race.trainingplan`, `TrainingPlanScreen`/`TrainingPlanViewModel`):
+  대회 상세(S-81)에서 이 대회를 담아뒀을(`isSaved`) 때만 "훈련 플랜 받기" 카드가 노출된다
+  (`RaceDetailScreen`). 진입 시 `GET`을 먼저 시도해 `404`면 `POST`로 생성 요청 →
+  대회 종목이 여럿이면 종목 선택 화면(`NeedsCategory`) → `PENDING`이면 3초 간격 최대 10회
+  (30초) 폴링(`Generating`) → `READY`(주차별 카드 + 매칭 코스 + LLM 코멘트 + 하단 고정
+  면책 문구)/`FAILED`(고정 안내 문구 + 재시도)/`TimedOut`(수동 새로고침) 중 하나로 귀결된다.
+  실제 백엔드+워커+에뮬레이터(Pixel 6 API 34) 연동으로 전체 흐름을 검증했다.
+
+- **언어 경계**: 신고 트리아지 파이프라인(`com.dallim.moderation`, 2026-09-15)과 동일한
+  원칙 — Kotlin(`com.dallim.trainingplan`)은 `training_plans` 행을 PENDING으로 만들고 Redis
+  Stream(`training-plans:generate`)에 발행만 한다. 실제 이력 분석 → 주차별 스케줄 생성 →
+  코스 매칭 → LLM(OpenAI) 개인화 코멘트는 전부 별도 프로세스(`worker/trainingplan_main.py`,
+  Python + LangGraph)가 수행하고 결과를 `training_plans`/`training_plan_sessions`에 직접 쓴다.
+  Kotlin은 OpenAI/LangGraph의 존재를 전혀 모른다.
+- **신고 트리아지와의 차이(read-back)**: 신고는 fire-and-forget(운영자 알림용, 아무도
+  결과를 기다리지 않음)이지만, 이 도메인은 유저가 `GET`으로 상태(`PENDING`/`READY`/`FAILED`)를
+  폴링해야 한다. 그래서 그래프 실행이 실패하면 재시도 대기로 두지 않고 반드시
+  `training_plans.status = FAILED`로 마무리한 뒤 ack한다(그래야 `GET`이 영원히 `PENDING`에
+  머무르지 않는다).
+- 사전 조건: `POST`는 이 대회를 먼저 담아둔(saved) 유저만 가능(`400
+  TRAINING_PLAN_RACE_NOT_SAVED`). 대회에 종목이 여럿이면 `category`를 명시해야 한다(`400
+  TRAINING_PLAN_CATEGORY_REQUIRED`/`TRAINING_PLAN_CATEGORY_NOT_OFFERED`).
+- 재요청 시 기존 `PENDING`/`READY` 행을 그대로 재사용하고 재발행하지 않는다(중복 생성/중복
+  job 방지). `FAILED`였던 행만 `PENDING`으로 되돌려 재시도한다.
+- 주차별 스케줄 알고리즘(D-day까지 남은 주 수·목표 거리 기반 점진적 증가 + "10% 룰" 상한 +
+  마지막 1~2주 테이퍼)은 SPEC에 정확한 배율이 없어 임의로 채택한 근사치다 — 근거는
+  `worker/plan_skeleton.py`(순수 함수, `com.dallim.racerecord.PaceSuggestionCalculator`와 동일한
+  원칙으로 DB/네트워크 의존성 없이 분리) 상단 주석에 상수별로 남겨뒀다.
+- 컴플라이언스 면책 문구("의학적 조언이 아니며 부상/이상 시 중단 권고")는 LLM이 생성하지
+  않는다 — `TrainingPlanDisclaimer.TEXT` 고정 상수를 Kotlin이 항상 응답에 붙인다(문구가
+  변동성이 있으면 안 된다는 원칙).
+- 상세 API 계약/응답 예시는 `docs/02-api-spec.md` 19장 참고.
+
+#### 1.10.4 이번 라운드에 만들지 않은 것 (`docs/02-api-spec.md` 16.7/19.5와 동일)
 - 접수 제휴 추적 링크, 상단 "추천 대회" 유상 노출 슬롯(수익화)
 - "정보가 다른가요? 신고" 데이터 정확도 신고 기능
 - "이 대회 준비하는 사람들"(1.8절 같이 달리기 모집과의 연계)
-- ~~코스 미리달리기(S-85)~~ → 2026-09-12 구현됨, 1.10.2절 참고. 훈련플랜(S-86)은 여전히
-  범위 밖(RUN+ 유료 기능, "광고 수익만, 결제 기능 없음" 방침에 따라 애초에 없는 기능).
-- 목표 대회 D-day 카드/훈련 진행률(S-82 상단)
+- ~~코스 미리달리기(S-85)~~ → 2026-09-12 구현됨, 1.10.2절 참고. ~~훈련플랜(S-86)~~ →
+  2026-09-18 백엔드/워커, 2026-09-26 Android 화면까지 구현됨, 1.10.3절 참고(RUN+ 게이트 없이
+  전면 무료 — CLAUDE.md 2026-09-18 결정이 "RUN+ 유료라 안 만든다"던 기존 방침을 이 건에 한해
+  뒤집었다. "초기엔 광고만, 결제 기능은 안 만든다"는 2026-09-06 원칙 자체는 그대로 유지 —
+  유료 게이트를 안 거는 것이지 결제 기능을 새로 만든 게 아니다).
+- 목표 대회 D-day 카드(S-82 상단) 자체의 Android UI — 훈련 진행률 계산 API는 생겼지만
+  화면 표시는 다음 라운드
 - 대표 이미지/포스터 업로드, 월별 캘린더 뷰(Android 몫), 접수하러 가기 외부 링크, 크롤링
   배치/자동 갱신(수동 큐레이션 원칙)
-- Android 화면(S-80/81/85) 자체 — 이번 라운드도 백엔드만
 - 소셜 세션(S-30~S-39, 실시간 채팅 필요)과의 연계 — S-85 구간 러닝을 같이 달리기 모집과
   엮는 것은 범위 밖
+- 훈련 플랜 재생성(종목 변경) API, 플랜 진행률(실제 러닝 대비 달성률) 추적 — 이번 라운드는
+  생성 + 조회까지만
 
 ### 1.11 소셜 세션 모듈 (2026-09-13 신규 — `docs/달림_화면별_상세기획서_v1.3.md` PART 3-D S-30~S-39 편입)
 
@@ -580,6 +632,10 @@ com.dallim
  │               2026-09-07 SPEC 편입, docs/02-api-spec.md 16장)
  ├─ social      (소셜 세션 1단계 — 탐색/생성/상세/참가신청/호스트승인, meetup과는 별개 도메인,
  │               2026-09-13 SPEC 편입, docs/02-api-spec.md 17장)
+ ├─ moderation  (신고 트리아지 job 발행만 — 실제 분류는 worker/, 2026-09-15 신규 도입)
+ ├─ trainingplan (대회 목표 훈련 플랜 — PENDING 생성/조회, 실제 생성은 worker/가 별도 프로세스로
+ │               수행(moderation과 동일한 언어 경계 원칙), S-86, 2026-09-18 SPEC 편입,
+ │               docs/02-api-spec.md 19장)
  └─ common      (GeoJSON 변환, PostGIS 유틸, 공통 응답 래퍼)
 ```
 

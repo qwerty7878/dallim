@@ -1495,7 +1495,9 @@ run_meetup_participants
 > `docs/달림_화면별_상세기획서_v1.3.md` PART 3-A "S-04b 러닝 커리어 입력", PART 3-H
 > "S-82 내 대회(메달 선반)" / "S-83 완주 이력 등록/편집" 근거. 이번 라운드는 **완주 이력
 > CRUD + PB 계산 + 페이스 제안**만 구현한다 — 대회 캘린더(S-80/81), 코스 미리달리기(S-85),
-> 훈련플랜(S-86), 기록 인증(S-84)은 범위 밖(SPEC에 없어 보류).
+> 훈련플랜(S-86), 기록 인증(S-84)은 범위 밖(SPEC에 없어 보류). **갱신**: 대회 캘린더는
+> 2026-09-07(16장), 코스 미리달리기는 2026-09-12(16.6), 훈련플랜은 2026-09-18(19장)에
+> 각각 구현됐다 — 기록 인증(S-84)만 여전히 범위 밖.
 >
 > 자기신고 이력이므로 응답에 항상 `verified: false`가 명시된다 — 인증 승격 경로(S-84)가
 > 없어 향후 배지/랭킹 등에서 신뢰 소스로 함부로 쓰이지 않도록 하기 위함.
@@ -1642,8 +1644,10 @@ S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실�
   구현됨, 16장(대회 캘린더, `com.dallim.race`) 참고.** 단 S-82의 "목표 대회 D-day 카드/훈련
   진행률" 부분은 16장에서도 여전히 범위 밖(16.7 참고).
 - ~~코스 미리달리기(S-85)~~ → **2026-09-12 구현됨, 16.6(대회 코스 미리 달리기,
-  `com.dallim.race`) 참고.** 훈련플랜(S-86)은 여전히 범위 밖(RUN+ 유료 기능, "광고 수익만"
-  방침에 따라 결제 기능 없이는 만들지 않음).
+  `com.dallim.race`) 참고.** ~~훈련플랜(S-86)~~ → **2026-09-18 구현됨, 19장(`com.dallim.
+  trainingplan`) 참고 — CLAUDE.md 2026-09-18 결정으로 "RUN+ 유료라 만들지 않는다"던 기존
+  방침을 이 건에 한해 뒤집고 결제 게이트 없이 전면 무료로 공개했다("초기엔 광고만" 원칙
+  자체는 유지 — 유료 게이트만 안 거는 것이지 결제 기능을 새로 만든 게 아니다).**
 - 기록 인증(사진/링크 제출 → 운영 검토 → `인증` 배지, S-84) — 그래서 `verified`는 항상 `false`
 - 대회 DB 검색(현재는 `raceName` 자유 입력만) — S-83이 "없으면 직접 입력 허용"이라고 명시한
   경로만 우선 구현
@@ -1669,6 +1673,11 @@ S-04b/S-83 "기록 → 예상 페이스 환산" 단독 호출용(이력을 실�
 >
 > **2026-09-12 갱신**: 코스 미리달리기(S-85)는 **더 이상 범위 밖이 아니다** — 16.6
 > `GET /races/{raceId}/course` 참고.
+>
+> **2026-09-18 갱신**: 훈련플랜(S-86)도 **더 이상 범위 밖이 아니다** — CLAUDE.md 2026-09-18
+> 결정으로 RUN+ 결제 게이트 없이 전면 무료로 앞당겨 구현했다. 19장
+> `POST`/`GET /races/{raceId}/training-plan` 참고. 목표 대회 D-day 카드/훈련 진행률(S-82
+> 상단)의 Android UI는 여전히 범위 밖(API는 19장에서 생겼다).
 
 ### 16.1 데이터 모델
 
@@ -1845,8 +1854,10 @@ idempotent 성공).
 > 완주 판정은 구간을 특별 취급하지 않고 평범한 SketchRoute처럼 그대로 통과한다).
 >
 > 소셜 세션(14장 같이 달리기 모집과 연계되는 실시간 세션, S-30~S-39)과 훈련 플랜(S-86,
-> RUN+ 유료)은 이번 라운드에도 범위 밖이다 — 전자는 실시간 채팅이 필요해 범위 밖, 후자는
-> "광고 수익만, 결제 기능 없음" 방침(`CLAUDE.md` 2026-09-06 결정)에 따라 만들지 않는다.
+> 당시엔 RUN+ 유료 기능으로 분류)은 이 라운드(2026-09-12) 시점엔 범위 밖이었다 — 전자는
+> 실시간 채팅이 필요해서, 후자는 "광고 수익만, 결제 기능 없음" 방침(`CLAUDE.md` 2026-09-06
+> 결정)에 따라 만들지 않았다. **갱신**: 소셜 세션은 2026-09-13(17장), 훈련 플랜은 2026-09-18
+> (19장, RUN+ 게이트 없이 전면 무료로 방침 자체가 뒤집힘)에 각각 구현됐다.
 
 비로그인도 조회 가능, 구간 `isCompleted`/`previewProgressPercent`만 옵셔널 JWT로 개인화
 (4장 `GET /routes`와 동일한 `authenticate(AUTH_JWT, optional = true)` 패턴). 대회가
@@ -1913,10 +1924,12 @@ idempotent 성공).
   결정("초기엔 광고만")에 따라 대회 쪽 수익화는 이번 범위 밖
 - "정보가 다른가요? 신고" 데이터 정확도 신고 기능
 - "이 대회 준비하는 사람들"(14장 같이 달리기 모집과의 연계)
-- ~~코스 미리달리기(S-85)~~ → **2026-09-12 구현됨, 16.6 참고.** 훈련플랜(S-86, RUN+)은
-  여전히 범위 밖 — 결제 기능 없이는 만들지 않는다는 방침 때문에 애초에 없는 기능
-- 목표 대회 D-day 카드/훈련 진행률(S-82 상단, "이번 주 8/20km") — "담기"까지만, 목표 설정과
-  훈련 진행률 추적은 범위 밖
+- ~~코스 미리달리기(S-85)~~ → **2026-09-12 구현됨, 16.6 참고.** ~~훈련플랜(S-86, RUN+)~~ →
+  **2026-09-18 구현됨, 19장 참고** — CLAUDE.md 2026-09-18 결정으로 결제 게이트 없이 전면
+  무료로 앞당겨 만들었다(RUN+ 자체는 여전히 어떤 도메인에도 구현된 적 없음, 이 건만 유료
+  게이트를 안 건 것).
+- 목표 대회 D-day 카드/훈련 진행률(S-82 상단, "이번 주 8/20km") UI — "담기"까지만, 19장에서
+  훈련 플랜 생성/조회 API는 생겼지만 이 카드 자체의 Android 표시는 다음 라운드
 - 대표 이미지/포스터 업로드 — 이미지 자산 관리 인프라가 없어 `posterImageUrl` 같은 필드
   자체가 없음
 - 크롤링 배치/자동 갱신 — 수동 큐레이션 원칙대로 시드 데이터(`V12__seed_races.sql`)로 대체
@@ -2608,3 +2621,177 @@ running_mates
 - 차단 사유 입력 UI/차단 알림 — 차단은 조용히, 상대에게 어떤 알림도 가지 않는다.
 - 안드로이드 화면(채팅 탭 바텀 네비게이션 진입점, 차단/차단 목록 화면) — API만 이번 라운드,
   화면은 다음 라운드.
+
+---
+
+## 19. 대회 목표 훈련 플랜(training plan) (2026-09-18 — `docs/달림_화면별_상세기획서_v1.3.md` S-86, PART 8 로드맵보다 앞당겨 구현)
+
+> `docs/달림_화면별_상세기획서_v1.3.md` S-86 근거. **15.7/16.7에 반복 명시돼 있던 "훈련플랜
+> (S-86)은 RUN+ 유료 기능이라 결제 기능 없이는 만들지 않는다"는 기존 결정을 이 건에 한해
+> 뒤집는다** — `CLAUDE.md` 2026-09-18 결정: RUN+ 결제 게이트 없이 전면 무료로 공개한다.
+> 2026-09-06 "초기엔 광고만, 결제 기능은 만들지 않는다" 원칙 자체는 그대로 유지된다 — 유료
+> 게이트를 안 거는 것이지 결제 기능을 새로 만든 게 아니다.
+>
+> 이번 라운드는 **백엔드 API + 별도 워커(`worker/`) + Android 화면까지** 구현했다(2026-09-26
+> Android 화면 추가 — `docs/01-feature-spec.md` 1.10.3절 참고). 실제 로컬 백엔드/워커/에뮬레이터
+> (Pixel 6 API 34) 연동으로 생성 요청 → 폴링 → `READY` 전체 흐름을 검증했다.
+>
+> **언어 경계**: 신고 트리아지 파이프라인(17.13/18장 이전, `com.dallim.moderation`,
+> 2026-09-15 도입)과 동일한 원칙이다 — Kotlin(`com.dallim.trainingplan`)은 Redis Stream에
+> job을 발행/재발행만 하고, 실제 이력 분석 → 주차별 플랜 생성 → 코스 매칭 → LLM 개인화
+> 코멘트는 전부 별도 프로세스(`worker/trainingplan_main.py`, Python + LangGraph)가 수행한다.
+> Kotlin은 OpenAI/LangGraph의 존재를 전혀 모른다. 신고 트리아지와의 차이는 **read-back**이
+> 필요하다는 것 — 유저가 `GET`으로 결과를 폴링해야 하므로, 워커가 실패해도 반드시 `FAILED`로
+> 마무리한다(19.4).
+
+### 19.1 데이터 모델
+
+```
+training_plans
+  id             varchar(32) PK
+  user_id        varchar(32) FK -> users
+  race_id        varchar(32) FK -> races                       -- com.dallim.race, 16장
+  category       FIVE_K | TEN_K | HALF | FULL | ULTRA | TRAIL   -- com.dallim.race.RaceCategory와 동일
+  status         PENDING | READY | FAILED
+  comment        text null      -- 워커(LLM)가 채우는 개인화 코멘트, READY일 때만
+  error_message  text null      -- 워커가 예외를 잡아 기록, FAILED일 때만
+  created_at     timestamptz
+  updated_at     timestamptz
+  UNIQUE (user_id, race_id)     -- 대회(+ 그 안에서 고른 종목) 하나당 플랜 하나 — 재요청 시 새
+                                 -- 행을 만들지 않고 기존 행을 재사용/리셋한다(19.2 참고)
+
+training_plan_sessions
+  id                 varchar(32) PK
+  plan_id            varchar(32) FK -> training_plans
+  week_number        int            -- 1부터, 마지막 주가 대회 당일이 포함된 주
+  session_index      int            -- 그 주 안에서의 순서(0=롱런, 1=템포/인터벌, 2=휴식)
+  type               LONG_RUN | TEMPO | INTERVAL | REST
+  target_distance_km double null    -- REST는 null
+  matched_route_id   varchar(32) null FK -> sketch_routes   -- 후보 코스 없으면 null
+  created_at         timestamptz
+```
+
+- "주간 목표 거리"는 별도 컬럼이 없다 — 응답을 만들 때 그 주 REST가 아닌 세션들의
+  `targetDistanceKm` 합으로 계산한다(저장된 값이 세션 갱신과 어긋나는 것을 방지).
+- `matched_route_id`가 가리키는 코스는 `sketch_routes.is_preview_segment = false`(16.6의
+  대회 코스 구간용 row는 후보에서 제외 — "공개된" 코스만)인 것 중 목표 거리에 가장 가까운
+  하나(`ORDER BY ABS(distance_km - target) LIMIT 1`).
+
+### 19.2 `POST /races/{raceId}/training-plan` — S-86 훈련 플랜 생성 요청 🔒
+
+```json
+// Request (대회 종목이 하나뿐이면 category 생략 가능)
+{ "category": "HALF" }
+```
+```json
+// Response 200 (신규 생성 또는 기존 PENDING/READY 재사용)
+{
+  "success": true,
+  "data": {
+    "planId": "tp_a1b2c3d4",
+    "raceId": "rce_002",
+    "category": "HALF",
+    "status": "PENDING",
+    "weeks": [],
+    "comment": null,
+    "disclaimer": null,
+    "errorMessage": null
+  },
+  "error": null
+}
+```
+
+- 이 대회를 먼저 담아두지(`POST /races/{raceId}/save`, 16.3) 않았으면 `400
+  TRAINING_PLAN_RACE_NOT_SAVED` — "담아둔 대회"가 곧 SPEC상 "목표 대회" 개념이라 별도 목표
+  설정 API를 새로 만들지 않았다.
+- 대회에 종목이 하나도 없으면(정상 시드 데이터에서는 발생하지 않는 운영 이상 상황)
+  `422 TRAINING_PLAN_CATEGORY_REQUIRED`. 종목이 여러 개인데 `category`를 생략하면
+  `400 TRAINING_PLAN_CATEGORY_REQUIRED`, 이 대회가 제공하지 않는 종목을 보내면
+  `400 TRAINING_PLAN_CATEGORY_NOT_OFFERED`.
+- 이미 `PENDING`/`READY` 행이 있으면 그대로 반환하고 재발행하지 않는다(중복 생성/중복 job
+  방지). `FAILED`였던 행만 `category`를 갱신하며 `PENDING`으로 되돌려 재시도한다. 종목을
+  바꿔서 강제로 재생성하는 API는 이번 라운드 범위 밖.
+- 성공 시 Redis Stream(`training-plans:generate`)에 `{ planId, userId, raceId, raceCategory,
+  raceDateIso }`를 발행한다 — 응답은 항상 발행 직후의 **현재 상태**이지, 플랜이 완성될 때까지
+  기다리지 않는다(비동기). 완성 여부는 19.3 `GET`으로 폴링한다.
+
+### 19.3 `GET /races/{raceId}/training-plan` — S-86 훈련 플랜 조회 🔒
+
+```json
+// Response 200 (READY)
+{
+  "success": true,
+  "data": {
+    "planId": "tp_a1b2c3d4",
+    "raceId": "rce_002",
+    "category": "HALF",
+    "status": "READY",
+    "weeks": [
+      {
+        "weekNumber": 1,
+        "weeklyTargetDistanceKm": 7.6,
+        "sessions": [
+          { "sessionIndex": 0, "type": "LONG_RUN", "targetDistanceKm": 5.1, "routeId": "rt_003", "routeName": "한강 러닝", "routeDistanceKm": 5.0 },
+          { "sessionIndex": 1, "type": "TEMPO", "targetDistanceKm": 2.5, "routeId": "rt_010", "routeName": "동네 한바퀴", "routeDistanceKm": 2.4 },
+          { "sessionIndex": 2, "type": "REST", "targetDistanceKm": null, "routeId": null, "routeName": null, "routeDistanceKm": null }
+        ]
+      }
+    ],
+    "comment": "완만하게 시작해서 대회 전 2주는 가볍게 조절했어요. 이번 주는 부담 없이 시작해봐요!",
+    "disclaimer": "이 훈련 플랜은 일반적인 러닝 코칭 통념에 기반해 자동 생성된 참고용 콘텐츠이며 의학적 조언이 아닙니다. 통증이나 몸 상태 이상이 느껴지면 즉시 훈련을 중단하고 전문가와 상담하세요.",
+    "errorMessage": null
+  },
+  "error": null
+}
+```
+
+- `POST`를 한 번도 호출하지 않았으면 `404 TRAINING_PLAN_NOT_FOUND`.
+- `status`가 `PENDING`/`FAILED`면 `weeks`는 빈 배열, `comment`/`disclaimer`는 `null`.
+  `FAILED`면 `errorMessage`에 워커가 잡은 예외 메시지가 담긴다(운영/디버깅 참고용 — 사용자에게
+  그대로 노출할 문구가 아닐 수 있어, Android는 이 값 대신 고정 안내 문구 + "다시 시도" 버튼을
+  보여주는 걸 권장).
+- **`disclaimer`는 LLM이 생성하지 않는다** — Kotlin이 `TrainingPlanDisclaimer.TEXT` 고정
+  상수로 항상 동일하게 붙인다(컴플라이언스 문구는 변동성이 있으면 안 됨).
+- Android는 이 엔드포인트를 폴링(예: 몇 초 간격)해서 `PENDING` → `READY`/`FAILED` 전환을
+  감지하는 방식을 권장한다 — 실시간 스트리밍/WebSocket은 만들지 않았다(CLAUDE.md 규칙 4와
+  같은 원칙: 배치/폴링, 실시간 없음).
+
+### 19.4 워커 파이프라인 (`worker/trainingplan_main.py`)
+
+1. `fetch_context_node` — 유저의 최근 8주 완주(`COMPLETED`) 러닝의 평균 주간 거리/평균 페이스
+   (`run_records`, 이력 없으면 기본값으로 대체), 목표 대회의 종목별 거리(`race_category_
+   options`, `ULTRA`/`TRAIL`처럼 거리가 `null`이면 종목별 기본값으로 대체 — SPEC에 없는 임의
+   값, `worker/trainingplan_db.py` 주석 참고), 후보 코스(`sketch_routes`,
+   `is_preview_segment = false`인 것만)를 조회한다.
+2. `build_plan_skeleton_node` — **순수 함수, LLM 미사용**(`worker/plan_skeleton.py`). D-day
+   까지 남은 주 수와 목표 거리로 주차별 목표 거리(점진적 증가, "10% 룰" 상한, 마지막 1~2주
+   테이퍼)와 세션 구성(롱런 1회 + 템포/인터벌 1회 + 휴식)을 규칙 기반으로 만든다. 배율/증가율
+   상수는 전부 SPEC에 없는 근사치이며 채택 근거를 소스 주석에 남겼다(`com.dallim.racerecord.
+   PaceSuggestionCalculator`와 동일한 원칙).
+3. `match_courses_node` — REST가 아닌 각 세션의 목표 거리에 `ORDER BY ABS(distance_km -
+   target) LIMIT 1`로 가장 가까운 후보 코스를 매칭한다. 후보가 없으면 `matched_route_id`는
+   `null`.
+4. `personalize_comment_node` — OpenAI(`response_format: json_object`)로 계획 전체에 대한
+   짧은 한국어 격려 코멘트 하나를 생성한다. 3회 재시도 후에도 실패하면 예외를 던지지 않고
+   정적 폴백 문구로 대체한다 — 코멘트 하나 못 받았다고 플랜 전체를 `FAILED` 처리하지 않는다.
+5. `persist_node` — `training_plan_sessions`를 전량 재작성(delete-then-insert)하고
+   `training_plans.status`를 `READY`로 갱신한다.
+
+- 위 5단계 중 어디서든(1~3, 5) 예외가 나면 `trainingplan_main.py`의 컨슈머 루프가 잡아
+  `training_plans.status = FAILED` + `error_message`를 기록한 뒤 반드시 `XACK`한다 — 신고
+  트리아지처럼 재시도 대기로 남겨두지 않는다(유저가 `GET`으로 기다리는 요청이기 때문).
+- `OPENAI_API_KEY`/`OPENAI_MODEL`은 신고 트리아지 워커와 동일한 `.env` 값을 그대로
+  재사용한다(새 환경 변수 없음). `docker-compose.yml`에 `trainingplan-worker` 서비스가 별도
+  컨테이너로 추가됐다 — 신고 트리아지 컨슈머 루프와 프로세스 자체가 완전히 분리돼 있어 한쪽
+  장애가 다른 쪽에 영향을 주지 않는다.
+
+### 19.5 이번 라운드에 만들지 않은 것
+- 훈련 플랜 재생성(종목 변경) API — `FAILED`였던 플랜의 재시도만 지원, 이미 `READY`/
+  `PENDING`인 플랜을 강제로 다시 만드는 기능은 없음.
+- 실제 러닝 결과 대비 플랜 달성률/진행률 추적 — 이번 라운드는 "계획 생성 + 조회"까지만.
+- 실시간 진행 알림(예: "이번 주 목표 거리가 남았어요" 푸시) — `com.dallim.notification`
+  연동 없음.
+- 목표 대회 D-day 카드/훈련 진행률(S-82 상단) Android UI — 훈련 플랜 화면(S-86) 자체는
+  2026-09-26 구현됐으나, 이 카드는 별개(1.10.4절 참고).
+- RUN+ 결제/구독 자체 — 여전히 어떤 도메인에도 구현된 적 없다(이 도메인만 유료 게이트 없이
+  무료 공개된 것이지, 구독 인프라가 새로 생긴 게 아니다).
