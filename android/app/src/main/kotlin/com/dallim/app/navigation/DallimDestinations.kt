@@ -163,6 +163,16 @@ object DallimDestinations {
     const val RACE_COURSE_PREVIEW = "$RACE_COURSE_PREVIEW_BASE/{$ARG_RACE_ID}"
     fun raceCoursePreview(raceId: String) = "$RACE_COURSE_PREVIEW_BASE/$raceId"
 
+    /**
+     * S-86 대회 목표 훈련 플랜 (2026-09-18 신규, docs/02-api-spec.md 19장 — CLAUDE.md 2026-09-18
+     * 결정으로 PART 8 로드맵보다 앞당겨 구현, RUN+ 결제 게이트 없이 전면 무료). 대회 상세(S-81)
+     * 에서 이 대회를 담아둔(isSaved) 상태일 때만 CTA로 진입한다(RaceDetailScreen 참고) — 담아두지
+     * 않은 유저가 생성 요청을 보내면 서버가 `400 TRAINING_PLAN_RACE_NOT_SAVED`로 거절한다.
+     */
+    private const val TRAINING_PLAN_BASE = "s86_training_plan"
+    const val TRAINING_PLAN = "$TRAINING_PLAN_BASE/{$ARG_RACE_ID}"
+    fun trainingPlan(raceId: String) = "$TRAINING_PLAN_BASE/$raceId"
+
     const val ARG_SOCIAL_SESSION_ID = "sessionId"
 
     /**

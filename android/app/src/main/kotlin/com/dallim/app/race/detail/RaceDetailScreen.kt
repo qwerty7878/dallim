@@ -51,6 +51,7 @@ import com.dallim.ui.theme.Spacing
 fun RaceDetailRoute(
     onBackClick: () -> Unit,
     onCoursePreviewClick: (raceId: String) -> Unit,
+    onTrainingPlanClick: (raceId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RaceDetailViewModel = hiltViewModel(),
 ) {
@@ -62,6 +63,7 @@ fun RaceDetailRoute(
         onRetryClick = viewModel::load,
         onToggleSaveClick = viewModel::onToggleSaveClick,
         onCoursePreviewClick = { onCoursePreviewClick(viewModel.raceId) },
+        onTrainingPlanClick = { onTrainingPlanClick(viewModel.raceId) },
         modifier = modifier,
     )
 }
@@ -73,6 +75,7 @@ private fun RaceDetailScreen(
     onRetryClick: () -> Unit,
     onToggleSaveClick: () -> Unit,
     onCoursePreviewClick: () -> Unit,
+    onTrainingPlanClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -178,6 +181,18 @@ private fun RaceDetailScreen(
                             )
                         }
 
+                        // S-86 진입 카드 — 담아둔(isSaved) 대회일 때만 노출한다. 담아두지 않은
+                        // 상태로 생성 요청을 보내면 서버가 400 TRAINING_PLAN_RACE_NOT_SAVED로
+                        // 거절하므로(CLAUDE.md 2026-09-18 결정, docs/02-api-spec.md 19.2), CTA
+                        // 자체를 숨기는 쪽을 택했다 — CoursePreviewCard(hasCourse 조건부 노출)와
+                        // 동일한 원칙.
+                        if (uiState.race.isSaved) {
+                            TrainingPlanCard(
+                                onClick = onTrainingPlanClick,
+                                modifier = Modifier.padding(top = Spacing.lg),
+                            )
+                        }
+
                         SectionHeader(
                             title = "종목별 안내",
                             modifier = Modifier.padding(top = Spacing.xl),
@@ -215,6 +230,20 @@ private fun CoursePreviewCard(onClick: () -> Unit, modifier: Modifier = Modifier
         Text(text = "코스 미리 달리기", style = DallimTypography.Body, color = DallimColors.TextPrimary)
         Text(
             text = "이 대회의 공식 코스를 구간별로 미리 달려볼 수 있어요.",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/** S-81 -> S-86 진입 카드 — isSaved == true일 때만 노출한다(RaceDetailScreen 본문 참고). */
+@Composable
+private fun TrainingPlanCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    DallimCard(onClick = onClick, modifier = modifier) {
+        Text(text = "훈련 플랜 받기", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+        Text(
+            text = "이 대회를 목표로 주차별 훈련 플랜과 코스를 자동으로 짜드려요.",
             style = DallimTypography.Caption,
             color = DallimColors.TextSecondary,
             modifier = Modifier.padding(top = Spacing.xs),
@@ -322,7 +351,7 @@ private fun RaceDetailScreenPreview() {
                     minFeeKrw = 20000,
                     maxFeeKrw = 35000,
                     savedCount = 12,
-                    isSaved = false,
+                    isSaved = true,
                     previewProgressPercent = 62,
                 ),
                 hasCourse = true,
@@ -331,6 +360,7 @@ private fun RaceDetailScreenPreview() {
             onRetryClick = {},
             onToggleSaveClick = {},
             onCoursePreviewClick = {},
+            onTrainingPlanClick = {},
         )
     }
 }

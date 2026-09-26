@@ -20,6 +20,7 @@ import com.dallim.network.racerecord.RaceRecordApi
 import com.dallim.network.route.RouteApi
 import com.dallim.network.run.RunApi
 import com.dallim.network.social.SocialSessionApi
+import com.dallim.network.trainingplan.TrainingPlanApi
 import com.dallim.network.user.BlockedUserApi
 import com.dallim.network.user.UserApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -203,4 +204,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideBlockedUserApi(retrofit: Retrofit): BlockedUserApi = retrofit.create(BlockedUserApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideTrainingPlanApi(retrofit: Retrofit): TrainingPlanApi = retrofit.create(TrainingPlanApi::class.java)
 }

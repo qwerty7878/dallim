@@ -33,6 +33,7 @@ import com.dallim.app.onboarding.terms.TermsRoute
 import com.dallim.app.race.course.RaceCoursePreviewRoute
 import com.dallim.app.race.detail.RaceDetailRoute
 import com.dallim.app.race.list.RaceListRoute
+import com.dallim.app.race.trainingplan.TrainingPlanRoute
 import com.dallim.app.route.create.CourseCreateEntryRoute
 import com.dallim.app.route.create.ai.AiRouteRoute
 import com.dallim.app.route.create.draw.DrawRouteRoute
@@ -248,6 +249,7 @@ fun DallimNavHost(
             RaceDetailRoute(
                 onBackClick = { navController.popBackStack() },
                 onCoursePreviewClick = { raceId -> navController.navigate(DallimDestinations.raceCoursePreview(raceId)) },
+                onTrainingPlanClick = { raceId -> navController.navigate(DallimDestinations.trainingPlan(raceId)) },
             )
         }
 
@@ -260,6 +262,13 @@ fun DallimNavHost(
                 // S-20 러닝 준비로 그대로 진입 — RouteDetailRoute.onStartRunClick과 동일한 패턴.
                 onRunSegmentClick = { routeId -> navController.navigate(DallimDestinations.runPrepare(routeId)) },
             )
+        }
+
+        composable(
+            route = DallimDestinations.TRAINING_PLAN,
+            arguments = listOf(navArgument(DallimDestinations.ARG_RACE_ID) { type = NavType.StringType }),
+        ) {
+            TrainingPlanRoute(onBackClick = { navController.popBackStack() })
         }
 
         composable(
