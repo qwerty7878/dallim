@@ -16,6 +16,7 @@ import com.dallim.social.socialSessionCheckinModule
 import com.dallim.social.socialSessionChatModule
 import com.dallim.social.socialSessionFeedbackModule
 import com.dallim.social.socialSessionModule
+import com.dallim.trainingplan.trainingPlanModule
 import com.dallim.user.userModule
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -56,6 +57,7 @@ fun Application.configureDependencyInjection(config: DallimConfig, dataSource: D
             meetupModule,
             raceRecordModule,
             raceModule,
+            trainingPlanModule,
             moderationModule,
             socialSessionModule,
             socialSessionChatModule,

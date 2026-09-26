@@ -18,6 +18,7 @@ import com.dallim.social.socialSessionChatRoutes
 import com.dallim.social.socialSessionFeedbackRoutes
 import com.dallim.social.socialSessionInboxRoutes
 import com.dallim.social.socialSessionRoutes
+import com.dallim.trainingplan.trainingPlanRoutes
 import com.dallim.user.blockedUserRoutes
 import com.dallim.user.savedRouteRoutes
 import com.dallim.user.userRoutes
@@ -54,6 +55,7 @@ fun Application.configureRouting() {
             meetupRoutes()
             raceRecordRoutes()
             raceRoutes()
+            trainingPlanRoutes()
             socialSessionRoutes()
             socialSessionChatRoutes()
             socialSessionCheckinRoutes()

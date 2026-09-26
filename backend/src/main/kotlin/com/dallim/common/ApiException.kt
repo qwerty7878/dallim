@@ -68,6 +68,16 @@ object ErrorCodes {
     // race calendar (docs/02-api-spec.md 16장, com.dallim.race — 완주 이력과 무관한 별개 도메인)
     const val RACE_NOT_FOUND = "RACE_NOT_FOUND"
 
+    // training plan (docs/02-api-spec.md 19장, com.dallim.trainingplan, S-86 — 2026-09-18)
+    const val TRAINING_PLAN_NOT_FOUND = "TRAINING_PLAN_NOT_FOUND"
+    // POST 시점에 이 대회를 담아두지(RaceService.save) 않았으면 던진다 — "담아둔 대회"가 곧
+    // SPEC상 "목표 대회" 개념이라 별도 "목표 설정" API를 새로 만들지 않는다(작업 브리핑 지시).
+    const val TRAINING_PLAN_RACE_NOT_SAVED = "TRAINING_PLAN_RACE_NOT_SAVED"
+    // 대회에 종목이 2개 이상인데 category를 안 보냈을 때.
+    const val TRAINING_PLAN_CATEGORY_REQUIRED = "TRAINING_PLAN_CATEGORY_REQUIRED"
+    // category를 보냈는데 그 대회가 제공하지 않는 종목일 때.
+    const val TRAINING_PLAN_CATEGORY_NOT_OFFERED = "TRAINING_PLAN_CATEGORY_NOT_OFFERED"
+
     // social session (docs/02-api-spec.md 17장, com.dallim.social — S-30~S-34, 1단계)
     const val SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     const val SESSION_NOT_HOST = "SESSION_NOT_HOST"

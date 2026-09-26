@@ -43,4 +43,9 @@ object IdGenerator {
     // 복합 PK라 별도 id가 필요 없다(위 socialSession() 주석과 동일 원칙).
     fun socialChatMessage(): String = next("scm")
     fun contentReport(): String = next("rpt")
+
+    // com.dallim.trainingplan (대회 목표 훈련 플랜, S-86, 2026-09-18) — 세션 row는 워커
+    // (worker/trainingplan_db.py)가 직접 psycopg2로 id를 만들어 넣으므로 여기 Kotlin 쪽엔
+    // plan() 하나만 있으면 된다.
+    fun trainingPlan(): String = next("tp")
 }
