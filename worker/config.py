@@ -33,3 +33,9 @@ DISCORD_REPORT_WEBHOOK_URL = os.environ.get("DISCORD_REPORT_WEBHOOK_URL") or Non
 
 STREAM_KEY = "reports:triage"
 CONSUMER_GROUP = "triage-workers"
+
+# 훈련 플랜(S-86, 2026-09-18) -- 별도 프로세스(trainingplan_main.py)가 구독하는 스트림/그룹.
+# 신고 트리아지와 컨슈머 루프를 절대 섞지 않는다(작업 브리핑 지시) -- 이 프로세스가 죽어도
+# 신고 트리아지는 영향받지 않고, 그 반대도 마찬가지다.
+TRAINING_PLAN_STREAM_KEY = "training-plans:generate"
+TRAINING_PLAN_CONSUMER_GROUP = "training-plan-workers"

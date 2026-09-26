@@ -39,6 +39,27 @@ services:
       - postgres
       - redis
 
+  # 대회 목표 훈련 플랜(S-86, 2026-09-18 신규) 워커. 위 `worker` 서비스(신고 트리아지)와 같은
+  # 빌드 컨텍스트(./worker)를 재사용하지만 컨슈머 루프는 완전히 별개 프로세스다(신고 트리아지와
+  # 절대 섞지 말라는 작업 브리핑 지시) -- command만 다르게 trainingplan_main.py를 돈다.
+  # backend/가 POST /races/{raceId}/training-plan 시 Redis Stream(training-plans:generate)에
+  # job을 발행하면, 이 컨테이너가 구독해서 이력 분석 -> 주차별 스케줄 생성 -> 코스 매칭 -> LLM
+  # 개인화 코멘트까지 만들어 training_plans/training_plan_sessions에 직접 쓴다. 실패해도 반드시
+  # status=FAILED로 마무리한다(유저가 GET으로 결과를 기다리는 요청이라, 신고 트리아지처럼
+  # "그냥 재시도 대기"로 두면 GET이 영원히 PENDING에 머무른다).
+  trainingplan-worker:
+    build: ./worker
+    container_name: dallim-trainingplan-worker
+    command: ["python", "trainingplan_main.py"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://dallim:dallim@postgres:5432/dallim
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+
   # 코스 드로잉(직접 그리기)/AI 자동 생성용 보행자 라우팅 엔진 (2026-09-03 추가).
   # 네이버 Directions API는 자동차 전용이라 도보 코스에 못 쓴다 — OSRM을 OSM 데이터 +
   # foot(보행자) 프로필로 자체 호스팅한다. 데이터는 scripts/osrm-build.sh로 생성한
