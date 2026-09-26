@@ -197,6 +197,32 @@ class RouteRepository(
         }
     }
 
+    /**
+     * GET /users/me/saved-routes thumbnails -- batch lookup of [routeIds]' GeoJSON paths for
+     * com.dallim.user.SavedRouteService (cross-domain RouteRepository access at the service
+     * layer, same convention as HomeService/SavedRouteService's existing RunRepository use).
+     * Touches the `path` geometry column, so raw JDBC with a manually built `IN (?, ?, ...)`
+     * rather than Exposed's `inList` (which only works through the DSL this class avoids for
+     * geometry columns).
+     */
+    fun findThumbnailsByIds(routeIds: List<String>): Map<String, GeoJsonLineString> {
+        if (routeIds.isEmpty()) return emptyMap()
+        val placeholders = routeIds.joinToString(",") { "?" }
+        val sql = "SELECT id, ${PostGis.asGeoJsonExpr("path")} AS geojson FROM sketch_routes WHERE id IN ($placeholders)"
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                routeIds.forEachIndexed { index, routeId -> stmt.setString(index + 1, routeId) }
+                stmt.executeQuery().use { rs ->
+                    val result = mutableMapOf<String, GeoJsonLineString>()
+                    while (rs.next()) {
+                        result[rs.getString("id")] = GeoJsonLineString.fromJson(rs.getString("geojson"))
+                    }
+                    return result
+                }
+            }
+        }
+    }
+
     // --- Shape votes (route_shape_votes has no geometry column -> plain Exposed) ---
 
     /**

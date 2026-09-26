@@ -60,11 +60,19 @@ class RunRepository(
         val lastCoveragePercent: Int,
     )
 
-    /** GET /home `recentRuns` — one row per COMPLETED run. */
+    /**
+     * GET /home `recentRuns` — one row per COMPLETED run, joined back to the sketch route it was
+     * run on so the home screen can render a real GPS thumbnail instead of a bare text card
+     * (docs/03-design-system.md §3.2 "모든 코스 카드에 필수").
+     */
     data class RecentRunRow(
         val runId: String,
         val distanceKm: Double,
         val completedAt: Instant,
+        val routeId: String,
+        val routeName: String,
+        val emoji: String,
+        val thumbnailGeoJson: GeoJsonLineString,
     )
 
     /** POST /runs — creates the session row (IN_PROGRESS) and returns its generated id. */
@@ -142,21 +150,45 @@ class RunRepository(
             .take(limit)
     }
 
-    /** GET /home `recentRuns` — the user's most recently finished COMPLETED runs. */
-    fun findRecentCompletedRuns(userId: String, limit: Int): List<RecentRunRow> = transaction(database) {
-        RunRecordTable.selectAll()
-            .where { (RunRecordTable.userId eq userId) and (RunRecordTable.status eq RunStatus.COMPLETED) }
-            .orderBy(RunRecordTable.finishedAt, SortOrder.DESC)
-            .limit(limit)
-            .map {
-                RecentRunRow(
-                    runId = it[RunRecordTable.id],
-                    distanceKm = it[RunRecordTable.distanceKm] ?: 0.0,
-                    completedAt = requireNotNull(it[RunRecordTable.finishedAt]) {
-                        "COMPLETED run ${it[RunRecordTable.id]} has no finishedAt"
-                    },
-                )
+    /**
+     * GET /home `recentRuns` — the user's most recently finished COMPLETED runs, joined to
+     * sketch_routes for the thumbnail. Touches the `path` geometry column, so raw JDBC (like
+     * [findFinishers]) rather than the Exposed DSL used by the rest of this class's non-spatial
+     * queries.
+     */
+    fun findRecentCompletedRuns(userId: String, limit: Int): List<RecentRunRow> {
+        val sql = """
+            SELECT r.id AS run_id, r.distance_km, r.finished_at, r.route_id,
+                   sr.name AS route_name, sr.emoji AS emoji, ${PostGis.asGeoJsonExpr("sr.path")} AS geojson
+            FROM run_records r
+            JOIN sketch_routes sr ON sr.id = r.route_id
+            WHERE r.user_id = ? AND r.status = 'COMPLETED'
+            ORDER BY r.finished_at DESC
+            LIMIT ?
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    return buildList {
+                        while (rs.next()) {
+                            add(
+                                RecentRunRow(
+                                    runId = rs.getString("run_id"),
+                                    distanceKm = rs.getDouble("distance_km"),
+                                    completedAt = rs.getTimestamp("finished_at").toInstant(),
+                                    routeId = rs.getString("route_id"),
+                                    routeName = rs.getString("route_name"),
+                                    emoji = rs.getString("emoji"),
+                                    thumbnailGeoJson = GeoJsonLineString.fromJson(rs.getString("geojson")),
+                                ),
+                            )
+                        }
+                    }
+                }
             }
+        }
     }
 
     /**

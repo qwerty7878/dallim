@@ -51,6 +51,10 @@ class HomeService(
                 runId = it.runId,
                 distanceKm = it.distanceKm,
                 completedAt = it.completedAt.toString(),
+                routeId = it.routeId,
+                routeName = it.routeName,
+                emoji = it.emoji,
+                thumbnailGeoJson = it.thumbnailGeoJson,
             )
         }
 

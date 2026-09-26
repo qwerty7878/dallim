@@ -1,5 +1,6 @@
 package com.dallim.user
 
+import com.dallim.common.GeoJsonLineString
 import com.dallim.common.IdGenerator
 import com.dallim.route.SavedRouteTable
 import com.dallim.route.SketchRouteTable
@@ -44,6 +45,9 @@ class SavedRouteRepository(private val database: Database) {
                         // which this repository intentionally doesn't depend on — see RouteModule.kt's
                         // convention of cross-domain RunRepository access living at the service layer).
                         hasRun = false,
+                        // Same reason as hasRun above — needs RouteRepository.findThumbnailsByIds,
+                        // filled in by the service layer.
+                        thumbnailGeoJson = GeoJsonLineString(coordinates = emptyList()),
                     )
                 }
 

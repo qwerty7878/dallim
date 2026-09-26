@@ -30,12 +30,20 @@ data class HomeContinueRoute(
 /**
  * One of the user's most recent COMPLETED runs — sourced from
  * com.dallim.run.RunRepository.findRecentCompletedRuns. See HomeService.getHome.
+ *
+ * Carries the route it was run on (routeId/routeName/emoji/thumbnailGeoJson) so Android can
+ * render a real GPS thumbnail here too, not just on todaySketch — every course card must
+ * (docs/03-design-system.md §3.2 "모든 코스 카드에 필수").
  */
 @Serializable
 data class HomeRecentRun(
     val runId: String,
     val distanceKm: Double,
     val completedAt: String,
+    val routeId: String,
+    val routeName: String,
+    val emoji: String,
+    val thumbnailGeoJson: GeoJsonLineString,
 )
 
 @Serializable
