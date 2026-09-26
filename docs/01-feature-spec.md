@@ -101,6 +101,15 @@
 - `RouteThumbnailView`: 서버가 내려주는 GPS LineString(GeoJSON)을 Canvas로 렌더링해 실루엣 썸네일 생성(제네릭 아이콘 금지 원칙 구현)
 - Map SDK: 네이버맵 or 카카오맵 SDK(국내 서비스이므로 Google Maps 대비 도로 정밀도 우위)
 
+**2026-09-26 수정 — S-10 최근 달림 / S-17 저장한 코스에 `RouteThumbnailView` 누락 발견 및 수정**:
+사용자가 홈 화면을 "실제 서비스 앱 같지 않다"고 지적해 점검한 결과, `GET /home`의
+`recentRuns`와 `GET /users/me/saved-routes`가 애초에 `thumbnailGeoJson`을 내려주지 않아
+이 두 리스트만 이모지+텍스트로 된 밋밋한 카드였다(`docs/03-design-system.md` §3.2 "모든
+코스 카드에 필수" 위반 상태 — `SavedRoutesScreen.kt`에 그 사실이 주석으로 이미 남아있었다).
+`recentRuns`는 `run_records.route_id`로 `sketch_routes`를 조인, `saved-routes`는
+`RouteRepository.findThumbnailsByIds` 배치 조회로 채워 두 화면 모두 Hero 카드와 동일한
+[썸네일 → 이모지+이름 → 통계] 구성으로 통일했다. 상세 계약은 `docs/02-api-spec.md` 2장/3장 참고.
+
 **S-56 홈 네이티브 광고 배너 (결제/굿즈 없이 광고 수익만으로 시작하는 첫 조각)**
 - S-10 홈 화면에 AdMob 네이티브 광고 1개를 노출한다. 위치는 v1.3 기획서(236행 "5번째 블록
   아래에만")가 정의한 "진행 중 미션 → 최근 달림" 사이지만, 이 화면엔 아직 진행 중 미션 블록이

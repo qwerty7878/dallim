@@ -325,13 +325,19 @@ Refresh Token으로 Access Token 재발급
         "name": "고래",
         "emoji": "🐳",
         "distanceKm": 5.1,
-        "hasRun": false
+        "hasRun": false,
+        "thumbnailGeoJson": { "type": "LineString", "coordinates": [[127.05,37.25],[127.06,37.26]] }
       }
     ],
     "totalCount": 3
   }
 }
 ```
+- **2026-09-26 `thumbnailGeoJson` 추가**: 이 목록도 "코스 카드"라 `RouteThumbnailView`가
+  필수인데(`docs/03-design-system.md` §3.2 "모든 코스 카드에 필수"), 이전엔 이 필드가 없어
+  홈/S-17 화면 둘 다 실루엣 없이 이모지+텍스트만으로 표시하고 있었다(design system 규칙 위반
+  상태였음). `com.dallim.route.RouteRepository.findThumbnailsByIds`를 `SavedRouteService`가
+  서비스 계층에서 배치 조회해 채운다(`hasRun`과 동일한 cross-domain 패턴).
 
 ---
 
@@ -377,11 +383,23 @@ Refresh Token으로 Access Token 재발급
       { "routeId": "rt_002", "name": "물고기", "status": "PARTIAL", "lastCoveragePercent": 68 }
     ],
     "recentRuns": [
-      { "runId": "run_101", "distanceKm": 5.18, "completedAt": "2026-08-20T07:32:00Z" }
+      {
+        "runId": "run_101",
+        "distanceKm": 5.18,
+        "completedAt": "2026-08-20T07:32:00Z",
+        "routeId": "rt_001",
+        "routeName": "고래",
+        "emoji": "🐳",
+        "thumbnailGeoJson": { "type": "LineString", "coordinates": [[127.05,37.25],[127.06,37.26]] }
+      }
     ]
   }
 }
 ```
+- **2026-09-26 `recentRuns`에 `routeId`/`routeName`/`emoji`/`thumbnailGeoJson` 추가**: 최근
+  달림 카드도 "코스 카드"이므로 `RouteThumbnailView`가 필수다(`docs/03-design-system.md` §3.2).
+  `run_records.route_id`로 `sketch_routes`를 조인해 채운다(`com.dallim.run.RunRepository.
+  findRecentCompletedRuns`).
 
 ---
 
