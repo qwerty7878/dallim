@@ -36,10 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.running.RunFormat
+import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.user.SavedRouteItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.GeoPoint
+import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -47,9 +50,8 @@ import com.dallim.ui.theme.Spacing
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * S-17 저장한 코스 (docs/01-feature-spec.md §1.2). [SavedRouteItem]에는 GeoJSON 썸네일 필드가
- * 없으므로(docs/02-api-spec.md 2장) 이 화면의 리스트 아이템은 [RouteThumbnailView] 없이 텍스트
- * 위주로 구성한다 — 데이터가 없다고 제네릭 아이콘으로 대체하지는 않는다(docs/04-ui-guide.md §8).
+ * S-17 저장한 코스 (docs/01-feature-spec.md §1.2). [SavedRouteItem.thumbnailGeoJson]으로
+ * [RouteThumbnailView]를 그린다 — 모든 코스 카드에 필수(docs/03-design-system.md §3.2).
  */
 @Composable
 fun SavedRoutesRoute(
@@ -181,19 +183,18 @@ private fun SavedRouteRow(
             .padding(Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(DallimColors.PrimaryLight),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 콘텐츠 데이터로서의 이모지 (docs/04-ui-guide.md §7). GeoJSON 썸네일 데이터가 없는
-            // 응답이라 RouteThumbnailView 대신 이모지 배지로 코스를 식별한다.
-            Text(text = route.emoji, style = DallimTypography.Title2)
-        }
+        RouteThumbnailView(coordinates = route.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.size(48.dp))
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-            Text(text = route.name, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 콘텐츠 데이터로서의 이모지 (docs/04-ui-guide.md §7).
+                Text(text = route.emoji, style = DallimTypography.Body)
+                Text(
+                    text = route.name,
+                    style = DallimTypography.Body,
+                    color = DallimColors.TextPrimary,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                )
+            }
             Text(
                 text = "${RunFormat.km(route.distanceKm)}km · ${if (route.hasRun) "완주함" else "미완주"}",
                 style = DallimTypography.Caption,
@@ -207,6 +208,9 @@ private fun SavedRouteRow(
     }
 }
 
+private fun GeoJsonLineString.toGeoPoints(): List<GeoPoint> =
+    toLngLatPairs().map { (lng, lat) -> GeoPoint(lng = lng, lat = lat) }
+
 private const val LOAD_MORE_THRESHOLD = 4
 
 @Preview(showBackground = true, heightDp = 700)
@@ -216,8 +220,26 @@ private fun SavedRoutesScreenPreview() {
         SavedRoutesScreen(
             uiState = SavedRoutesUiState(
                 items = listOf(
-                    SavedRouteItem(routeId = "rt_001", name = "고래", emoji = "🐳", distanceKm = 5.1, hasRun = true),
-                    SavedRouteItem(routeId = "rt_002", name = "물고기", emoji = "🐟", distanceKm = 3.4, hasRun = false),
+                    SavedRouteItem(
+                        routeId = "rt_001",
+                        name = "고래",
+                        emoji = "🐳",
+                        distanceKm = 5.1,
+                        hasRun = true,
+                        thumbnailGeoJson = GeoJsonLineString(
+                            coordinates = listOf(listOf(127.05, 37.25), listOf(127.052, 37.253), listOf(127.055, 37.251)),
+                        ),
+                    ),
+                    SavedRouteItem(
+                        routeId = "rt_002",
+                        name = "물고기",
+                        emoji = "🐟",
+                        distanceKm = 3.4,
+                        hasRun = false,
+                        thumbnailGeoJson = GeoJsonLineString(
+                            coordinates = listOf(listOf(127.04, 37.24), listOf(127.045, 37.243), listOf(127.041, 37.248)),
+                        ),
+                    ),
                 ),
                 isLoadingInitial = false,
             ),

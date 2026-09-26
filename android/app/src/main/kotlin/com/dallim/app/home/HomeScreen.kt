@@ -285,11 +285,15 @@ private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Uni
 @Composable
 private fun RecentRunsSection(recentRuns: List<RecentRun>) {
     if (recentRuns.isEmpty()) {
-        Text(
-            text = "아직 달린 기록이 없어요",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-        )
+        DallimCard {
+            Text(text = "아직 달린 기록이 없어요", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            Text(
+                text = "코스를 하나 골라 오늘 첫 달림을 기록해보세요.",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
         return
     }
     LazyRow(
@@ -300,6 +304,12 @@ private fun RecentRunsSection(recentRuns: List<RecentRun>) {
     }
 }
 
+/**
+ * 최근 달림도 "코스 카드"라 [RouteThumbnailView]가 필수다(docs/03-design-system.md §3.2) —
+ * 2026-09-26까지는 `GET /home`의 `recentRuns`에 route 정보가 없어 거리/날짜만 보이는 텍스트
+ * 전용 카드였다(design system 규칙 위반 상태). 백엔드가 route를 조인해 내려주도록 고쳐 Hero
+ * 카드와 같은 [썸네일 → 이모지+이름 → 캡션] 구성으로 맞췄다.
+ */
 @Composable
 private fun RecentRunCard(run: RecentRun) {
     Column(
@@ -307,11 +317,24 @@ private fun RecentRunCard(run: RecentRun) {
             .width(120.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(DallimColors.Surface)
-            .padding(Spacing.md),
+            .padding(Spacing.sm),
     ) {
-        Text(text = "${RunFormat.km(run.distanceKm)}km", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+        RouteThumbnailView(coordinates = run.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = Spacing.sm),
+        ) {
+            // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
+            Text(text = run.emoji, style = DallimTypography.Body)
+            Text(
+                text = run.routeName,
+                style = DallimTypography.Body,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(start = Spacing.xs),
+            )
+        }
         Text(
-            text = run.completedAt.toShortDateLabel(),
+            text = "${RunFormat.km(run.distanceKm)}km · ${run.completedAt.toShortDateLabel()}",
             style = DallimTypography.Caption,
             color = DallimColors.TextSecondary,
             modifier = Modifier.padding(top = Spacing.xs),
@@ -322,11 +345,15 @@ private fun RecentRunCard(run: RecentRun) {
 @Composable
 private fun SavedRoutesPreviewSection(savedRoutes: List<SavedRouteItem>, onRouteClick: (String) -> Unit) {
     if (savedRoutes.isEmpty()) {
-        Text(
-            text = "아직 저장한 코스가 없어요",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-        )
+        DallimCard {
+            Text(text = "아직 저장한 코스가 없어요", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            Text(
+                text = "탐색에서 마음에 드는 코스를 저장해보세요.",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
         return
     }
     LazyRow(
@@ -337,6 +364,7 @@ private fun SavedRoutesPreviewSection(savedRoutes: List<SavedRouteItem>, onRoute
     }
 }
 
+/** [RecentRunCard]와 동일한 이유로 썸네일을 필수로 쓴다(docs/03-design-system.md §3.2). */
 @Composable
 private fun SavedRoutePreviewCard(route: SavedRouteItem, onClick: () -> Unit) {
     Column(
@@ -345,9 +373,13 @@ private fun SavedRoutePreviewCard(route: SavedRouteItem, onClick: () -> Unit) {
             .clip(RoundedCornerShape(16.dp))
             .background(DallimColors.Surface)
             .clickable { onClick() }
-            .padding(Spacing.md),
+            .padding(Spacing.sm),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        RouteThumbnailView(coordinates = route.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = Spacing.sm),
+        ) {
             Text(text = route.emoji, style = DallimTypography.Body)
             Text(
                 text = route.name,
@@ -396,12 +428,41 @@ private fun HomeScreenPreview() {
                     ),
                     continueRoutes = emptyList(),
                     recentRuns = listOf(
-                        RecentRun(runId = "run_101", distanceKm = 5.18, completedAt = "2026-08-20T07:32:00Z"),
-                        RecentRun(runId = "run_100", distanceKm = 3.4, completedAt = "2026-08-18T07:10:00Z"),
+                        RecentRun(
+                            runId = "run_101",
+                            distanceKm = 5.18,
+                            completedAt = "2026-08-20T07:32:00Z",
+                            routeId = "rt_001",
+                            routeName = "고래",
+                            emoji = "🐳",
+                            thumbnailGeoJson = GeoJsonLineString(
+                                coordinates = listOf(listOf(127.05, 37.25), listOf(127.052, 37.253), listOf(127.055, 37.251)),
+                            ),
+                        ),
+                        RecentRun(
+                            runId = "run_100",
+                            distanceKm = 3.4,
+                            completedAt = "2026-08-18T07:10:00Z",
+                            routeId = "rt_002",
+                            routeName = "물고기",
+                            emoji = "🐟",
+                            thumbnailGeoJson = GeoJsonLineString(
+                                coordinates = listOf(listOf(127.04, 37.24), listOf(127.045, 37.243), listOf(127.041, 37.248)),
+                            ),
+                        ),
                     ),
                 ),
                 savedRoutesPreview = listOf(
-                    SavedRouteItem(routeId = "rt_002", name = "물고기", emoji = "🐟", distanceKm = 4.2, hasRun = false),
+                    SavedRouteItem(
+                        routeId = "rt_002",
+                        name = "물고기",
+                        emoji = "🐟",
+                        distanceKm = 4.2,
+                        hasRun = false,
+                        thumbnailGeoJson = GeoJsonLineString(
+                            coordinates = listOf(listOf(127.04, 37.24), listOf(127.045, 37.243), listOf(127.041, 37.248)),
+                        ),
+                    ),
                 ),
                 nickname = "달리는고래",
                 unreadNotificationCount = 3,

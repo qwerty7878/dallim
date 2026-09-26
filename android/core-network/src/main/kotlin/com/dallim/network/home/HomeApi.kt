@@ -46,4 +46,8 @@ data class RecentRun(
     val runId: String,
     val distanceKm: Double,
     val completedAt: String,
+    val routeId: String,
+    val routeName: String,
+    val emoji: String,
+    val thumbnailGeoJson: GeoJsonLineString,
 )

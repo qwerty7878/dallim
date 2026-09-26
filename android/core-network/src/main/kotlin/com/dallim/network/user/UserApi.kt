@@ -1,6 +1,7 @@
 package com.dallim.network.user
 
 import com.dallim.network.common.ApiResponse
+import com.dallim.network.common.GeoJsonLineString
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.Body
@@ -99,6 +100,7 @@ data class SavedRouteItem(
     val emoji: String,
     val distanceKm: Double,
     val hasRun: Boolean,
+    val thumbnailGeoJson: GeoJsonLineString,
 )
 
 @Serializable

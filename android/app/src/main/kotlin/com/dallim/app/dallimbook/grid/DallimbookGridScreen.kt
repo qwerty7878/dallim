@@ -306,7 +306,16 @@ private fun DallimbookGridScreenPreview() {
             uiState = DallimbookGridUiState(
                 emptySlots = listOf(
                     DallimbookSlot.Empty(
-                        SavedRouteItem(routeId = "rt_002", name = "물고기", emoji = "🐟", distanceKm = 4.2, hasRun = false),
+                        SavedRouteItem(
+                            routeId = "rt_002",
+                            name = "물고기",
+                            emoji = "🐟",
+                            distanceKm = 4.2,
+                            hasRun = false,
+                            thumbnailGeoJson = GeoJsonLineString(
+                                coordinates = listOf(listOf(127.04, 37.24), listOf(127.045, 37.243), listOf(127.041, 37.248)),
+                            ),
+                        ),
                     ),
                 ),
                 artworkSlots = listOf(
