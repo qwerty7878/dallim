@@ -16,6 +16,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLQueryComponent
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.transactions.transaction
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -170,21 +173,57 @@ class RaceFlowIntegrationTest {
         assertTrue(fullList.map { it.raceId }.containsAll(listOf("rce_003", "rce_005", "rce_006")))
     }
 
+    /**
+     * Registration status is computed from `now()`, so this test inserts its OWN races with
+     * now()-relative windows instead of relying on the seeded rce_001..rce_008 -- their fixed
+     * calendar dates drift out of OPEN/UPCOMING as real time passes (V12 was seeded in Sept 2026).
+     */
     @Test
     fun `list filters by computed registration status`() = testApplication {
         val client = jsonClient()
+        val suffix = UUID.randomUUID().toString().replace("-", "").take(8)
+        val openId = "rce_t_o_$suffix"
+        val upcomingId = "rce_t_u_$suffix"
+        val closedId = "rce_t_c_$suffix"
+        val database = Database.connect(
+            url = "jdbc:postgresql://localhost:5432/dallim",
+            driver = "org.postgresql.Driver",
+            user = "dallim",
+            password = "dallim",
+        )
+        fun insertRace(id: String, startOffset: String, endOffset: String) = transaction(database) {
+            exec(
+                """
+                INSERT INTO races (id, name, region, location, race_date, registration_start, registration_end, organizer)
+                VALUES ('$id', 'status test $id', '테스트', '테스트 장소', now() + interval '60 days',
+                        now() + interval '$startOffset', now() + interval '$endOffset', '테스트 주최')
+                """.trimIndent(),
+            )
+        }
+        try {
+            insertRace(openId, "-10 days", "10 days")
+            insertRace(upcomingId, "5 days", "20 days")
+            insertRace(closedId, "-30 days", "-5 days")
 
-        val open = listRaces(client, status = "OPEN").data!!.items.map { it.raceId }
-        assertTrue(open.containsAll(listOf("rce_001", "rce_002", "rce_004", "rce_007")))
+            val open = listRaces(client, status = "OPEN", size = 100).data!!.items
+            assertTrue(open.any { it.raceId == openId })
+            assertFalse(open.any { it.raceId == upcomingId || it.raceId == closedId })
+            assertTrue(open.all { it.status == "OPEN" })
 
-        val upcoming = listRaces(client, status = "UPCOMING").data!!.items.map { it.raceId }
-        assertTrue(upcoming.containsAll(listOf("rce_003", "rce_006")))
+            val upcoming = listRaces(client, status = "UPCOMING", size = 100).data!!.items
+            assertTrue(upcoming.any { it.raceId == upcomingId })
+            assertFalse(upcoming.any { it.raceId == openId || it.raceId == closedId })
+            assertTrue(upcoming.all { it.status == "UPCOMING" })
 
-        val closed = listRaces(client, status = "CLOSED").data!!.items.map { it.raceId }
-        assertTrue(closed.containsAll(listOf("rce_005", "rce_008")))
-
-        // every item's own `status` field must actually match the filter it was returned under
-        assertTrue(open.isNotEmpty() && listRaces(client, status = "OPEN").data!!.items.all { it.status == "OPEN" })
+            val closed = listRaces(client, status = "CLOSED", size = 100).data!!.items
+            assertTrue(closed.any { it.raceId == closedId })
+            assertFalse(closed.any { it.raceId == openId || it.raceId == upcomingId })
+            assertTrue(closed.all { it.status == "CLOSED" })
+        } finally {
+            transaction(database) {
+                exec("DELETE FROM races WHERE id IN ('$openId', '$upcomingId', '$closedId')")
+            }
+        }
     }
 
     @Test
