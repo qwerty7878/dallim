@@ -45,6 +45,32 @@ fun RouteThumbnailView(
     strokeWidth: Dp = 3.dp,
     cornerRadius: Dp = 16.dp, // slightly smaller than the 20dp card corner — thumbnail sits inside a card
 ) {
+    // 2026-10-04 — 실사용 피드백("미리보기가 AI 티가 난다"): 앱이 네이버 지도 키를 갖고 있으면 실제 지도
+    // 위에 경로를 올린 스냅샷 이미지를 쓰고, 캐시되기 전(첫 로딩)이나 실패 시에는 아래 Canvas 실루엣을
+    // 그대로 보여준다. 키가 없는 빌드/프리뷰는 기존 Canvas 그대로다.
+    if (LocalMapThumbnailsEnabled.current && coordinates.size >= 2) {
+        MapSnapshotThumbnail(coordinates = coordinates, modifier = modifier, cornerRadius = cornerRadius) {
+            RouteThumbnailCanvas(
+                coordinates = coordinates,
+                modifier = Modifier.fillMaxSize(),
+                useGradient = useGradient,
+                strokeWidth = strokeWidth,
+                cornerRadius = 0.dp,
+            )
+        }
+    } else {
+        RouteThumbnailCanvas(coordinates, modifier, useGradient, strokeWidth, cornerRadius)
+    }
+}
+
+@Composable
+private fun RouteThumbnailCanvas(
+    coordinates: List<GeoPoint>,
+    modifier: Modifier,
+    useGradient: Boolean,
+    strokeWidth: Dp,
+    cornerRadius: Dp,
+) {
     Box(
         modifier = modifier
             .aspectRatio(1f)
