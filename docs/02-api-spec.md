@@ -556,6 +556,10 @@ Refresh Token으로 Access Token 재발급
 }
 ```
 
+> **자유 러닝 (2026-09-26 추가)**: `routeId`를 생략/`null`로 보내면 목표 코스 없이 바로 달리는
+> 자유 러닝이다(`mode`는 관례상 `"FREE"`, 서버는 `routeId`의 null 여부로만 분기). 코스 존재
+> 확인을 건너뛴다. `run_records.route_id`는 NULL 허용(V22).
+
 **Response 201**
 ```json
 {
@@ -675,6 +679,9 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 ```
 > `stepCount`: `POST /runs/{runId}/finish`에서 받은 값을 그대로 노출(2026-09-06 추가). 저장·디버깅/
 > 향후 부정행위 탐지용 노출일 뿐 판정에는 쓰이지 않는다. 값이 없으면 `null`.
+> **자유 러닝 (2026-09-26)**: `routeId`/`routeName`/`plannedGeoJson`은 `null`, `actualGeoJson`은
+> 항상 있다(그 궤적 자체가 "그림" 결과). `registeredRouteId`는 이 러닝이 이미 코스로 등록됐으면 그
+> 코스 id, 아니면 `null`(자유 러닝일 때만 채워짐).
 
 **Error**
 - `404 RUN_NOT_FOUND`
@@ -716,6 +723,36 @@ GPS 포인트 배치 업로드 (러닝 종료 시 1회, 네트워크 실패 시 
 
 > 이 엔드포인트가 쌓은 데이터는 `GET /routes/{routeId}`의 `topFeedbackTags`(route_id별 태그
 > 집계 상위 3개, 매 요청 실시간 집계)로 노출된다.
+
+---
+
+### `POST /runs/{runId}/register-as-route` 🔒 (2026-09-26 추가 — 자유 러닝 → 코스 등록)
+완주한 자유 러닝의 실제 궤적(`run_records.actual_path`)을 새 `sketch_routes` 행으로 복사해 공개
+코스로 등록한다. **UGC 모더레이션(금칙어/도로 안전 필터, 완주 전까지 비공개 — v1.3 PART 4.2)은
+이번 라운드에 구현하지 않는다. 필터 없이 즉시 공개**(사용자 결정, 필요해지면 추가).
+
+**Request**
+```json
+{ "name": "한강 고래", "emoji": "🐳" }
+```
+> `name`: 1~50자. `emoji`: 필수(비어 있으면 안 됨).
+
+**Response 201**
+```json
+{ "success": true, "data": { "routeId": "rt_xxx" } }
+```
+
+**Error**
+- `400 RUN_NOT_FREEFORM` — 코스를 목표로 뛴 러닝
+- `400 RUN_NOT_COMPLETED` — 완주(`COMPLETED`)가 아닌 러닝
+- `400 VALIDATION_ERROR` — 이름/이모지 검증 실패
+- `404 RUN_NOT_FOUND`
+- `409 ROUTE_ALREADY_REGISTERED` — 이미 등록된 러닝(`source_run_id` UNIQUE)
+
+> 자유 러닝 판정(`RunJudgementService.judgeFreeform`): 구간 커버리지/Sketch Match 없이
+> 거리·시간·페이스·비정상 속도만 본다. 비정상 속도 비율 초과면 `UNDER_REVIEW`, 그 외엔 거리가
+> 짧아도 항상 `COMPLETED`. `routeCompletionPercent`/`sketchMatchPercent`는 0. First Discoverer·
+> finisherCount는 적용되지 않는다. 자유 러닝에는 `feedback-tags`도 `400 VALIDATION_ERROR`.
 
 ---
 
