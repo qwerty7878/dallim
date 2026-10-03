@@ -66,7 +66,10 @@ fun NaverDrawableMapView(
             context,
             NaverMapOptions()
                 .mapType(NaverMap.MapType.Navi)
-                .locationButtonEnabled(false),
+                .locationButtonEnabled(false)
+                // 2026-10-04: 기본 줌 +/- 버튼과 축척자는 "기본 지도 SDK" 인상이 강해 숨긴다(핀치로 줌).
+                .zoomControlEnabled(false)
+                .scaleBarEnabled(false),
         )
     }
 
@@ -94,6 +97,7 @@ fun NaverDrawableMapView(
 
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
+            map.locale = java.util.Locale.KOREAN
             // 그리기 전용 지도 — 팬/줌/회전/기울기 제스처를 모두 끄고 드래그는 아래
             // pointerInput 오버레이가 전담한다.
             map.uiSettings.isScrollGesturesEnabled = false

@@ -42,6 +42,7 @@ import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.SectionHeader
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -256,14 +257,7 @@ private fun SegmentCard(
 
 @Composable
 private fun SegmentCompletedBadge(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DallimColors.Success.copy(alpha = 0.15f))
-            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-    ) {
-        Text(text = "완주", style = DallimTypography.Caption, color = DallimColors.Success)
-    }
+    DallimBadge(label = "완주", foreground = DallimColors.Success, modifier = modifier)
 }
 
 private fun GeoJsonLineString.toGeoPoints(): List<GeoPoint> =

@@ -99,8 +99,7 @@ private fun DrawRouteScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DallimColors.Background)
-                .padding(innerPadding)
-                .statusBarsPadding(),
+                .padding(innerPadding),
         ) {
             DallimTopBar(title = "직접 그리기", onBackClick = onBackClick)
 

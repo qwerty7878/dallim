@@ -84,7 +84,10 @@ fun NaverRouteMapView(
             context,
             NaverMapOptions()
                 .mapType(NaverMap.MapType.Navi)
-                .locationButtonEnabled(false),
+                .locationButtonEnabled(false)
+                // 2026-10-04: 기본 줌 +/- 버튼과 축척자는 "기본 지도 SDK" 인상이 강해 숨긴다(핀치로 줌).
+                .zoomControlEnabled(false)
+                .scaleBarEnabled(false),
         )
     }
 
@@ -118,7 +121,10 @@ fun NaverRouteMapView(
         // PathOverlay는 coords.size < 2인 채로 attach하면 즉시 IllegalStateException을 던진다.
         // 그래서 여기서는 NaverMap 참조만 저장하고, 실제 attach는 좌표가 채워지는 아래
         // LaunchedEffect(naverMap, plannedRoute, actualRoute, ...)에서 데이터 설정 "이후"에 한다.
-        mapView.getMapAsync { map -> naverMap = map }
+        mapView.getMapAsync { map ->
+            map.locale = java.util.Locale.KOREAN // 영문/한글 병기 라벨 대신 한글만
+            naverMap = map
+        }
     }
 
     val density = LocalDensity.current

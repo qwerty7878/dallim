@@ -37,6 +37,7 @@ import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.SocialSessionStatusBadge
 import com.dallim.ui.components.socialSessionBadgeState
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -181,15 +182,7 @@ private fun ChatInboxRow(item: SocialSessionInboxItem, onClick: () -> Unit, modi
 
 @Composable
 private fun HostBadge(modifier: Modifier = Modifier) {
-    Text(
-        text = "호스트",
-        style = DallimTypography.Caption,
-        color = DallimColors.Primary,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DallimColors.PrimaryLight)
-            .padding(horizontal = Spacing.xs, vertical = 2.dp),
-    )
+    DallimBadge(label = "호스트", foreground = DallimColors.Primary, modifier = modifier)
 }
 
 /** 채팅이 한 번도 없었으면 예정 시각을, 시스템 메시지면 발신자 없이 본문만, 그 외엔

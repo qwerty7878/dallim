@@ -64,8 +64,7 @@ private fun TermsScreen(
     ) {
         Text(
             text = "약관에 동의해주세요",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
+            style = com.dallim.ui.theme.DallimTypography.Title1,
             color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.xxl, bottom = Spacing.xl),
         )
@@ -74,7 +73,6 @@ private fun TermsScreen(
             checked = allChecked,
             onCheckedChange = onToggleAll,
             label = "전체 동의",
-            required = false,
         )
 
         Box(

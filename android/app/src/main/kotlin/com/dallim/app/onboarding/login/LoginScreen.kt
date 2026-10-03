@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +31,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimTextButton
+import com.dallim.app.onboarding.OnboardingArt
+import com.dallim.app.onboarding.OnboardingMapArt
+import com.dallim.ui.components.DallimMark
+import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.Spacing
@@ -92,54 +99,55 @@ private fun LoginScreen(
             .navigationBarsPadding()
             .padding(horizontal = Spacing.ScreenHorizontal),
     ) {
+        Row(
+            modifier = Modifier.padding(top = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DallimMark(modifier = Modifier.size(28.dp))
+            Text(
+                text = "달림",
+                style = DallimTypography.Title2,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(start = Spacing.sm),
+            )
+        }
+
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
         ) {
+            // 앱이 하는 일을 그대로 보여준다 — 실제 지도 위에 그려진 하트 코스.
+            OnboardingMapArt(OnboardingArt.Heart, Modifier.aspectRatio(1f))
             Text(
-                text = "달림과 함께\n달리며 그림을 그려요",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
+                text = "달리면서\n그림을 그려요",
+                style = DallimTypography.Title1,
                 color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(top = Spacing.lg),
+            )
+            Text(
+                text = "실제 도로 위, GPS 궤적으로 완성되는 나만의 러닝 코스",
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.sm),
             )
         }
 
         if (errorMessage != null) {
             Text(
                 text = errorMessage,
-                fontSize = 13.sp,
+                style = DallimTypography.Caption,
                 color = DallimColors.Error,
                 modifier = Modifier.padding(bottom = Spacing.sm),
             )
         }
 
-        // Google 브랜드 컬러가 DallimColors에 지정되어 있지 않아(디자인 시스템 §1) 브랜드 고유색을
-        // 하드코딩하는 대신 기존 Primary 버튼 톤을 그대로 사용한다.
-        DallimPrimaryButton(text = "Google로 시작하기", onClick = onGoogleClick, enabled = !isLoading)
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = Spacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.weight(1f).height(1.dp).background(DallimColors.Border))
-            Text(
-                text = "또는",
-                fontSize = 13.sp,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(horizontal = Spacing.sm),
-            )
-            Box(modifier = Modifier.weight(1f).height(1.dp).background(DallimColors.Border))
-        }
-
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            DallimTextButton(text = "이메일로 시작하기", onClick = onEmailStartClick)
-        }
-
-        Box(modifier = Modifier.height(Spacing.xl))
+        DallimPrimaryButton(text = "Google로 계속하기", onClick = onGoogleClick, enabled = !isLoading)
+        DallimSecondaryButton(
+            text = "이메일로 계속하기",
+            onClick = onEmailStartClick,
+            enabled = !isLoading,
+            modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.lg),
+        )
     }
 }
 

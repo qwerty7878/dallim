@@ -205,6 +205,7 @@ private fun configureSnapshotMap(
     // 모든 치수를 렌더 해상도에 비례시킨다(작게 표시돼도 선/여백 비율이 같다). 기준: 640px에서 선 15px.
     val unit = renderPx / 640f
     val latLngs = coordinates.map { LatLng(it.lat, it.lng) }
+    map.locale = java.util.Locale.KOREAN
     map.isIndoorEnabled = false
     map.setLayerGroupEnabled(NaverMap.LAYER_GROUP_BUILDING, false)
     map.setLayerGroupEnabled(NaverMap.LAYER_GROUP_TRANSIT, false)
@@ -254,7 +255,7 @@ private fun configureSnapshotMap(
 
 /** 메모리(LRU) + 디스크 캐시. 키는 경로 좌표(소수 5자리로 반올림)와 픽셀 크기, 스타일 버전의 해시. */
 internal object MapSnapshotCache {
-    private const val STYLE_VERSION = 3
+    private const val STYLE_VERSION = 4
     private val memory = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }

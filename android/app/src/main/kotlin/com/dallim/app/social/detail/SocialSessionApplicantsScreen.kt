@@ -37,6 +37,7 @@ import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -208,15 +209,7 @@ private fun ApplicantStatusTag(status: String, modifier: Modifier = Modifier) {
         SocialSessionApplicantStatus.CANCELLED -> Triple(DallimColors.TextSecondary.copy(alpha = 0.12f), DallimColors.TextSecondary, "취소함")
         else -> Triple(DallimColors.Warning.copy(alpha = 0.15f), DallimColors.Warning, "대기중")
     }
-    Text(
-        text = label,
-        style = DallimTypography.Caption,
-        color = fg,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-    )
+    DallimBadge(label = label, foreground = fg, modifier = modifier)
 }
 
 /** [applicant.comfortablePace]는 자유 텍스트 컬럼이라(SocialSession.kt 문서 참고) 알려진

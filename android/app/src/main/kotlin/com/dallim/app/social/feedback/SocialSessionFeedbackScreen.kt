@@ -106,7 +106,6 @@ private fun SocialSessionFeedbackScreen(
                 .fillMaxSize()
                 .background(DallimColors.Background)
                 .padding(innerPadding)
-                .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
             Row(

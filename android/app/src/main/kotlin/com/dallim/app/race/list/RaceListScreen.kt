@@ -39,6 +39,7 @@ import com.dallim.ui.components.DallimDropdownText
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTab
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -297,14 +298,7 @@ private fun RaceStatusChip(status: String) {
         "UPCOMING" -> DallimColors.RouteVerified
         else -> DallimColors.TextSecondary
     }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-    ) {
-        Text(text = RaceFormat.statusLabel(status), style = DallimTypography.Caption, color = color)
-    }
+    DallimBadge(label = RaceFormat.statusLabel(status), foreground = color)
 }
 
 @Preview(showBackground = true, heightDp = 1000)

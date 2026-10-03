@@ -49,6 +49,7 @@ import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.SectionHeader
 import com.dallim.ui.components.SocialSessionStatusBadge
 import com.dallim.ui.components.socialSessionBadgeState
+import com.dallim.ui.components.DallimTag
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -397,14 +398,7 @@ private fun DetailRow(label: String, value: String, modifier: Modifier = Modifie
 
 @Composable
 private fun StyleTag(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = DallimTypography.Caption,
-        color = DallimColors.Primary,
-        modifier = modifier
-            .background(DallimColors.PrimaryLight, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-    )
+    DallimTag(text = text, modifier = modifier)
 }
 
 @Composable

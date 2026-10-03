@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
@@ -98,33 +99,19 @@ private fun CreateOptionCard(
     description: String,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DallimShapes.CardCorner)
-            .background(DallimColors.Surface)
-            .clickable { onClick() }
-            .padding(Spacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(DallimColors.PrimaryLight),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = DallimColors.Primary)
-        }
-        Column(modifier = Modifier.padding(start = Spacing.md)) {
-            Text(text = title, style = DallimTypography.Title2, color = DallimColors.TextPrimary)
-            Text(
-                text = description,
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
+    DallimCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = icon, contentDescription = null, tint = DallimColors.TextPrimary, modifier = Modifier.size(24.dp))
+            Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
+                Text(text = title, style = DallimTypography.Title3, color = DallimColors.TextPrimary)
+                Text(
+                    text = description,
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+            Icon(imageVector = DallimIcons.ChevronRight, contentDescription = null, tint = DallimColors.TextTertiary)
         }
     }
 }

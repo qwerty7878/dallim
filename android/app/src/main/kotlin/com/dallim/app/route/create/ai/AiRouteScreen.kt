@@ -161,7 +161,6 @@ private fun AiRouteScreen(
                 .fillMaxSize()
                 .background(DallimColors.Background)
                 .padding(innerPadding)
-                .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
             DallimTopBar(title = "AI로 자동 생성", onBackClick = onBackClick)
@@ -241,7 +240,7 @@ private fun QuotaExceededDialog(
             Column(modifier = Modifier.padding(Spacing.lg)) {
                 Text(
                     text = "오늘의 무료 탐색을 모두 사용했어요",
-                    style = DallimTypography.Title2,
+                    style = DallimTypography.Title3,
                     color = DallimColors.TextPrimary,
                 )
                 Text(
@@ -300,7 +299,7 @@ private fun InputSection(
             Text(
                 text = "%.1fkm".format(targetDistanceKm),
                 style = DallimTypography.Title1,
-                color = DallimColors.Primary,
+                color = DallimColors.TextPrimary,
                 modifier = Modifier.padding(top = Spacing.xs),
             )
             Slider(
@@ -310,16 +309,18 @@ private fun InputSection(
                 steps = 27, // 0.5km 단위 (1.0~15.0)
                 enabled = enabled,
                 colors = SliderDefaults.colors(
-                    thumbColor = DallimColors.Primary,
-                    activeTrackColor = DallimColors.Primary,
+                    thumbColor = DallimColors.Ink,
+                    activeTrackColor = DallimColors.Ink,
                     inactiveTrackColor = DallimColors.Border,
+                    activeTickColor = androidx.compose.ui.graphics.Color.Transparent,
+                    inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent,
                 ),
             )
         }
 
         Text(
             text = "페이스 (선택)",
-            style = DallimTypography.Title2,
+            style = DallimTypography.Title3,
             color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.lg),
         )
@@ -339,7 +340,7 @@ private fun InputSection(
 
         Text(
             text = "코스 방식",
-            style = DallimTypography.Title2,
+            style = DallimTypography.Title3,
             color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.lg),
         )
@@ -404,7 +405,7 @@ private fun DestinationSection(
 ) {
     Text(
         text = "목적지",
-        style = DallimTypography.Title2,
+        style = DallimTypography.Title3,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )
@@ -456,7 +457,7 @@ private fun WaypointSection(
 ) {
     Text(
         text = "꼭 지나갈 장소 (선택, 최대 3곳)",
-        style = DallimTypography.Title2,
+        style = DallimTypography.Title3,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )
@@ -616,7 +617,7 @@ private fun ShapeSection(
 ) {
     Text(
         text = "모양",
-        style = DallimTypography.Title2,
+        style = DallimTypography.Title3,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )
@@ -643,7 +644,7 @@ private fun ShapeSection(
 
     Text(
         text = "크기",
-        style = DallimTypography.Title2,
+        style = DallimTypography.Title3,
         color = DallimColors.TextPrimary,
         modifier = Modifier.padding(top = Spacing.lg),
     )

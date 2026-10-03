@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +35,8 @@ import com.dallim.network.trainingplan.TrainingPlanResponseBody
 import com.dallim.network.trainingplan.TrainingPlanSessionItem
 import com.dallim.network.trainingplan.TrainingPlanWeekItem
 import com.dallim.ui.components.DallimCard
+import com.dallim.ui.components.DallimFilterChip
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTopBar
@@ -87,6 +90,7 @@ private fun TrainingPlanScreen(
         modifier = modifier
             .fillMaxSize()
             .background(DallimColors.Background)
+            .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
         DallimTopBar(title = "훈련 플랜", onBackClick = onBackClick)
@@ -180,27 +184,13 @@ private fun CategorySelectionContent(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             uiState.categories.forEach { category ->
-                CategoryChip(
+                DallimFilterChip(
                     label = RaceFormat.categoryLabel(category),
-                    enabled = !uiState.isSubmitting,
-                    onClick = { onCategorySelected(category) },
+                    selected = false,
+                    onClick = { if (!uiState.isSubmitting) onCategorySelected(category) },
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CategoryChip(label: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .wrapContentWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(DallimColors.PrimaryLight)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-    ) {
-        Text(text = label, style = DallimTypography.Body, color = DallimColors.Primary)
     }
 }
 
@@ -211,7 +201,7 @@ private fun ReadyContent(plan: TrainingPlanResponseBody, modifier: Modifier = Mo
             Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal)) {
                 Text(
                     text = "${RaceFormat.categoryLabel(plan.category)} 목표 훈련 플랜",
-                    style = DallimTypography.Title2,
+                    style = DallimTypography.Title1,
                     color = DallimColors.TextPrimary,
                     modifier = Modifier.padding(top = Spacing.lg),
                 )
@@ -260,7 +250,7 @@ private fun ReadyContent(plan: TrainingPlanResponseBody, modifier: Modifier = Mo
 @Composable
 private fun CommentCard(comment: String, modifier: Modifier = Modifier) {
     DallimCard(modifier = modifier) {
-        Text(text = "코치의 한마디", style = DallimTypography.Caption, color = DallimColors.Primary)
+        Text(text = "코치의 한마디", style = DallimTypography.Label, color = DallimColors.TextSecondary)
         Text(
             text = comment,
             style = DallimTypography.Body,
@@ -272,23 +262,23 @@ private fun CommentCard(comment: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun WeekCard(week: TrainingPlanWeekItem, modifier: Modifier = Modifier) {
-    DallimCard(modifier = modifier) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "${week.weekNumber}주차", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+    // 주차마다 회색 카드를 쌓던 구조를 구분선 목록으로 — [주차 + 주간 목표] 머리글 아래에 세션이 이어진다.
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(color = DallimColors.Divider)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(text = "${week.weekNumber}주차", style = DallimTypography.Title3, color = DallimColors.TextPrimary)
             Text(
-                text = "이번 주 목표 ${RaceFormat.distanceLabel(week.weeklyTargetDistanceKm)}",
+                text = "주간 목표 ${RaceFormat.distanceLabel(week.weeklyTargetDistanceKm)}",
                 style = DallimTypography.Caption,
                 color = DallimColors.TextSecondary,
             )
         }
-
-        week.sessions.sortedBy { it.sessionIndex }.forEachIndexed { index, session ->
-            if (index > 0) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm), color = DallimColors.Border)
-            } else {
-                Box(modifier = Modifier.padding(top = Spacing.sm))
-            }
-            SessionRow(session = session)
+        week.sessions.sortedBy { it.sessionIndex }.forEach { session ->
+            SessionRow(session = session, modifier = Modifier.padding(top = Spacing.md))
         }
     }
 }
@@ -315,7 +305,7 @@ private fun SessionRow(session: TrainingPlanSessionItem, modifier: Modifier = Mo
                 text = "매칭된 코스 · ${session.routeName}" +
                     (session.routeDistanceKm?.let { " (${RaceFormat.distanceLabel(it)})" } ?: ""),
                 style = DallimTypography.Caption,
-                color = DallimColors.Primary,
+                color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
             )
         }
@@ -327,18 +317,11 @@ private fun SessionTypeBadge(type: String, modifier: Modifier = Modifier) {
     val (label, color) = when (type) {
         "LONG_RUN" -> "롱런" to DallimColors.Primary
         "TEMPO" -> "템포" to DallimColors.RouteVerified
-        "INTERVAL" -> "인터벌" to DallimColors.RouteUnderReview
-        "REST" -> "휴식" to DallimColors.TextSecondary
-        else -> type to DallimColors.TextSecondary
+        "INTERVAL" -> "인터벌" to DallimColors.Warning
+        "REST" -> "휴식" to DallimColors.TextTertiary
+        else -> type to DallimColors.TextTertiary
     }
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-    ) {
-        Text(text = label, style = DallimTypography.Caption, color = color)
-    }
+    DallimBadge(label = label, foreground = color, modifier = modifier)
 }
 
 @Preview(showBackground = true, heightDp = 1400)

@@ -101,7 +101,6 @@ private fun RunningMateListScreen(
                 .fillMaxSize()
                 .background(DallimColors.Background)
                 .padding(innerPadding)
-                .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
             DallimTopBar(title = "러닝메이트", onBackClick = onBackClick)

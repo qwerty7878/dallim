@@ -139,7 +139,6 @@ private fun SocialSessionChatScreen(
                 .fillMaxSize()
                 .background(DallimColors.Background)
                 .padding(innerPadding)
-                .statusBarsPadding()
                 .imePadding(),
         ) {
             Row(
