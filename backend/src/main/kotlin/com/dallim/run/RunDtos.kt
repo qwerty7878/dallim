@@ -13,9 +13,14 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ClientDeviceInfoRequest(val gpsAccuracyM: Int? = null)
 
+/**
+ * [routeId]가 null이면 자유 러닝(2026-09-26, 사용자 요청 — 코스를 먼저 고르지 않고 바로 달리기
+ * 시작, 완주 후 실제 궤적이 곧 그림 결과가 되는 모드)이다. `mode`는 관례상 "FREE"를 보내지만
+ * 서버는 오직 `routeId`의 null 여부만으로 분기한다(RunService.startRun 참고).
+ */
 @Serializable
 data class StartRunRequest(
-    val routeId: String,
+    val routeId: String? = null,
     val mode: String = "SOLO",
     val startedAt: String,
     val clientDeviceInfo: ClientDeviceInfoRequest? = null,
@@ -78,14 +83,19 @@ data class RunFinishResponse(
     val earnedBadges: List<String> = emptyList(),
 )
 
+/**
+ * [routeId]/[routeName]/[plannedGeoJson]은 자유 러닝(코스 없음)이면 전부 null이다
+ * (2026-09-26, 사용자 요청). [actualGeoJson]은 자유 러닝에서도 항상 있다 — 그 러닝의 실제 궤적
+ * 자체가 "그림" 결과이기 때문(S-25가 코스 유무와 무관하게 항상 이걸로 그림을 그린다).
+ */
 @Serializable
 data class RunDetailResponse(
     val runId: String,
-    val routeId: String,
-    val routeName: String,
+    val routeId: String?,
+    val routeName: String?,
     val status: RunStatus,
     val actualGeoJson: GeoJsonLineString,
-    val plannedGeoJson: GeoJsonLineString,
+    val plannedGeoJson: GeoJsonLineString?,
     val distanceKm: Double,
     val durationSeconds: Int,
     val averagePaceSecPerKm: Int,
@@ -95,6 +105,9 @@ data class RunDetailResponse(
     // Storage/debugging only for now — never consulted by RunJudgementService. See
     // FinishRunRequest.stepCount.
     val stepCount: Int? = null,
+    // 이미 코스로 등록됐다면 그 코스 id (2026-09-26) — 자유 러닝 결과 화면이 "코스로 등록" 버튼을
+    // 계속 보여줄지(null) 등록 완료 상태로 바꿀지(non-null) 판단하는 데 쓴다.
+    val registeredRouteId: String? = null,
 )
 
 /**
@@ -110,3 +123,14 @@ data class FeedbackTagsRequest(val tags: List<String> = emptyList())
  * first time (idempotent no-op), not necessarily this request's own `tags`. */
 @Serializable
 data class FeedbackTagsResponse(val runId: String, val tags: List<String>)
+
+/**
+ * POST /runs/{runId}/register-as-route (2026-09-26, 사용자 요청) — 자유 러닝을 완주한 뒤 그
+ * 실제 궤적을 새 코스로 공개 등록한다. 이번 라운드는 v1.3 PART 4.2가 전제하는 UGC 모더레이션
+ * (금칙어/도로 안전 필터, 완주 전까지 비공개)이 없다 — 필터 없이 즉시 공개된다.
+ */
+@Serializable
+data class RegisterRouteRequest(val name: String, val emoji: String)
+
+@Serializable
+data class RegisterRouteResponse(val routeId: String)

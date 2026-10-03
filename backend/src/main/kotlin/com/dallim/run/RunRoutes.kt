@@ -73,6 +73,15 @@ fun Route.runRoutes() {
                 val result = runService.submitFeedbackTags(userId, runId, request)
                 call.respond(HttpStatusCode.OK, ApiResponse.success(result))
             }
+
+            // 2026-09-26, 사용자 요청 — 자유 러닝 완주 후 그 궤적을 새 코스로 공개 등록.
+            post("/{runId}/register-as-route") {
+                val userId = call.currentUserId()!!
+                val runId = call.parameters["runId"]!!
+                val request = call.receive<RegisterRouteRequest>()
+                val result = runService.registerAsRoute(userId, runId, request)
+                call.respond(HttpStatusCode.Created, ApiResponse.success(result))
+            }
         }
     }
 }

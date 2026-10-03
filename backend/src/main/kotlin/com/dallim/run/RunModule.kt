@@ -15,11 +15,13 @@ import org.koin.dsl.module
  * RunService also depends on com.dallim.notification.NotificationService (loaded via
  * notificationModule, registered alongside this module in plugins/Koin.kt) to fire the
  * RUN_COMPLETED in-app notification right next to FinisherCountSync.recordFinisher
- * (docs/02-api-spec.md 9.4).
+ * (docs/02-api-spec.md 9.4), and on com.dallim.route.RouteRepository (loaded via routeModule) for
+ * the "자유 러닝을 코스로 등록"(2026-09-26) flow — same cross-domain-at-the-service-layer
+ * convention as com.dallim.user.SavedRouteService.
  */
 val runModule = module {
     single { RunRepository(get(), get()) }
     single { RunJudgementService() }
     single { FinisherCountSync(get(), get()) }
-    single { RunService(get(), get(), get(), get()) }
+    single { RunService(get(), get(), get(), get(), get()) }
 }

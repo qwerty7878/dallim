@@ -35,7 +35,11 @@ enum class RunStatus {
 object RunRecordTable : Table("run_records") {
     val id = varchar("id", 32)
     val userId = varchar("user_id", 32).references(UserTable.id)
-    val routeId = varchar("route_id", 32).references(SketchRouteTable.id)
+
+    // 2026-09-26부터 nullable — 자유 러닝(코스 미선택 후 바로 달리기, 사용자 요청으로 신규 편입)은
+    // 목표 코스가 없다. null이면 com.dallim.run.RunJudgementService.judgeFreeform이 판정을
+    // 맡는다(구간 커버리지/Sketch Match 없이 거리·시간·페이스·비정상속도만).
+    val routeId = varchar("route_id", 32).references(SketchRouteTable.id).nullable()
 
     // "SOLO" is the only mode present in docs/02-api-spec.md; kept as free-form string rather
     // than a closed enum since the full mode set isn't specified yet.
@@ -68,7 +72,7 @@ object RunRecordTable : Table("run_records") {
 data class RunRecord(
     val id: String,
     val userId: String,
-    val routeId: String,
+    val routeId: String?,
     val mode: String,
     val status: RunStatus,
     val startedAt: Instant,

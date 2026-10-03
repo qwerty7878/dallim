@@ -45,6 +45,14 @@ object ErrorCodes {
     const val GPS_DATA_INSUFFICIENT = "GPS_DATA_INSUFFICIENT"
     const val RUN_NOT_FOUND = "RUN_NOT_FOUND"
 
+    // 자유 러닝 "코스로 등록" (2026-09-26, 사용자 요청)
+    // 코스를 미리 골라 뛴 러닝(routeId가 있는 러닝)은 등록 대상이 아니다.
+    const val RUN_NOT_FREEFORM = "RUN_NOT_FREEFORM"
+    // 완주(COMPLETED) 상태가 아닌 러닝은 코스로 등록할 수 없다.
+    const val RUN_NOT_COMPLETED = "RUN_NOT_COMPLETED"
+    // 이 러닝은 이미 다른 코스로 등록됐다(중복 등록 방지, source_run_id UNIQUE와 짝).
+    const val ROUTE_ALREADY_REGISTERED = "ROUTE_ALREADY_REGISTERED"
+
     // discovery (docs/02-api-spec.md 8장)
     const val DRAW_TOO_SHORT = "DRAW_TOO_SHORT"
     const val DRAW_MATCH_FAILED = "DRAW_MATCH_FAILED"

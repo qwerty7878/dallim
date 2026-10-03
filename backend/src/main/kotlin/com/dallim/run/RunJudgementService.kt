@@ -135,6 +135,40 @@ class RunJudgementService {
     }
 
     /**
+     * Freeform-run judgement (2026-09-26, 사용자 요청 — "자유 러닝": 코스를 먼저 고르지 않고 바로
+     * 달리기 시작, 완주 후 실제 궤적이 곧 그림 결과가 되는 모드). [planned]가 없으므로 route
+     * coverage / sketch match 개념 자체가 적용되지 않는다 — 항상 0으로 둔다. PARTIAL/ABORTED도
+     * "목표 대비 못 미침"이라는 개념이라 여기선 의미가 없어, 비정상 속도만 아니면 무조건
+     * COMPLETED다(달린 거리가 아무리 짧아도 자유 러닝은 실패라는 개념이 없다).
+     */
+    fun judgeFreeform(actual: List<TimedPoint>): RunJudgementResult {
+        require(actual.size >= MIN_POINTS_FOR_JUDGEMENT) { "insufficient GPS points for judgement" }
+
+        val orderedActual = actual.sortedBy { it.timestamp }
+        val actualLatLngs = orderedActual.map { it.toLatLng() }
+
+        val distanceMeters = GeoMath.pathLengthMeters(actualLatLngs)
+        val durationSeconds = Duration.between(orderedActual.first().timestamp, orderedActual.last().timestamp)
+            .seconds
+            .coerceAtLeast(0)
+            .toInt()
+
+        val abnormalRatio = abnormalSpeedRatio(orderedActual)
+        val hasAbnormalSpeed = abnormalRatio > ABNORMAL_SPEED_RATIO_THRESHOLD
+
+        return RunJudgementResult(
+            status = if (hasAbnormalSpeed) RunStatus.UNDER_REVIEW else RunStatus.COMPLETED,
+            distanceMeters = distanceMeters,
+            durationSeconds = durationSeconds,
+            routeCompletionPercent = 0,
+            sketchMatchPercent = 0,
+            hasAbnormalSpeed = hasAbnormalSpeed,
+            abnormalSpeedRatio = abnormalRatio,
+            simplifiedActualPath = simplifyForStorage(actualLatLngs),
+        )
+    }
+
+    /**
      * Route Coverage (docs/01-feature-spec.md 2.2.D step 2): re-samples [planned] into evenly
      * spaced checkpoints and reports the percentage of checkpoints that have at least one
      * [actual] point within [COVERAGE_RADIUS_METERS].

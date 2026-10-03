@@ -271,6 +271,63 @@ class RouteRepository(
             .firstOrNull()
     }
 
+    // --- 자유 러닝 "코스로 등록" (2026-09-26, 사용자 요청) ---
+
+    /**
+     * POST /runs/{runId}/register-as-route 중복 등록 방지 — [runId]가 이미 코스로 등록됐다면 그
+     * 코스 id를, 아직이면 null을 반환한다. `source_run_id` UNIQUE 제약이 최종 방어선이지만
+     * (com.dallim.route.SketchRoute.kt), 이 코드베이스 관례대로(예: SavedRouteRepository.save)
+     * DB 제약을 catch하는 대신 먼저 존재 여부를 확인한다.
+     */
+    fun findRouteIdBySourceRunId(runId: String): String? = transaction(database) {
+        SketchRouteTable.select(SketchRouteTable.id)
+            .where { SketchRouteTable.sourceRunId eq runId }
+            .limit(1)
+            .map { it[SketchRouteTable.id] }
+            .firstOrNull()
+    }
+
+    /**
+     * 자유 러닝의 실제 궤적(`run_records.actual_path`)을 그대로 새 sketch_routes 행의 path로
+     * 복사해 코스를 만든다 — GeoJSON 문자열로 왕복하지 않고 DB 안에서 지오메트리 컬럼을 그대로
+     * 복사하므로(`INSERT ... SELECT ... FROM run_records`) 정밀도 손실이 없다. `finisherCount`는
+     * 1로 시작한다 — 등록한 사람이 이미 그 경로를 완주했기 때문(v1.3 문서 "본인 완주 1회 이후
+     * 공개 신청" 원칙의 결과만 반영, 그 전 단계인 비공개 심사는 이번 라운드에 없음).
+     */
+    fun createFromRun(
+        newRouteId: String,
+        runId: String,
+        userId: String,
+        name: String,
+        emoji: String,
+        distanceKm: Double,
+        estimatedMinutes: Int,
+    ) {
+        val sql = """
+            INSERT INTO sketch_routes
+                (id, name, emoji, path, distance_km, estimated_minutes, difficulty, status,
+                 finisher_count, traffic_light_count, elevation_gain_m, repeat_segment_percent,
+                 runability, is_preview_segment, created_by_user_id, source_run_id,
+                 created_at, updated_at)
+            SELECT ?, ?, ?, actual_path, ?, ?, NULL, 'DISCOVERY', 1, 0, 0, 0, 0.0, FALSE, ?, ?,
+                   now(), now()
+            FROM run_records WHERE id = ?
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, newRouteId)
+                stmt.setString(2, name)
+                stmt.setString(3, emoji)
+                stmt.setDouble(4, distanceKm)
+                stmt.setInt(5, estimatedMinutes)
+                stmt.setString(6, userId)
+                stmt.setString(7, runId)
+                stmt.setString(8, runId)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
     private fun bindArgs(stmt: PreparedStatement, args: List<Any>) {
         args.forEachIndexed { index, value ->
             when (value) {

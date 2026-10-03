@@ -6,6 +6,7 @@ import com.dallim.common.LatLng
 import com.dallim.common.PostGis
 import com.dallim.route.SketchRouteTable
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
@@ -34,7 +35,7 @@ class RunRepository(
     data class RunRow(
         val id: String,
         val userId: String,
-        val routeId: String,
+        val routeId: String?,
         val status: RunStatus,
         val startedAt: Instant,
         val finishedAt: Instant?,
@@ -75,8 +76,11 @@ class RunRepository(
         val thumbnailGeoJson: GeoJsonLineString,
     )
 
-    /** POST /runs — creates the session row (IN_PROGRESS) and returns its generated id. */
-    fun create(userId: String, routeId: String, mode: String, startedAt: Instant): String {
+    /**
+     * POST /runs — creates the session row (IN_PROGRESS) and returns its generated id. [routeId]
+     * is null for a freeform run (2026-09-26, 사용자 요청 — 코스 미선택 자유 러닝).
+     */
+    fun create(userId: String, routeId: String?, mode: String, startedAt: Instant): String {
         val id = IdGenerator.run()
         transaction(database) {
             RunRecordTable.insert {
@@ -134,13 +138,19 @@ class RunRepository(
      * latest attempt). Non-spatial (only run_records + sketch_routes.name), so plain Exposed.
      */
     fun findContinueRoutes(userId: String, limit: Int): List<ContinueRouteRow> = transaction(database) {
-        (RunRecordTable innerJoin SketchRouteTable)
+        // Explicit `on` — as of 2026-09-26 there are two FK paths between these tables
+        // (run_records.route_id -> sketch_routes.id, and sketch_routes.source_run_id ->
+        // run_records.id for "코스로 등록"), so Exposed's parameterless innerJoin can no longer
+        // auto-detect a single unambiguous join column.
+        RunRecordTable.join(SketchRouteTable, JoinType.INNER, onColumn = RunRecordTable.routeId, otherColumn = SketchRouteTable.id)
             .selectAll()
             .where { (RunRecordTable.userId eq userId) and (RunRecordTable.status eq RunStatus.PARTIAL) }
             .orderBy(RunRecordTable.finishedAt, SortOrder.DESC)
             .map {
                 ContinueRouteRow(
-                    routeId = it[RunRecordTable.routeId],
+                    // innerJoin against SketchRouteTable guarantees a matched routeId, so a
+                    // freeform run's null route_id (2026-09-26) can never appear in this result set.
+                    routeId = it[RunRecordTable.routeId]!!,
                     routeName = it[SketchRouteTable.name],
                     status = it[RunRecordTable.status],
                     lastCoveragePercent = it[RunRecordTable.routeCompletionPercent] ?: 0,
@@ -204,7 +214,9 @@ class RunRepository(
                         (RunRecordTable.status eq RunStatus.COMPLETED) and
                         (RunRecordTable.routeId inList routeIds)
                 }
-                .map { it[RunRecordTable.routeId] }
+                // routeId inList routeIds (non-null strings) can never match a freeform run's
+                // null route_id (2026-09-26), so this is never actually null here.
+                .map { it[RunRecordTable.routeId]!! }
                 .toSet()
         }
     }

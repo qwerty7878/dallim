@@ -156,7 +156,7 @@ class RunFlowIntegrationTest {
         val detailBody: RunDetailEnvelope = detailResponse.body()
         assertEquals(RunStatus.COMPLETED, detailBody.data!!.status)
         assertEquals(routeId, detailBody.data.routeId)
-        assertTrue(detailBody.data.plannedGeoJson.coordinates.isNotEmpty())
+        assertTrue(detailBody.data.plannedGeoJson!!.coordinates.isNotEmpty())
         assertTrue(detailBody.data.actualGeoJson.coordinates.isNotEmpty())
     }
 
