@@ -30,10 +30,10 @@ enum class DistanceFilter(val label: String, val minKm: Double?, val maxKm: Doub
  * (docs/01-feature-spec.md §2.2 C — Route 상태 전이는 DISCOVERY→VERIFIED→POPULAR 뿐).
  */
 enum class RouteStatusFilter(val label: String, val apiValue: String?) {
-    ALL("전체 상태", null),
-    DISCOVERY("DISCOVERY", "DISCOVERY"),
-    VERIFIED("VERIFIED", "VERIFIED"),
-    POPULAR("POPULAR", "POPULAR"),
+    ALL("모든 상태", null),
+    DISCOVERY("발견", "DISCOVERY"),
+    VERIFIED("검증됨", "VERIFIED"),
+    POPULAR("인기", "POPULAR"),
 }
 
 /** GET /routes 의 sort 쿼리와 대응. */

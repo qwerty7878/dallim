@@ -20,9 +20,9 @@ fun String.toRouteStatus(): RouteStatus = runCatching { RouteStatus.valueOf(this
 @Composable
 fun RouteStatusBadge(status: RouteStatus, modifier: Modifier = Modifier) {
     val (bg, fg, label) = when (status) {
-        RouteStatus.DISCOVERY -> Triple(DallimColors.RouteDiscovery.copy(alpha = 0.15f), DallimColors.RouteDiscovery, "DISCOVERY")
-        RouteStatus.VERIFIED -> Triple(DallimColors.RouteVerified.copy(alpha = 0.15f), DallimColors.RouteVerified, "VERIFIED")
-        RouteStatus.POPULAR -> Triple(DallimColors.Primary.copy(alpha = 0.12f), DallimColors.Primary, "POPULAR")
+        RouteStatus.DISCOVERY -> Triple(DallimColors.RouteDiscovery.copy(alpha = 0.15f), DallimColors.RouteDiscovery, "발견")
+        RouteStatus.VERIFIED -> Triple(DallimColors.RouteVerified.copy(alpha = 0.15f), DallimColors.RouteVerified, "검증됨")
+        RouteStatus.POPULAR -> Triple(DallimColors.Primary.copy(alpha = 0.12f), DallimColors.Primary, "인기")
         RouteStatus.UNDER_REVIEW -> Triple(DallimColors.RouteUnderReview.copy(alpha = 0.15f), DallimColors.RouteUnderReview, "검토중")
     }
     Text(

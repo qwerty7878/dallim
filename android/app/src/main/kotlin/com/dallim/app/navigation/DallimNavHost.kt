@@ -220,7 +220,6 @@ fun DallimNavHost(
 
         composable(DallimDestinations.EXPLORE) {
             DiscoverRoute(
-                onBackClick = { navController.popBackStack() },
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },
                 onCreateCourseClick = { navController.navigate(DallimDestinations.COURSE_CREATE_ENTRY) },

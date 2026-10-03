@@ -7,21 +7,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,12 +36,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -80,7 +87,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  */
 @Composable
 fun DiscoverRoute(
-    onBackClick: () -> Unit,
     onRouteClick: (routeId: String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
@@ -96,7 +102,6 @@ fun DiscoverRoute(
         segment = segment,
         onSegmentChange = { segment = it },
         uiState = uiState,
-        onBackClick = onBackClick,
         onRouteClick = onRouteClick,
         onTabSelected = onTabSelected,
         onCreateCourseClick = onCreateCourseClick,
@@ -119,7 +124,6 @@ private fun DiscoverScreen(
     segment: DiscoverSegment,
     onSegmentChange: (DiscoverSegment) -> Unit,
     uiState: DiscoverUiState,
-    onBackClick: () -> Unit,
     onRouteClick: (String) -> Unit,
     onTabSelected: (DallimTab) -> Unit,
     onCreateCourseClick: () -> Unit,
@@ -171,43 +175,30 @@ private fun DiscoverScreen(
                 .background(DallimColors.Background)
                 .padding(innerPadding),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                Text(text = "탐색", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            Text(
+                text = "탐색",
+                style = DallimTypography.Title1,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(
+                    start = Spacing.ScreenHorizontal,
+                    end = Spacing.ScreenHorizontal,
+                    top = Spacing.md,
+                    bottom = Spacing.sm,
+                ),
+            )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                DallimFilterChip(
-                    label = "그림 코스",
-                    selected = segment == DiscoverSegment.COURSE,
-                    onClick = { onSegmentChange(DiscoverSegment.COURSE) },
-                )
-                DallimFilterChip(
-                    label = "소셜",
-                    selected = segment == DiscoverSegment.SOCIAL,
-                    onClick = { onSegmentChange(DiscoverSegment.SOCIAL) },
-                )
-            }
+            SegmentTabs(
+                labels = listOf("그림 코스", "소셜"),
+                selectedIndex = if (segment == DiscoverSegment.COURSE) 0 else 1,
+                onSelect = { index ->
+                    onSegmentChange(if (index == 0) DiscoverSegment.COURSE else DiscoverSegment.SOCIAL)
+                },
+            )
 
             when (segment) {
                 DiscoverSegment.COURSE -> {
                     FilterSection(
+                        totalCount = uiState.totalCount,
                         distanceFilter = uiState.distanceFilter,
                         statusFilter = uiState.statusFilter,
                         sort = uiState.sort,
@@ -283,8 +274,42 @@ private fun DiscoverScreen(
     }
 }
 
+/** 탭 루트 화면의 상단 세그먼트 — 필터 칩과 구분되도록 언더라인 탭으로 그린다(docs/04-ui-guide.md §2 위계). */
+@Composable
+private fun SegmentTabs(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onSelect(index) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = label,
+                        style = DallimTypography.Body,
+                        color = if (selected) DallimColors.TextPrimary else DallimColors.TextSecondary,
+                        modifier = Modifier.padding(vertical = Spacing.sm),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(if (selected) DallimColors.Primary else Color.Transparent),
+                    )
+                }
+            }
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DallimColors.Border))
+    }
+}
+
+/** 거리 칩 한 줄 + [상태 ▾][정렬 ▾] 한 줄 — 이전엔 칩 3줄(거리/상태/정렬)이 화면 1/3을 차지했다. */
 @Composable
 private fun FilterSection(
+    totalCount: Int,
     distanceFilter: DistanceFilter,
     statusFilter: RouteStatusFilter,
     sort: SortOption,
@@ -292,42 +317,70 @@ private fun FilterSection(
     onStatusFilterChange: (RouteStatusFilter) -> Unit,
     onSortChange: (SortOption) -> Unit,
 ) {
-    Column(modifier = Modifier.padding(bottom = Spacing.sm)) {
+    Column(modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.sm)) {
         LazyRow(
             contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             items(DistanceFilter.entries.toList()) { option ->
                 DallimFilterChip(
-                    label = option.label,
+                    label = if (option == DistanceFilter.ALL) "전체" else option.label,
                     selected = distanceFilter == option,
                     onClick = { onDistanceFilterChange(option) },
                 )
             }
         }
-        LazyRow(
-            modifier = Modifier.padding(top = Spacing.sm),
-            contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.ScreenHorizontal)
+                .padding(top = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(RouteStatusFilter.entries.toList()) { option ->
-                DallimFilterChip(
-                    label = option.label,
-                    selected = statusFilter == option,
-                    onClick = { onStatusFilterChange(option) },
-                )
-            }
+            Text(
+                text = "코스 ${totalCount}개",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            DropdownText(
+                label = statusFilter.label,
+                options = RouteStatusFilter.entries.map { it.label },
+                onSelect = { onStatusFilterChange(RouteStatusFilter.entries[it]) },
+            )
+            Spacer(modifier = Modifier.width(Spacing.md))
+            DropdownText(
+                label = sort.label,
+                options = SortOption.entries.map { it.label },
+                onSelect = { onSortChange(SortOption.entries[it]) },
+            )
         }
-        LazyRow(
-            modifier = Modifier.padding(top = Spacing.sm),
-            contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    }
+}
+
+@Composable
+private fun DropdownText(label: String, options: List<String>, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier.clickable { expanded = true }.padding(vertical = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(SortOption.entries.toList()) { option ->
-                DallimFilterChip(
-                    label = option.label,
-                    selected = sort == option,
-                    onClick = { onSortChange(option) },
+            Text(text = label, style = DallimTypography.Caption, color = DallimColors.TextPrimary)
+            Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                tint = DallimColors.TextSecondary,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEachIndexed { index, option ->
+                DropdownMenuItem(
+                    text = { Text(text = option, style = DallimTypography.Body) },
+                    onClick = {
+                        expanded = false
+                        onSelect(index)
+                    },
                 )
             }
         }
@@ -445,7 +498,6 @@ private fun DiscoverScreenPreview() {
                 ),
                 isLoadingInitial = false,
             ),
-            onBackClick = {},
             onRouteClick = {},
             onTabSelected = {},
             onCreateCourseClick = {},
