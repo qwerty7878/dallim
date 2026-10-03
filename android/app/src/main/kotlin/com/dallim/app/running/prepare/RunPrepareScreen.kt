@@ -1,5 +1,6 @@
 package com.dallim.app.running.prepare
 
+import com.dallim.ui.icons.DallimIcons
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -20,12 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -193,7 +188,7 @@ private fun RunPrepareScreen(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = DallimIcons.ArrowLeft,
                     contentDescription = "뒤로가기",
                     tint = DallimColors.TextPrimary,
                 )
@@ -271,7 +266,7 @@ private fun ReadyContent(
 
         Column(modifier = Modifier.padding(top = Spacing.xl)) {
             ChecklistRow(
-                icon = Icons.Filled.GpsFixed,
+                icon = DallimIcons.LocateFixed,
                 title = "GPS 신호 강도",
                 statusText = uiState.gpsSignal.toLabel(uiState.gpsAccuracyM),
                 isSatisfied = uiState.gpsSignal == GpsSignalStrength.STRONG,
@@ -279,7 +274,7 @@ private fun ReadyContent(
                 onActionClick = onRefreshGpsClick,
             )
             ChecklistRow(
-                icon = Icons.Filled.BatteryAlert,
+                icon = DallimIcons.BatteryWarning,
                 title = "배터리 최적화 제외",
                 statusText = if (uiState.isBatteryOptimizationIgnored) "설정 완료" else "권장 — 러닝 중 GPS가 꺼질 수 있어요",
                 isSatisfied = uiState.isBatteryOptimizationIgnored,
@@ -288,7 +283,7 @@ private fun ReadyContent(
                 modifier = Modifier.padding(top = Spacing.md),
             )
             ChecklistRow(
-                icon = Icons.Filled.GpsFixed,
+                icon = DallimIcons.LocateFixed,
                 title = "백그라운드 위치 권한",
                 statusText = if (uiState.hasBackgroundLocationPermission) "허용됨" else "화면이 꺼져도 기록하려면 필요해요",
                 isSatisfied = uiState.hasBackgroundLocationPermission,
@@ -338,7 +333,7 @@ private fun ChecklistRow(
             DallimTextButton(text = actionText, onClick = onActionClick)
         } else {
             Icon(
-                imageVector = if (isSatisfied) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                imageVector = if (isSatisfied) DallimIcons.CircleCheck else DallimIcons.Circle,
                 contentDescription = null,
                 tint = if (isSatisfied) DallimColors.Success else DallimColors.TextSecondary,
                 modifier = Modifier.size(24.dp),

@@ -1,6 +1,9 @@
 package com.dallim.app.race.detail
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,8 +33,11 @@ import com.dallim.app.race.RaceFormat
 import com.dallim.network.race.RaceCategoryDetail
 import com.dallim.network.race.RaceDetailResponseBody
 import com.dallim.ui.components.DallimCard
+import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.SectionHeader
 import com.dallim.ui.theme.DallimColors
@@ -85,21 +89,7 @@ private fun RaceDetailScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "대회 상세", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "대회 상세", onBackClick = onBackClick)
 
         when (uiState) {
             is RaceDetailUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -110,94 +100,69 @@ private fun RaceDetailScreen(
                 modifier = Modifier.weight(1f),
             )
             is RaceDetailUiState.Success -> {
+                val race = uiState.race
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Column(modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal)) {
-                        Row(
-                            modifier = Modifier.padding(top = Spacing.md),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RaceDetailStatusChip(status = uiState.race.status)
-                            Text(
-                                text = RaceFormat.dDayLabel(uiState.race.dDay),
-                                style = DallimTypography.Title2,
-                                color = DallimColors.Primary,
-                                modifier = Modifier.padding(start = Spacing.sm),
-                            )
-                        }
+                        RaceDetailStatusChip(status = race.status, modifier = Modifier.padding(top = Spacing.md))
                         Text(
-                            text = uiState.race.name,
+                            text = race.name,
                             style = DallimTypography.Title1,
                             color = DallimColors.TextPrimary,
                             modifier = Modifier.padding(top = Spacing.sm),
                         )
                         Text(
-                            text = "${uiState.race.region} · ${uiState.race.location}",
+                            text = "${race.region} \u00b7 ${race.location}",
                             style = DallimTypography.Body,
                             color = DallimColors.TextSecondary,
                             modifier = Modifier.padding(top = Spacing.xs),
                         )
-                        Text(
-                            text = RaceFormat.displayDate(uiState.race.raceDate),
-                            style = DallimTypography.Caption,
-                            color = DallimColors.TextSecondary,
-                            modifier = Modifier.padding(top = Spacing.xs),
-                        )
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = Spacing.lg),
-                            color = DallimColors.Border,
-                        )
-
-                        LabeledRow(label = "주최", value = uiState.race.organizer)
-                        val souvenir = uiState.race.souvenir
-                        if (souvenir != null) {
-                            LabeledRow(label = "기념품", value = souvenir, modifier = Modifier.padding(top = Spacing.sm))
-                        }
-                        LabeledRow(
-                            label = "참가비",
-                            value = RaceFormat.feeRange(uiState.race.minFeeKrw, uiState.race.maxFeeKrw),
-                            modifier = Modifier.padding(top = Spacing.sm),
-                        )
-                        Text(
-                            text = "달림 러너 ${uiState.race.savedCount}명 참가 예정",
-                            style = DallimTypography.Caption,
-                            color = DallimColors.TextSecondary,
-                            modifier = Modifier.padding(top = Spacing.sm),
-                        )
-                        val previewProgressPercent = uiState.race.previewProgressPercent
-                        if (previewProgressPercent != null) {
-                            Text(
-                                text = RaceFormat.previewProgressLabel(previewProgressPercent),
-                                style = DallimTypography.Caption,
-                                color = DallimColors.Primary,
-                                modifier = Modifier.padding(top = Spacing.xs),
-                            )
+                        // 핵심 3칸 — [남은 일수 | 대회일 | 참가비]. 큰 D-day 강조색 대신 숫자를 같은 위계로.
+                        Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg)) {
+                            KeyFact(label = "남은 일수", value = RaceFormat.dDayLabel(race.dDay), modifier = Modifier.weight(1f))
+                            KeyFact(label = "대회일", value = RaceFormat.displayDate(race.raceDate), modifier = Modifier.weight(1.6f))
                         }
 
-                        if (uiState.hasCourse) {
-                            CoursePreviewCard(
-                                onClick = onCoursePreviewClick,
-                                modifier = Modifier.padding(top = Spacing.lg),
-                            )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.lg), color = DallimColors.Divider)
+
+                        InfoRow(label = "주최", value = race.organizer)
+                        race.souvenir?.let { InfoRow(label = "기념품", value = it) }
+                        InfoRow(label = "참가비", value = RaceFormat.feeRange(race.minFeeKrw, race.maxFeeKrw))
+                        if (race.savedCount > 0) {
+                            InfoRow(label = "관심", value = "${race.savedCount}명이 담았어요")
                         }
 
-                        // S-86 진입 카드 — 담아둔(isSaved) 대회일 때만 노출한다. 담아두지 않은
-                        // 상태로 생성 요청을 보내면 서버가 400 TRAINING_PLAN_RACE_NOT_SAVED로
-                        // 거절하므로(CLAUDE.md 2026-09-18 결정, docs/02-api-spec.md 19.2), CTA
-                        // 자체를 숨기는 쪽을 택했다 — CoursePreviewCard(hasCourse 조건부 노출)와
-                        // 동일한 원칙.
-                        if (uiState.race.isSaved) {
-                            TrainingPlanCard(
-                                onClick = onTrainingPlanClick,
-                                modifier = Modifier.padding(top = Spacing.lg),
-                            )
+                        // 바로가기 목록 — 코스 미리 달리기(S-85, 공식 코스가 있을 때), 훈련 플랜(S-86, 담은 대회일 때만:
+                        // 서버가 담지 않은 대회는 400 TRAINING_PLAN_RACE_NOT_SAVED로 거절한다).
+                        val previewProgressPercent = race.previewProgressPercent
+                        if (uiState.hasCourse || race.isSaved) {
+                            DallimCard(modifier = Modifier.padding(top = Spacing.lg)) {
+                                if (uiState.hasCourse) {
+                                    ShortcutRow(
+                                        title = "코스 미리 달리기",
+                                        subtitle = previewProgressPercent?.let { RaceFormat.previewProgressLabel(it) }
+                                            ?: "공식 코스를 구간별로 미리 달려볼 수 있어요",
+                                        onClick = onCoursePreviewClick,
+                                    )
+                                }
+                                if (uiState.hasCourse && race.isSaved) {
+                                    HorizontalDivider(color = DallimColors.Border)
+                                }
+                                if (race.isSaved) {
+                                    ShortcutRow(
+                                        title = "훈련 플랜 받기",
+                                        subtitle = "주차별 훈련과 코스를 자동으로 짜드려요",
+                                        onClick = onTrainingPlanClick,
+                                    )
+                                }
+                            }
                         }
 
-                        SectionHeader(
-                            title = "종목별 안내",
-                            modifier = Modifier.padding(top = Spacing.xl),
-                        )
-                        CategoryTable(categories = uiState.race.categories)
+                        SectionHeader(title = "종목", modifier = Modifier.padding(top = Spacing.xl))
+                        race.categories.forEachIndexed { index, category ->
+                            if (index > 0) HorizontalDivider(color = DallimColors.Divider)
+                            CategoryRow(category)
+                        }
 
                         if (uiState.saveErrorMessage != null) {
                             Text(
@@ -212,117 +177,107 @@ private fun RaceDetailScreen(
                     }
                 }
 
-                DallimPrimaryButton(
-                    text = if (uiState.race.isSaved) "담기 취소" else "담기",
-                    onClick = onToggleSaveClick,
-                    enabled = !uiState.isSaving,
-                    modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
-                )
+                // 담은 상태면 저강조(회색) 버튼, 아니면 Primary — 화면의 주 행동은 "담기".
+                if (race.isSaved) {
+                    DallimSecondaryButton(
+                        text = "담기 취소",
+                        onClick = onToggleSaveClick,
+                        enabled = !uiState.isSaving,
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
+                    )
+                } else {
+                    DallimPrimaryButton(
+                        text = "내 대회에 담기",
+                        onClick = onToggleSaveClick,
+                        enabled = !uiState.isSaving,
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
+                    )
+                }
             }
         }
     }
 }
 
-/** S-81 -> S-85 진입 카드 — hasCourse == true일 때만 노출한다(RaceDetailViewModel.load 참고). */
 @Composable
-private fun CoursePreviewCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Text(text = "코스 미리 달리기", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+private fun KeyFact(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = label, style = DallimTypography.Caption, color = DallimColors.TextSecondary)
         Text(
-            text = "이 대회의 공식 코스를 구간별로 미리 달려볼 수 있어요.",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-    }
-}
-
-/** S-81 -> S-86 진입 카드 — isSaved == true일 때만 노출한다(RaceDetailScreen 본문 참고). */
-@Composable
-private fun TrainingPlanCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Text(text = "훈련 플랜 받기", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-        Text(
-            text = "이 대회를 목표로 주차별 훈련 플랜과 코스를 자동으로 짜드려요.",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
+            text = value,
+            style = DallimTypography.Title2,
+            color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.xs),
         )
     }
 }
 
 @Composable
-private fun LabeledRow(label: String, value: String, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = label, style = DallimTypography.Body, color = DallimColors.TextSecondary)
-        Text(text = value, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+private fun InfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm)) {
+        Text(text = label, style = DallimTypography.Body, color = DallimColors.TextSecondary, modifier = Modifier.width(72.dp))
+        Text(text = value, style = DallimTypography.Body, color = DallimColors.TextPrimary, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun CategoryTable(categories: List<RaceCategoryDetail>, modifier: Modifier = Modifier) {
-    DallimCard(modifier = modifier.padding(top = Spacing.md)) {
-        CategoryTableRow(
-            category = "종목",
-            distance = "거리",
-            fee = "참가비",
-            capacity = "정원",
-            cutoff = "컷오프",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-        )
-        categories.forEachIndexed { index, category ->
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = Spacing.sm),
-                color = DallimColors.Border,
-            )
-            CategoryTableRow(
-                category = RaceFormat.categoryLabel(category.category),
-                distance = RaceFormat.distanceLabel(category.distanceKm),
-                fee = RaceFormat.feeLabel(category.feeKrw),
-                capacity = RaceFormat.capacityLabel(category.capacity),
-                cutoff = RaceFormat.cutoffLabel(category.cutoffMinutes),
-                style = DallimTypography.Body,
-                color = DallimColors.TextPrimary,
+private fun ShortcutRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = DallimTypography.Title3, color = DallimColors.TextPrimary)
+            Text(
+                text = subtitle,
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
+        Icon(imageVector = DallimIcons.ChevronRight, contentDescription = null, tint = DallimColors.TextTertiary)
+    }
+}
+
+/** 종목 한 줄 — [종목명 + 거리 | 참가비], 아래에 정원/컷오프. 표 대신 목록으로. */
+@Composable
+private fun CategoryRow(category: RaceCategoryDetail) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.md)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = RaceFormat.categoryLabel(category.category),
+                style = DallimTypography.Title3,
+                color = DallimColors.TextPrimary,
+            )
+            Text(
+                text = RaceFormat.distanceLabel(category.distanceKm),
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(start = Spacing.sm).weight(1f),
+            )
+            Text(text = RaceFormat.feeLabel(category.feeKrw), style = DallimTypography.Title3, color = DallimColors.TextPrimary)
+        }
+        Text(
+            text = "정원 ${RaceFormat.capacityLabel(category.capacity)} \u00b7 컷오프 ${RaceFormat.cutoffLabel(category.cutoffMinutes)}",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
     }
 }
 
 @Composable
-private fun CategoryTableRow(
-    category: String,
-    distance: String,
-    fee: String,
-    capacity: String,
-    cutoff: String,
-    style: androidx.compose.ui.text.TextStyle,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(text = category, style = style, color = color, modifier = Modifier.weight(1f))
-        Text(text = distance, style = style, color = color, modifier = Modifier.weight(1f))
-        Text(text = fee, style = style, color = color, modifier = Modifier.weight(1.2f))
-        Text(text = capacity, style = style, color = color, modifier = Modifier.weight(0.8f))
-        Text(text = cutoff, style = style, color = color, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun RaceDetailStatusChip(status: String) {
+private fun RaceDetailStatusChip(status: String, modifier: Modifier = Modifier) {
     val color = when (status) {
         "OPEN" -> DallimColors.Success
         "UPCOMING" -> DallimColors.RouteVerified
         else -> DallimColors.TextSecondary
     }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-    ) {
-        Text(text = RaceFormat.statusLabel(status), style = DallimTypography.Caption, color = color)
-    }
+    DallimBadge(
+        label = RaceFormat.statusLabel(status),
+        foreground = color,
+        background = color.copy(alpha = 0.12f),
+        modifier = modifier,
+    )
 }
 
 @Preview(showBackground = true, heightDp = 1000)

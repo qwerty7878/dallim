@@ -21,7 +21,10 @@ class MainActivity : ComponentActivity() {
                 // 코스 썸네일을 실제 지도 스냅샷으로 그릴지 — NCP 키가 있는 빌드에서만(MapSnapshotThumbnail 참고).
                 CompositionLocalProvider(LocalMapThumbnailsEnabled provides BuildConfig.NAVER_MAP_CLIENT_ID_CONFIGURED) {
                     val navController = rememberNavController()
-                    DallimNavHost(navController = navController)
+                    DallimNavHost(
+                        navController = navController,
+                        debugRoute = if (BuildConfig.DEBUG) intent.getStringExtra("debug_route") else null,
+                    )
                 }
             }
         }

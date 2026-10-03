@@ -55,7 +55,7 @@ object RaceFormat {
     fun capacityLabel(capacity: Int?): String = if (capacity == null) "-" else "${capacity}명"
 
     private fun formatDistance(km: Double): String =
-        if (km == km.toLong().toDouble()) km.toLong().toString() else km.toString()
+        if (km == km.toLong().toDouble()) km.toLong().toString() else "%.1f".format(km)
 
     /** 5K/10K/HALF/FULL/ULTRA/TRAIL — 와이어 표현을 그대로 배지 라벨로 쓴다(16.1). */
     fun categoryLabel(category: String): String = when (category) {

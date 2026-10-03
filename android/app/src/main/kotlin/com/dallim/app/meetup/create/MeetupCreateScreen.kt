@@ -1,5 +1,6 @@
 package com.dallim.app.meetup.create
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,10 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DatePickerDefaults
@@ -51,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
@@ -123,21 +121,7 @@ private fun MeetupCreateScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "모집 만들기", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "모집 만들기", onBackClick = onBackClick)
 
         Column(
             modifier = Modifier
@@ -151,7 +135,7 @@ private fun MeetupCreateScreen(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 MeetupPickerField(
-                    icon = Icons.Filled.CalendarMonth,
+                    icon = DallimIcons.Calendar,
                     displayText = uiState.date?.format(DateDisplayFormatter),
                     placeholder = "날짜 선택",
                     isError = uiState.dateTimeError != null,
@@ -159,7 +143,7 @@ private fun MeetupCreateScreen(
                     modifier = Modifier.weight(1.2f),
                 )
                 MeetupPickerField(
-                    icon = Icons.Filled.Schedule,
+                    icon = DallimIcons.Clock,
                     displayText = uiState.time?.format(TimeDisplayFormatter),
                     placeholder = "시간 선택",
                     isError = uiState.dateTimeError != null,

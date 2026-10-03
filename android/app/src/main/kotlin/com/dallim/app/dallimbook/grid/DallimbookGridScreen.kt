@@ -1,5 +1,6 @@
 package com.dallim.app.dallimbook.grid
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,9 +21,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +44,7 @@ import com.dallim.network.user.SavedRouteItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
@@ -118,21 +117,7 @@ private fun DallimbookGridScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "달림북", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "달림북", onBackClick = onBackClick)
 
         when {
             uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -268,7 +253,7 @@ private fun EmptySlotCell(savedRoute: SavedRouteItem, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Outlined.Lock,
+                imageVector = DallimIcons.Lock,
                 contentDescription = null,
                 tint = DallimColors.TextSecondary,
                 modifier = Modifier.size(28.dp),

@@ -1,5 +1,6 @@
 package com.dallim.app.running.navigation
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,9 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -216,11 +214,11 @@ private fun TrackingContent(
         ) {
             if (snapshot.phase == RunPhase.PAUSED) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xl), verticalAlignment = Alignment.CenterVertically) {
-                    CircularControlButton(icon = Icons.Filled.PlayArrow, contentDescription = "이어 달리기", onClick = onResumeClick)
+                    CircularControlButton(icon = DallimIcons.PlayFilled, contentDescription = "이어 달리기", onClick = onResumeClick)
                     DallimTextButton(text = "달리기 종료", onClick = onFinishClick)
                 }
             } else {
-                CircularControlButton(icon = Icons.Filled.Stop, contentDescription = "일시정지", onClick = onPauseClick, isPauseGlyph = true)
+                CircularControlButton(icon = DallimIcons.SquareFilled, contentDescription = "일시정지", onClick = onPauseClick, isPauseGlyph = true)
             }
         }
     }

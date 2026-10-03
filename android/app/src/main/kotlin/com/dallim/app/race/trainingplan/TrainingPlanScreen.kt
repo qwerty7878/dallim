@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +36,7 @@ import com.dallim.network.trainingplan.TrainingPlanWeekItem
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -90,21 +89,7 @@ private fun TrainingPlanScreen(
             .background(DallimColors.Background)
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "훈련 플랜", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "훈련 플랜", onBackClick = onBackClick)
 
         when (uiState) {
             is TrainingPlanUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))

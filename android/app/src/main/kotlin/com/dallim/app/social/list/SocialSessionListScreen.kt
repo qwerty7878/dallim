@@ -1,5 +1,6 @@
 package com.dallim.app.social.list
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,9 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +36,7 @@ import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.SocialSessionStatusBadge
 import com.dallim.ui.components.socialSessionBadgeState
+import com.dallim.ui.components.DallimFab
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -98,17 +97,10 @@ fun SocialSessionListBody(
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = onCreateClick,
-            containerColor = DallimColors.Primary,
-            contentColor = DallimColors.Surface,
-            icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
-            text = { Text(text = "세션 열기") },
-            modifier = Modifier
+        DallimFab(text = "세션 열기", icon = DallimIcons.Plus, onClick = onCreateClick, modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(Spacing.ScreenHorizontal),
-        )
+                .padding(Spacing.ScreenHorizontal),)
     }
 }
 

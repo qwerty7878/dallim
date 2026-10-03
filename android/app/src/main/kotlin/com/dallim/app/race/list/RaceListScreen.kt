@@ -1,5 +1,6 @@
 package com.dallim.app.race.list
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -238,7 +236,7 @@ private fun RaceCard(
             )
             IconButton(onClick = onToggleSaveClick, enabled = !isTogglingSave) {
                 Icon(
-                    imageVector = if (race.isSaved) Icons.Filled.Bookmark else Icons.Outlined.Bookmark,
+                    imageVector = if (race.isSaved) DallimIcons.BookmarkFilled else DallimIcons.Bookmark,
                     contentDescription = if (race.isSaved) "담기 취소" else "내 대회에 담기",
                     tint = if (race.isSaved) DallimColors.Primary else DallimColors.TextSecondary,
                 )

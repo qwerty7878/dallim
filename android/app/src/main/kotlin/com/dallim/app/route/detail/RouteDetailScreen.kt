@@ -1,5 +1,6 @@
 package com.dallim.app.route.detail
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,12 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -64,6 +59,7 @@ import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteStatusBadge
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.toRouteStatus
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -141,7 +137,7 @@ private fun RouteDetailScreen(
     Scaffold(
         modifier = modifier,
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
     Column(
         modifier = Modifier
@@ -160,7 +156,7 @@ private fun RouteDetailScreen(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = DallimIcons.ArrowLeft,
                     contentDescription = "뒤로가기",
                     tint = DallimColors.TextPrimary,
                 )
@@ -168,7 +164,7 @@ private fun RouteDetailScreen(
             if (uiState is RouteDetailUiState.Success) {
                 IconButton(onClick = onToggleSaveClick, enabled = !uiState.isSaving) {
                     Icon(
-                        imageVector = if (uiState.route.isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                        imageVector = if (uiState.route.isSaved) DallimIcons.BookmarkFilled else DallimIcons.Bookmark,
                         contentDescription = if (uiState.route.isSaved) "저장 취소" else "코스 저장",
                         tint = DallimColors.Primary,
                     )
@@ -494,7 +490,7 @@ private fun MeetupEntryRow(openCount: Int, onClick: () -> Unit, modifier: Modifi
             .padding(Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(imageVector = Icons.Filled.Groups, contentDescription = null, tint = DallimColors.Primary)
+        Icon(imageVector = DallimIcons.Users, contentDescription = null, tint = DallimColors.Primary)
         Text(
             text = if (openCount > 0) "지금 열려 있는 모집 ${openCount}건" else "아직 열려 있는 모집이 없어요",
             style = DallimTypography.Body,
@@ -502,7 +498,7 @@ private fun MeetupEntryRow(openCount: Int, onClick: () -> Unit, modifier: Modifi
             modifier = Modifier.weight(1f).padding(start = Spacing.md),
         )
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = DallimIcons.ChevronRight,
             contentDescription = null,
             tint = DallimColors.TextSecondary,
         )

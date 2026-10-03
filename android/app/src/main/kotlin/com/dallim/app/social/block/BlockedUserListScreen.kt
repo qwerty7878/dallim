@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -30,6 +28,7 @@ import com.dallim.network.user.BlockedUserItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
@@ -74,21 +73,7 @@ private fun BlockedUserListScreen(
                 .background(DallimColors.Background)
                 .padding(innerPadding),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                Text(text = "차단 관리", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            DallimTopBar(title = "차단 관리", onBackClick = onBackClick)
 
             when (uiState) {
                 BlockedUserListUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))

@@ -1,5 +1,6 @@
 package com.dallim.app.career.shelf
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -103,7 +101,7 @@ private fun MedalShelfScreen(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = DallimIcons.ArrowLeft,
                     contentDescription = "뒤로가기",
                     tint = DallimColors.TextPrimary,
                 )
@@ -115,7 +113,7 @@ private fun MedalShelfScreen(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onAddClick) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "이력 추가", tint = DallimColors.Primary)
+                Icon(imageVector = DallimIcons.Plus, contentDescription = "이력 추가", tint = DallimColors.Primary)
             }
         }
 

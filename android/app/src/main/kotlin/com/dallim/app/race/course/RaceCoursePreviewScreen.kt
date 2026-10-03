@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -38,6 +36,7 @@ import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
@@ -87,21 +86,7 @@ private fun RaceCoursePreviewScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "코스 미리 달리기", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "코스 미리 달리기", onBackClick = onBackClick)
 
         when (uiState) {
             is RaceCoursePreviewUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))

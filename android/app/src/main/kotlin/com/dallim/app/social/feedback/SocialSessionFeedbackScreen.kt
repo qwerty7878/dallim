@@ -1,5 +1,6 @@
 package com.dallim.app.social.feedback
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -43,6 +42,7 @@ import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimTextButton
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -99,7 +99,7 @@ private fun SocialSessionFeedbackScreen(
     Scaffold(
         modifier = modifier,
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -114,7 +114,7 @@ private fun SocialSessionFeedbackScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
+                    Icon(imageVector = DallimIcons.ArrowLeft, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
                 }
                 Text(text = "함께 달린 사람 평가", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
             }

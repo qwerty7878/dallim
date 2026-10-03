@@ -1,5 +1,6 @@
 package com.dallim.app.home
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -247,14 +246,14 @@ private fun StartBlock(onStartClick: () -> Unit, onPickCourseClick: () -> Unit, 
             modifier = Modifier
                 .size(START_HALO_SIZE)
                 .clip(CircleShape)
-                .background(DallimColors.PrimaryLight),
+                .background(DallimColors.SurfaceMuted),
             contentAlignment = Alignment.Center,
         ) {
             Box(
                 modifier = Modifier
                     .size(START_BUTTON_SIZE)
                     .clip(CircleShape)
-                    .background(DallimColors.Primary)
+                    .background(DallimColors.Ink)
                     .clickable(onClick = onStartClick),
                 contentAlignment = Alignment.Center,
             ) {
@@ -431,7 +430,7 @@ private fun NotificationBellButton(unreadCount: Int, onClick: () -> Unit) {
     Box {
         IconButton(onClick = onClick) {
             Icon(
-                imageVector = Icons.Filled.Notifications,
+                imageVector = DallimIcons.Bell,
                 contentDescription = "알림",
                 tint = DallimColors.TextPrimary,
             )

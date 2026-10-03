@@ -1,12 +1,6 @@
 package com.dallim.app.onboarding.profile
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Accessibility
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.EmojiPeople
-import androidx.compose.material.icons.filled.Face
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.SelfImprovement
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -18,12 +12,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 data class AvatarOption(val id: String, val icon: ImageVector)
 
 val avatarOptions = listOf(
-    AvatarOption("avatar_01", Icons.Filled.Person),
-    AvatarOption("avatar_02", Icons.Filled.Face),
-    AvatarOption("avatar_03", Icons.Filled.EmojiPeople),
-    AvatarOption("avatar_04", Icons.Filled.DirectionsRun),
-    AvatarOption("avatar_05", Icons.Filled.SelfImprovement),
-    AvatarOption("avatar_06", Icons.Filled.Accessibility),
+    AvatarOption("avatar_01", DallimIcons.User),
+    AvatarOption("avatar_02", DallimIcons.Smile),
+    AvatarOption("avatar_03", DallimIcons.PersonStanding),
+    AvatarOption("avatar_04", DallimIcons.Footprints),
+    AvatarOption("avatar_05", DallimIcons.PersonStanding),
+    AvatarOption("avatar_06", DallimIcons.Accessibility),
 )
 
 /**

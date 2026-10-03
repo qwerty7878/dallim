@@ -1,5 +1,6 @@
 package com.dallim.app.route.create.ai
 
+import com.dallim.ui.icons.DallimIcons
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -23,9 +24,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,12 +65,14 @@ import com.dallim.network.route.RouteDiscoveryResponseBody
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
 import com.dallim.ui.components.RouteThumbnailView
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -154,7 +154,7 @@ private fun AiRouteScreen(
 
     Scaffold(
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -164,19 +164,7 @@ private fun AiRouteScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                Text(text = "AI로 자동 생성", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            DallimTopBar(title = "AI로 자동 생성", onBackClick = onBackClick)
 
             // v1.3 문서 257행 "남은 무료 탐색 횟수 표시" — 아직 못 불러왔으면(null) 배너 자체를 숨긴다.
             uiState.quotaRemainingToday?.let { remaining ->
@@ -579,7 +567,7 @@ private fun PlaceSearchResultRow(item: PlaceSearchItem, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Outlined.LocationOn,
+            imageVector = DallimIcons.MapPin,
             contentDescription = null,
             tint = DallimColors.TextSecondary,
             modifier = Modifier.size(24.dp),

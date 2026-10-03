@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -31,11 +29,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.running.RunFormat
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.run.RunDetailResponseBody
+import androidx.compose.ui.unit.dp
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RunResultCanvas
+import com.dallim.ui.components.RunResultHero
 import com.dallim.ui.components.RunStatusBadge
 import com.dallim.ui.components.toRunStatus
 import com.dallim.ui.theme.DallimColors
@@ -80,21 +81,7 @@ private fun DallimbookDetailScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "작품 상세", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "작품 상세", onBackClick = onBackClick)
 
         when (uiState) {
             is DallimbookDetailUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -119,15 +106,20 @@ private fun DetailContent(run: RunDetailResponseBody, modifier: Modifier = Modif
     var replayToken by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
-        Column(modifier = Modifier.padding(top = Spacing.xl)) {
+        Column(modifier = Modifier.padding(top = Spacing.md)) {
             key(replayToken) {
-                RunResultCanvas(
-                    coordinates = run.actualGeoJson.toGeoPoints(),
-                    animate = replayToken > 0,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.xl),
-                )
+                if (replayToken == 0) {
+                    // 평소에는 실제 지도 위의 경로(지도 키가 없으면 캔버스). 리플레이를 누르면 선이 그려지는
+                    // 애니메이션을 위해 캔버스로 바꿔 처음부터 재생한다.
+                    RunResultHero(coordinates = run.actualGeoJson.toGeoPoints())
+                } else {
+                    RunResultCanvas(
+                        coordinates = run.actualGeoJson.toGeoPoints(),
+                        animate = true,
+                        cornerRadius = 0.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             Column(

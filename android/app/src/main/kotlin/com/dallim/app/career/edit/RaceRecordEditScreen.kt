@@ -1,5 +1,6 @@
 package com.dallim.app.career.edit
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -125,7 +123,7 @@ private fun RaceRecordEditScreen(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = DallimIcons.ArrowLeft,
                     contentDescription = "뒤로가기",
                     tint = DallimColors.TextPrimary,
                 )
@@ -139,7 +137,7 @@ private fun RaceRecordEditScreen(
             if (uiState is RaceRecordEditUiState.Ready && uiState.isEditMode) {
                 IconButton(onClick = onDeleteClick) {
                     Icon(
-                        imageVector = Icons.Filled.DeleteOutline,
+                        imageVector = DallimIcons.Trash2,
                         contentDescription = "삭제",
                         tint = DallimColors.Error,
                     )

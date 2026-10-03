@@ -1,5 +1,6 @@
 package com.dallim.app.social.checkin
 
+import com.dallim.ui.icons.DallimIcons
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -18,12 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.PersonOff
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -53,6 +48,7 @@ import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -129,7 +125,7 @@ private fun SocialSessionCheckinScreen(
     Scaffold(
         modifier = modifier,
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -144,7 +140,7 @@ private fun SocialSessionCheckinScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
+                    Icon(imageVector = DallimIcons.ArrowLeft, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
                 }
                 Text(text = "체크인 · Ready Check", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
             }
@@ -314,10 +310,10 @@ private fun statusColor(status: String): Color = when (status) {
 }
 
 private fun statusIcon(status: String) = when (status) {
-    SocialSessionCheckinStatus.CHECKED_IN -> Icons.Filled.CheckCircle
-    SocialSessionCheckinStatus.LATE -> Icons.Filled.Schedule
-    SocialSessionCheckinStatus.NO_SHOW -> Icons.Filled.PersonOff
-    else -> Icons.Filled.RadioButtonUnchecked
+    SocialSessionCheckinStatus.CHECKED_IN -> DallimIcons.CircleCheck
+    SocialSessionCheckinStatus.LATE -> DallimIcons.Clock
+    SocialSessionCheckinStatus.NO_SHOW -> DallimIcons.UserX
+    else -> DallimIcons.Circle
 }
 
 @Preview(showBackground = true, heightDp = 900)

@@ -1,5 +1,6 @@
 package com.dallim.app.my
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -12,13 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -163,13 +157,13 @@ private fun MyScreen(
                     // 진입점 4개가 각각 큰 카드 4장이던 것을 카드 하나 + 구분선 목록으로 합쳤다
                     // (docs/04-ui-guide.md §4 반복 카드 지양, §2 위계 — 아이콘도 강조색 대신 보조색).
                     DallimCard(modifier = Modifier.padding(top = Spacing.lg)) {
-                        MenuRow(Icons.AutoMirrored.Filled.MenuBook, "달림북", "완주한 GPS 그림을 모아보세요", onDallimbookClick)
+                        MenuRow(DallimIcons.BookOpen, "달림북", "완주한 GPS 그림을 모아보세요", onDallimbookClick)
                         MenuDivider()
-                        MenuRow(Icons.Filled.EmojiEvents, "완주 메달 선반", "대회 완주 이력을 모아보세요", onMedalShelfClick)
+                        MenuRow(DallimIcons.Trophy, "완주 메달 선반", "대회 완주 이력을 모아보세요", onMedalShelfClick)
                         MenuDivider()
-                        MenuRow(Icons.Filled.Groups, "러닝메이트", "같이 달린 러너와의 인연을 확인해보세요", onRunningMatesClick)
+                        MenuRow(DallimIcons.Users, "러닝메이트", "같이 달린 러너와의 인연을 확인해보세요", onRunningMatesClick)
                         MenuDivider()
-                        MenuRow(Icons.Filled.Block, "차단 관리", "채팅에서 차단한 사용자를 관리하세요", onBlockedUsersClick)
+                        MenuRow(DallimIcons.Ban, "차단 관리", "채팅에서 차단한 사용자를 관리하세요", onBlockedUsersClick)
                     }
 
                     DallimTextButton(
@@ -207,7 +201,7 @@ private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
             }
             IconButton(onClick = onEditClick) {
                 Icon(
-                    imageVector = Icons.Outlined.Edit,
+                    imageVector = DallimIcons.Pencil,
                     contentDescription = "프로필 수정",
                     tint = DallimColors.TextSecondary,
                 )
@@ -279,7 +273,7 @@ private fun MenuRow(icon: ImageVector, title: String, subtitle: String, onClick:
             Text(text = title, style = DallimTypography.Body, color = DallimColors.TextPrimary)
             Text(text = subtitle, style = DallimTypography.Caption, color = DallimColors.TextSecondary)
         }
-        Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        Icon(imageVector = DallimIcons.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
     }
 }
 

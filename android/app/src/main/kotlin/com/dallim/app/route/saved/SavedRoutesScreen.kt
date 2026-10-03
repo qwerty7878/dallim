@@ -1,5 +1,6 @@
 package com.dallim.app.route.saved
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BookmarkRemove
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +39,7 @@ import com.dallim.network.user.SavedRouteItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
@@ -105,21 +104,7 @@ private fun SavedRoutesScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "저장한 코스", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "저장한 코스", onBackClick = onBackClick)
 
         when {
             uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -203,7 +188,7 @@ private fun SavedRouteRow(
             )
         }
         IconButton(onClick = onUnsaveClick, enabled = !isRemoving) {
-            Icon(imageVector = Icons.Filled.BookmarkRemove, contentDescription = "저장 취소", tint = DallimColors.TextSecondary)
+            Icon(imageVector = DallimIcons.BookmarkX, contentDescription = "저장 취소", tint = DallimColors.TextSecondary)
         }
     }
 }

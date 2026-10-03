@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -39,7 +37,9 @@ import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimTextButton
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -94,7 +94,7 @@ private fun RunningMateListScreen(
     Scaffold(
         modifier = modifier,
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -104,15 +104,7 @@ private fun RunningMateListScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
-                }
-                Text(text = "러닝메이트", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            DallimTopBar(title = "러닝메이트", onBackClick = onBackClick)
 
             when (uiState) {
                 RunningMateListUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))

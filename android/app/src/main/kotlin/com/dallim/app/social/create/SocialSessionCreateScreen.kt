@@ -1,5 +1,6 @@
 package com.dallim.app.social.create
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,12 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
@@ -67,6 +62,7 @@ import com.dallim.network.social.SocialSessionRainPolicy
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverRouteMapView
@@ -172,21 +168,7 @@ private fun SocialSessionCreateScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "세션 만들기", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "세션 만들기", onBackClick = onBackClick)
 
         Column(
             modifier = Modifier
@@ -211,7 +193,7 @@ private fun SocialSessionCreateScreen(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 DateTimePickerField(
-                    icon = Icons.Filled.CalendarMonth,
+                    icon = DallimIcons.Calendar,
                     displayText = uiState.date?.format(DateDisplayFormatter),
                     placeholder = "날짜 선택",
                     isError = uiState.dateTimeError != null,
@@ -219,7 +201,7 @@ private fun SocialSessionCreateScreen(
                     modifier = Modifier.weight(1.2f),
                 )
                 DateTimePickerField(
-                    icon = Icons.Filled.Schedule,
+                    icon = DallimIcons.Clock,
                     displayText = uiState.time?.format(TimeDisplayFormatter),
                     placeholder = "시간 선택",
                     isError = uiState.dateTimeError != null,
@@ -260,7 +242,7 @@ private fun SocialSessionCreateScreen(
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onAddCustomStyle) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "스타일 추가", tint = DallimColors.Primary)
+                    Icon(imageVector = DallimIcons.Plus, contentDescription = "스타일 추가", tint = DallimColors.Primary)
                 }
             }
 
@@ -496,7 +478,7 @@ private fun RoutePickerField(route: RouteListItem?, onClick: () -> Unit, modifie
                 )
             }
         } else {
-            Icon(imageVector = Icons.Filled.Place, contentDescription = null, tint = DallimColors.TextSecondary)
+            Icon(imageVector = DallimIcons.MapPin, contentDescription = null, tint = DallimColors.TextSecondary)
             Text(
                 text = "코스를 선택해주세요",
                 style = DallimTypography.Body,

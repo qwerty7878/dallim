@@ -2,6 +2,7 @@ package com.dallim.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -84,7 +85,16 @@ import com.dallim.ui.components.DallimTab
 fun DallimNavHost(
     navController: NavHostController,
     sessionEventViewModel: SessionEventViewModel = hiltViewModel(),
+    debugRoute: String? = null,
 ) {
+    // 디버그 빌드 전용 — `adb shell am start -n ... --es debug_route <route>`로 화면을 바로 열어 UI를 점검한다.
+    // 홈에 도착(스플래시/세션 확인 완료)한 뒤 한 번만 이동한다. 릴리스 빌드는 MainActivity가 null을 넘긴다.
+    LaunchedEffect(debugRoute) {
+        if (debugRoute == null) return@LaunchedEffect
+        navController.currentBackStackEntryFlow.first { it.destination.route == DallimDestinations.HOME }
+        navController.navigate(debugRoute)
+    }
+
     LaunchedEffect(Unit) {
         sessionEventViewModel.sessionExpired.collect {
             // 리프레시 토큰까지 무효 — 사용자가 어느 화면에 있든 그래프 전체(홈/탭 포함)를

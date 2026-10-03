@@ -1,5 +1,6 @@
 package com.dallim.app.onboarding.permission
 
+import com.dallim.ui.icons.DallimIcons
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -90,7 +89,7 @@ private fun PermissionScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Filled.LocationOn,
+                    imageVector = DallimIcons.MapPin,
                     contentDescription = null,
                     tint = DallimColors.Primary,
                     modifier = Modifier.size(48.dp),

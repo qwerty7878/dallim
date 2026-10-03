@@ -1,5 +1,6 @@
 package com.dallim.app.meetup.detail
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +40,7 @@ import com.dallim.network.meetup.MeetupParticipantItem
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
@@ -110,21 +109,7 @@ private fun MeetupDetailScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "모집 상세", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "모집 상세", onBackClick = onBackClick)
 
         when (uiState) {
             MeetupDetailUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -306,7 +291,7 @@ private fun ParticipantRow(participant: MeetupParticipantItem, modifier: Modifie
                 .background(DallimColors.PrimaryLight),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = DallimColors.Primary)
+            Icon(imageVector = DallimIcons.User, contentDescription = null, tint = DallimColors.Primary)
         }
         Text(
             text = participant.nickname,

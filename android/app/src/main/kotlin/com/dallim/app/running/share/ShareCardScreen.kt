@@ -1,8 +1,11 @@
 package com.dallim.app.running.share
 
+import com.dallim.ui.icons.DallimIcons
 import android.content.Intent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +20,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -51,8 +52,11 @@ import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.GeoPoint
+import androidx.compose.ui.graphics.Color
+import com.dallim.ui.components.DallimTopBar
+import com.dallim.ui.components.RouteMapSnapshot
+import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
-import com.dallim.ui.theme.DallimGradient
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
@@ -75,6 +79,7 @@ fun ShareCardRoute(
     val scope = rememberCoroutineScope()
     var isSharing by remember { mutableStateOf(false) }
     var shareError by remember { mutableStateOf<String?>(null) }
+    var mapBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
     ShareCardScreen(
         uiState = uiState,
@@ -87,6 +92,7 @@ fun ShareCardRoute(
         onToggleDistance = viewModel::onToggleDistance,
         onToggleDuration = viewModel::onToggleDuration,
         onTogglePace = viewModel::onTogglePace,
+        onMapBitmap = { mapBitmap = it },
         onShareClick = { run, options ->
             isSharing = true
             shareError = null
@@ -94,11 +100,12 @@ fun ShareCardRoute(
                 runCatching {
                     val bitmap = withContext(Dispatchers.Default) {
                         ShareCardRenderer.render(
+                            context = context,
                             options = options,
                             actualRoute = run.actualGeoJson.toGeoPoints(),
+                            mapBitmap = mapBitmap,
                             // 자유 러닝(2026-09-26, routeId == null)은 코스 이름이 없다.
-                            routeName = run.routeName ?: "자유 러닝",
-                            routeEmoji = "🐳",
+                            title = run.routeName ?: "자유 러닝",
                             distanceKm = run.distanceKm,
                             durationSeconds = run.durationSeconds,
                             paceSecPerKm = run.averagePaceSecPerKm,
@@ -133,6 +140,7 @@ private fun ShareCardScreen(
     onToggleDistance: () -> Unit,
     onToggleDuration: () -> Unit,
     onTogglePace: () -> Unit,
+    onMapBitmap: (android.graphics.Bitmap) -> Unit,
     onShareClick: (RunDetailResponseBody, ShareCardOptions) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -143,11 +151,7 @@ private fun ShareCardScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs)) {
-            IconButton(onClick = onBackClick) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = DallimColors.TextPrimary)
-            }
-        }
+        DallimTopBar(title = "공유 카드", onBackClick = onBackClick)
 
         when (uiState) {
             is ShareCardUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -159,11 +163,10 @@ private fun ShareCardScreen(
             )
             is ShareCardUiState.Ready -> {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.ScreenHorizontal)) {
-                    SharePreviewCard(run = uiState.run, options = uiState.options, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
+                    SharePreviewCard(run = uiState.run, options = uiState.options, onMapBitmap = onMapBitmap, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
 
                     Text(text = "배경", style = DallimTypography.Title2, color = DallimColors.TextPrimary, modifier = Modifier.padding(top = Spacing.xl, bottom = Spacing.sm))
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        DallimFilterChip(label = "그라디언트", selected = uiState.options.background == ShareCardBackground.GRADIENT, onClick = { onBackgroundSelected(ShareCardBackground.GRADIENT) })
                         DallimFilterChip(label = "라이트", selected = uiState.options.background == ShareCardBackground.LIGHT, onClick = { onBackgroundSelected(ShareCardBackground.LIGHT) })
                         DallimFilterChip(label = "다크", selected = uiState.options.background == ShareCardBackground.DARK, onClick = { onBackgroundSelected(ShareCardBackground.DARK) })
                     }
@@ -200,62 +203,58 @@ private fun ShareCardScreen(
     }
 }
 
-/** [ShareCardRenderer]가 만드는 최종 Bitmap 레이아웃을 Compose로 근사한 실시간 미리보기. */
+/** [ShareCardRenderer]가 만드는 최종 Bitmap 레이아웃을 Compose로 근사한 실시간 미리보기(같은 지도 스냅샷 사용). */
 @Composable
-private fun SharePreviewCard(run: RunDetailResponseBody, options: ShareCardOptions, modifier: Modifier = Modifier) {
-    val isDark = options.background != ShareCardBackground.LIGHT
-    val contentColor = if (isDark) DallimColors.Surface else DallimColors.TextPrimary
-    val secondaryColor = if (isDark) DallimColors.Surface.copy(alpha = 0.7f) else DallimColors.TextSecondary
+private fun SharePreviewCard(
+    run: RunDetailResponseBody,
+    options: ShareCardOptions,
+    onMapBitmap: (android.graphics.Bitmap) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dark = options.background == ShareCardBackground.DARK
+    val primaryText = if (dark) DallimColors.Surface else DallimColors.TextPrimary
+    val secondaryText = if (dark) DallimColors.Surface.copy(alpha = 0.6f) else DallimColors.TextSecondary
+    val coordinates = run.actualGeoJson.toGeoPoints()
+    val isStory = options.ratio == ShareCardRatio.STORY
 
-    Box(
+    Column(
         modifier = modifier
             .aspectRatio(options.ratio.widthPx.toFloat() / options.ratio.heightPx.toFloat())
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                when (options.background) {
-                    ShareCardBackground.LIGHT -> SolidColor(DallimColors.Background)
-                    ShareCardBackground.DARK -> SolidColor(DallimColors.BackgroundDark)
-                    ShareCardBackground.GRADIENT -> DallimGradient
-                },
-            )
-            .padding(Spacing.lg),
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (dark) DallimColors.BackgroundDark else DallimColors.Background)
+            .border(1.dp, DallimColors.Divider, RoundedCornerShape(12.dp))
+            .padding(Spacing.md),
     ) {
-        val coordinates = run.actualGeoJson.toGeoPoints()
-        if (coordinates.size >= 2) {
-            Canvas(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f)) {
-                val padX = size.width * 0.05f
-                val padY = size.height * 0.05f
-                val drawW = size.width - 2 * padX
-                val drawH = size.height - 2 * padY
-                val lngs = coordinates.map { it.lng }
-                val lats = coordinates.map { it.lat }
-                val minLng = lngs.min(); val maxLng = lngs.max()
-                val minLat = lats.min(); val maxLat = lats.max()
-                val lngRange = (maxLng - minLng).takeIf { it > 0.0 } ?: 1.0
-                val latRange = (maxLat - minLat).takeIf { it > 0.0 } ?: 1.0
-                fun project(p: GeoPoint): Offset {
-                    val nx = ((p.lng - minLng) / lngRange).toFloat()
-                    val ny = ((p.lat - minLat) / latRange).toFloat()
-                    return Offset(padX + nx * drawW, padY + (1f - ny) * drawH)
+        // 지도 영역(카드 폭, 비율 968:640 / 968:1100) — 정사각 스냅샷을 가운데 기준으로 잘라 보여준다.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(if (isStory) 968f / 1100f else 968f / 640f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (dark) DallimColors.TextPrimary else DallimColors.SurfaceMuted),
+        ) {
+            Box(modifier = Modifier.wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)) {
+                if (coordinates.size >= 2) {
+                    RouteMapSnapshot(coordinates = coordinates, renderPx = 1080, onBitmap = onMapBitmap, paddingFraction = 0.3f) {
+                        RouteThumbnailView(coordinates = coordinates, modifier = Modifier.fillMaxWidth())
+                    }
                 }
-                val path = Path().apply {
-                    val first = project(coordinates.first())
-                    moveTo(first.x, first.y)
-                    coordinates.drop(1).forEach { lineTo(project(it).x, project(it).y) }
-                }
-                drawPath(path = path, brush = DallimGradient, style = Stroke(width = size.width * 0.012f, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
+        Text(text = run.routeName ?: "자유 러닝", style = DallimTypography.Title3, color = primaryText, modifier = Modifier.padding(top = Spacing.md))
+        Row(modifier = Modifier.padding(top = Spacing.sm).fillMaxWidth()) {
+            if (options.showDistance) PreviewStat("${RunFormat.km(run.distanceKm)}km", "거리", primaryText, secondaryText, Modifier.weight(1f))
+            if (options.showDuration) PreviewStat(RunFormat.duration(run.durationSeconds.toLong()), "시간", primaryText, secondaryText, Modifier.weight(1f))
+            if (options.showPace) PreviewStat("${RunFormat.pace(run.averagePaceSecPerKm)}/km", "페이스", primaryText, secondaryText, Modifier.weight(1f))
+        }
+    }
+}
 
-        Column(modifier = Modifier.align(Alignment.BottomStart)) {
-            Text(text = "🐳 ${run.routeName}", style = DallimTypography.Title1, color = contentColor, fontWeight = FontWeight.Bold)
-            Row(modifier = Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                if (options.showDistance) Text(text = "${RunFormat.km(run.distanceKm)}km", style = DallimTypography.Title1, color = contentColor)
-                if (options.showDuration) Text(text = RunFormat.duration(run.durationSeconds.toLong()), style = DallimTypography.Title1, color = contentColor)
-                if (options.showPace) Text(text = "${RunFormat.pace(run.averagePaceSecPerKm)}/km", style = DallimTypography.Title1, color = contentColor)
-            }
-            Text(text = "달림 · Dallim", style = DallimTypography.Caption, color = secondaryColor, modifier = Modifier.padding(top = Spacing.xs))
-        }
+@Composable
+private fun PreviewStat(value: String, label: String, primary: Color, secondary: Color, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = value, style = DallimTypography.Title3, color = primary)
+        Text(text = label, style = DallimTypography.Label, color = secondary)
     }
 }
 
@@ -294,6 +293,7 @@ private fun ShareCardScreenPreview() {
             onToggleDistance = {},
             onToggleDuration = {},
             onTogglePace = {},
+            onMapBitmap = {},
             onShareClick = { _, _ -> },
         )
     }

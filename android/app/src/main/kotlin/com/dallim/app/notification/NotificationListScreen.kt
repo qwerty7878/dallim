@@ -1,5 +1,6 @@
 package com.dallim.app.notification
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,9 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +39,7 @@ import com.dallim.network.notification.NotificationItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -101,21 +100,7 @@ private fun NotificationListScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "알림", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "알림", onBackClick = onBackClick)
 
         when {
             uiState.isLoadingInitial -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -179,7 +164,7 @@ private fun NotificationRow(notification: NotificationItem, onClick: () -> Unit)
         ) {
             // 이번 라운드는 RUN_COMPLETED 트리거만 오므로(docs/02-api-spec.md 9.4) 완주 트로피
             // 아이콘 하나로 충분하다 — 벡터 아이콘, 이모지 아님(docs/04-ui-guide.md §7).
-            Icon(imageVector = Icons.Filled.EmojiEvents, contentDescription = null, tint = DallimColors.Primary)
+            Icon(imageVector = DallimIcons.Trophy, contentDescription = null, tint = DallimColors.Primary)
         }
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {
             Text(

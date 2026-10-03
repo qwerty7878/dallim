@@ -1,5 +1,6 @@
 package com.dallim.app.social.chat
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,12 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -60,6 +55,7 @@ import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DallimTextField
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -136,7 +132,7 @@ private fun SocialSessionChatScreen(
     Scaffold(
         modifier = modifier,
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -152,7 +148,7 @@ private fun SocialSessionChatScreen(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = DallimIcons.ArrowLeft,
                         contentDescription = "뒤로가기",
                         tint = DallimColors.TextPrimary,
                     )
@@ -165,7 +161,7 @@ private fun SocialSessionChatScreen(
                 )
                 if (uiState is SocialSessionChatUiState.Success) {
                     IconButton(onClick = onSessionReportClick) {
-                        Icon(imageVector = Icons.Filled.Flag, contentDescription = "세션 신고", tint = DallimColors.TextSecondary)
+                        Icon(imageVector = DallimIcons.Flag, contentDescription = "세션 신고", tint = DallimColors.TextSecondary)
                     }
                 }
             }
@@ -284,7 +280,7 @@ private fun ChatContent(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onSendClick) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "전송", tint = DallimColors.Primary)
+                Icon(imageVector = DallimIcons.Send, contentDescription = "전송", tint = DallimColors.Primary)
             }
         }
     }
@@ -308,7 +304,7 @@ private fun MeetingInfoCard(meetingPointText: String?, announcement: ChatMessage
         if (meetingPointText != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Filled.Place,
+                    imageVector = DallimIcons.MapPin,
                     contentDescription = null,
                     tint = DallimColors.Primary,
                     modifier = Modifier.size(16.dp),
@@ -327,7 +323,7 @@ private fun MeetingInfoCard(meetingPointText: String?, announcement: ChatMessage
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Campaign,
+                    imageVector = DallimIcons.Megaphone,
                     contentDescription = null,
                     tint = DallimColors.Primary,
                     modifier = Modifier.size(16.dp),

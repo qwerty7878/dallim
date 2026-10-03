@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,10 +33,12 @@ import com.dallim.network.route.RouteDrawConvertResponseBody
 import com.dallim.ui.components.DallimCheckboxRow
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.NaverDrawableMapView
 import com.dallim.ui.components.NaverRouteMapView
+import com.dallim.ui.components.DallimSnackbar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -93,7 +93,7 @@ private fun DrawRouteScreen(
 
     Scaffold(
         containerColor = DallimColors.Background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { DallimSnackbar(it) } },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -102,19 +102,7 @@ private fun DrawRouteScreen(
                 .padding(innerPadding)
                 .statusBarsPadding(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                Text(text = "직접 그리기", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            DallimTopBar(title = "직접 그리기", onBackClick = onBackClick)
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {

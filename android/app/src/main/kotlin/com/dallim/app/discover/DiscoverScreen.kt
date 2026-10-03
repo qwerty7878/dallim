@@ -1,5 +1,6 @@
 package com.dallim.app.discover
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,12 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -61,6 +57,7 @@ import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteStatusBadge
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.components.toRouteStatus
+import com.dallim.ui.components.DallimFab
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -156,13 +153,7 @@ private fun DiscoverScreen(
             // S-43 코스 만들기 진입점(코스 세그먼트 전용) — 소셜 세그먼트는 SocialSessionListBody가
             // 자체 "세션 열기" FAB를 그리므로 여기서는 아무것도 띄우지 않는다.
             if (segment == DiscoverSegment.COURSE) {
-                ExtendedFloatingActionButton(
-                    onClick = onCreateCourseClick,
-                    containerColor = DallimColors.Primary,
-                    contentColor = DallimColors.Surface,
-                    icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
-                    text = { Text(text = "코스 만들기") },
-                )
+                DallimFab(text = "코스 만들기", icon = DallimIcons.Plus, onClick = onCreateCourseClick)
             }
         },
     ) { innerPadding ->
@@ -405,7 +396,7 @@ private fun RouteRow(
             )
             IconButton(onClick = onToggleSaveClick, enabled = !isTogglingSave) {
                 Icon(
-                    imageVector = if (route.isSaved) Icons.Filled.Bookmark else Icons.Outlined.Bookmark,
+                    imageVector = if (route.isSaved) DallimIcons.BookmarkFilled else DallimIcons.Bookmark,
                     contentDescription = if (route.isSaved) "저장 취소" else "코스 저장",
                     tint = if (route.isSaved) DallimColors.TextPrimary else DallimColors.TextSecondary,
                 )

@@ -1,5 +1,6 @@
 package com.dallim.app.meetup.list
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,11 +17,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -37,8 +33,10 @@ import com.dallim.network.meetup.MeetupListItem
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.components.MeetupStatusBadge
 import com.dallim.ui.components.meetupBadgeState
+import com.dallim.ui.components.DallimFab
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -95,21 +93,7 @@ private fun MeetupListScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기",
-                        tint = DallimColors.TextPrimary,
-                    )
-                }
-                Text(text = "같이 달리기 모집", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-            }
+            DallimTopBar(title = "같이 달리기 모집", onBackClick = onBackClick)
 
             when (uiState) {
                 MeetupListUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
@@ -147,17 +131,10 @@ private fun MeetupListScreen(
         }
 
         // §1.8.1: [모집 만들기] 버튼은 로딩/에러/빈 상태와 무관하게 항상 보인다.
-        ExtendedFloatingActionButton(
-            onClick = onCreateClick,
-            containerColor = DallimColors.Primary,
-            contentColor = DallimColors.Surface,
-            icon = { Icon(imageVector = Icons.Filled.Add, contentDescription = null) },
-            text = { Text(text = "모집 만들기") },
-            modifier = Modifier
+        DallimFab(text = "모집 만들기", icon = DallimIcons.Plus, onClick = onCreateClick, modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(Spacing.ScreenHorizontal),
-        )
+                .padding(Spacing.ScreenHorizontal),)
     }
 }
 
@@ -179,7 +156,7 @@ private fun MeetupRow(meetup: MeetupListItem, onClick: () -> Unit, modifier: Mod
                 .background(DallimColors.PrimaryLight),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = DallimColors.Primary)
+            Icon(imageVector = DallimIcons.User, contentDescription = null, tint = DallimColors.Primary)
         }
 
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {

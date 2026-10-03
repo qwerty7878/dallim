@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,8 +41,9 @@ import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
+import com.dallim.ui.components.DallimTextField
 import com.dallim.ui.components.GeoPoint
-import com.dallim.ui.components.RunResultCanvas
+import com.dallim.ui.components.RunResultHero
 import com.dallim.ui.components.RunStatus
 import com.dallim.ui.components.RunStatusBadge
 import com.dallim.ui.components.SectionHeader
@@ -110,16 +112,15 @@ private fun RunResultScreen(
         modifier = modifier
             .fillMaxSize()
             .background(DallimColors.Background)
-            .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
         when (uiState) {
-            is RunResultUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f))
+            is RunResultUiState.Loading -> DallimLoadingState(modifier = Modifier.weight(1f).statusBarsPadding())
             is RunResultUiState.Error -> DallimErrorState(
                 title = "결과를 불러오지 못했어요",
                 description = uiState.message,
                 onRetry = onRetryClick,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).statusBarsPadding(),
             )
             is RunResultUiState.Success -> {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -174,54 +175,50 @@ private fun ResultContent(
 ) {
     val isFreeform = run.routeId == null
     val isCompleted = run.status.toRunStatus() == RunStatus.COMPLETED
-    Column(modifier = modifier.padding(top = Spacing.xl)) {
-        RunResultCanvas(
+    Column(modifier = modifier) {
+        // 완성된 GPS 그림 — 실제 지도 위의 경로가 화면의 주인공(전면, 상태바 아래). 지도 키가 없으면 어두운 캔버스.
+        RunResultHero(
             coordinates = run.actualGeoJson.toGeoPoints(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.xl),
+            aspectRatio = 1.05f,
+            modifier = Modifier.statusBarsPadding(),
         )
 
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl, start = Spacing.ScreenHorizontal, end = Spacing.ScreenHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "${RunFormat.km(run.distanceKm)}km",
-                style = DallimTypography.Display,
-                color = DallimColors.TextPrimary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = if (isFreeform) (if (isCompleted) "자유 러닝 완료" else "자유 러닝 기록") else "${run.routeName} 그리기 완료",
-                style = DallimTypography.Body,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                MetricColumn(label = "시간", value = RunFormat.duration(run.durationSeconds.toLong()))
-                MetricColumn(label = "페이스", value = "${RunFormat.pace(run.averagePaceSecPerKm)}/km")
-            }
-
-            Row(
-                modifier = Modifier.padding(top = Spacing.xl),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal).padding(top = Spacing.lg)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isFreeform) "자유 러닝" else run.routeName.orEmpty(),
+                    style = DallimTypography.Body,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.weight(1f),
+                )
                 RunStatusBadge(status = run.status.toRunStatus())
-                if (!isFreeform) {
-                    Text(
-                        text = "Match ${run.sketchMatchPercent}% · 커버리지 ${run.routeCompletionPercent}%",
-                        style = DallimTypography.Caption,
-                        color = DallimColors.TextSecondary,
-                    )
-                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = Spacing.xs)) {
+                Text(
+                    text = RunFormat.km(run.distanceKm),
+                    style = DallimTypography.Display,
+                    color = DallimColors.TextPrimary,
+                )
+                Text(
+                    text = "km",
+                    style = DallimTypography.Title2,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
+                )
             }
         }
+
+        // 지표 한 줄 — [시간 | 평균 페이스 | (Match/커버리지)]
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.lg),
+        ) {
+            MetricColumn(label = "시간", value = RunFormat.duration(run.durationSeconds.toLong()), modifier = Modifier.weight(1f))
+            MetricColumn(label = "평균 페이스", value = "${RunFormat.pace(run.averagePaceSecPerKm)}/km", modifier = Modifier.weight(1f))
+            if (!isFreeform) {
+                MetricColumn(label = "코스 일치", value = "${run.sketchMatchPercent}%", modifier = Modifier.weight(1f))
+            }
+        }
+        HorizontalDivider(color = DallimColors.Divider, modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal))
 
         if (isFreeform) {
             // 서버가 COMPLETED만 코스 등록을 허용한다(RUN_NOT_COMPLETED) — 검토중 등은 폼을 숨긴다.
@@ -278,13 +275,11 @@ private fun RegisterRouteSection(
                 )
             }
             is RegisterRouteUiState.Editing -> DallimCard {
-                OutlinedTextField(
+                DallimTextField(
                     value = state.name,
                     onValueChange = onNameChange,
-                    placeholder = { Text("코스 이름 (예: 저녁 산책길)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth(),
+                    label = "코스 이름",
+                    placeholder = "예: 저녁 산책길",
                 )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -387,9 +382,9 @@ private fun FeedbackTagsSection(
 }
 
 @Composable
-private fun MetricColumn(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+private fun MetricColumn(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = value, style = DallimTypography.Title2, color = DallimColors.TextPrimary)
         Text(
             text = label,
             style = DallimTypography.Caption,

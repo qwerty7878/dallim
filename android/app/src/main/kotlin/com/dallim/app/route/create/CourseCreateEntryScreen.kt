@@ -1,5 +1,6 @@
 package com.dallim.app.route.create
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,10 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -27,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.dallim.ui.components.DallimTopBar
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
@@ -64,19 +62,7 @@ private fun CourseCreateEntryScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "뒤로가기",
-                    tint = DallimColors.TextPrimary,
-                )
-            }
-            Text(text = "코스 만들기", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
-        }
+        DallimTopBar(title = "코스 만들기", onBackClick = onBackClick)
 
         Text(
             text = "어떤 방법으로 만들까요?",
@@ -90,13 +76,13 @@ private fun CourseCreateEntryScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             CreateOptionCard(
-                icon = Icons.Filled.Edit,
+                icon = DallimIcons.Pencil,
                 title = "직접 그리기",
                 description = "지도 위에 손가락으로 그리면 실제 도로에 맞게 변환해드려요.",
                 onClick = onDrawClick,
             )
             CreateOptionCard(
-                icon = Icons.Filled.AutoAwesome,
+                icon = DallimIcons.Sparkles,
                 title = "AI로 자동 생성",
                 description = "원하는 거리만 정하면 출발점으로 돌아오는 코스를 만들어드려요.",
                 onClick = onAiGenerateClick,
