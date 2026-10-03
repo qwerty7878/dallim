@@ -11,10 +11,10 @@ import androidx.compose.ui.unit.dp
  */
 object DallimShapes {
     /** 카드 라운드 (섹션 3.1). */
-    val CardCorner = RoundedCornerShape(20.dp)
+    val CardCorner = RoundedCornerShape(16.dp)
 
     /** Primary 버튼 라운드 (섹션 3.4). */
-    val ButtonCorner = RoundedCornerShape(16.dp)
+    val ButtonCorner = RoundedCornerShape(14.dp)
 
     /** 러닝 중 화면(S-21) [일시정지] 버튼 전용 — 큰 원형, 다른 UI와 확실히 구분 (섹션 3.4). */
     val PauseButtonSize = 80.dp

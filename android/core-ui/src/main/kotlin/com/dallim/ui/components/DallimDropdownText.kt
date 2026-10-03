@@ -1,11 +1,10 @@
 package com.dallim.ui.components
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -41,7 +40,7 @@ fun DallimDropdownText(
         ) {
             Text(text = label, style = DallimTypography.Caption, color = DallimColors.TextPrimary)
             Icon(
-                imageVector = Icons.Filled.ArrowDropDown,
+                imageVector = DallimIcons.ChevronDown,
                 contentDescription = null,
                 tint = DallimColors.TextSecondary,
             )

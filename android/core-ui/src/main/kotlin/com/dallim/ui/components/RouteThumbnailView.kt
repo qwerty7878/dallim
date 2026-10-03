@@ -75,19 +75,10 @@ private fun RouteThumbnailCanvas(
         modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(cornerRadius))
-            .background(DallimColors.PrimaryLight),
+            .background(DallimColors.SurfaceMuted),
     ) {
-        // 2026-09-26 추가 — 실사용 피드백("코스 카드가 모양만 있고 뒤에 배경이 아무것도 없어
-        // 밋밋하다"): 단색 배경 위에 선 하나만 있으면 "지도 위의 경로"가 아니라 "색칠판 위의
-        // 낙서"처럼 보인다. 실제 지도 타일 없이도 위치감을 주기 위해 옅은 점 그리드(그래프 용지
-        // 느낌)를 항상 깐다 — 그라디언트가 아니라 기존 Primary 색을 낮은 알파로 쓰는 텍스처라
-        // "그라디언트는 4곳에만"(docs/04-ui-guide.md §3) 규칙과 충돌하지 않고, 아이콘/클립아트도
-        // 아니라 "제네릭 아이콘 금지" 규칙과도 무관하다. 경로가 없어도(coordinates.size < 2)
-        // 이 그리드는 그린다 — 완전히 빈 단색보다 "아직 그려지지 않은 지도"에 가깝다.
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawMapGridDots()
-        }
-
+        // 2026-10-04: 가짜 지도 느낌의 점 그리드를 제거했다. 이 Canvas는 실제 지도 스냅샷이 준비되기 전/실패 시의
+        // 폴백(스켈레톤)이므로 중립 회색 면 위에 회색 경로선만 그린다.
         if (coordinates.size < 2) {
             // Empty/unavailable trail — leave the dot-grid background as-is rather than falling
             // back to a generic icon (docs/03-design-system.md §3.2 forbids that).
@@ -128,33 +119,10 @@ private fun RouteThumbnailCanvas(
 
             drawPath(
                 path = path,
-                brush = if (useGradient) DallimGradient else SolidColor(DallimColors.Primary),
+                brush = SolidColor(DallimColors.TextTertiary),
                 style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
             )
         }
     }
 }
 
-/**
- * 6x6 옅은 점 그리드 — 실제 지도 타일 없이 "지도 위의 경로"라는 맥락을 준다(위 사용처 주석
- * 참고). 절대 dp가 아니라 캔버스 크기에 비례한 열 개수로 그려서 48dp 리스트 썸네일부터 328dp
- * Hero 카드까지 같은 밀도로 보인다.
- */
-private fun DrawScope.drawMapGridDots() {
-    val columns = 6
-    val stepX = size.width / columns
-    val stepY = size.height / columns
-    // 14% 알파는 스크린샷 확대 없이 실기기에서 보면 거의 안 보였다(실사용 피드백) — 확실히
-    // 눈에 띄도록 반지름/알파 모두 올림.
-    val dotRadius = (minOf(stepX, stepY) * 0.09f).coerceAtLeast(1.5f)
-    val dotColor = DallimColors.Primary.copy(alpha = 0.35f)
-    for (row in 0 until columns) {
-        for (col in 0 until columns) {
-            drawCircle(
-                color = dotColor,
-                radius = dotRadius,
-                center = Offset(stepX * (col + 0.5f), stepY * (row + 0.5f)),
-            )
-        }
-    }
-}

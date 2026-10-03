@@ -9,7 +9,7 @@
   재설계하고 텅(tongue)과 힐 카운터가 만드는 이중 봉우리 실루엣 + 레이스 스티치 3개 +
   아웃솔 안쪽 심선 1개 + 힐 풀탭 고리를 추가해 "러닝화/운동화"라는 형태 정보량을 크게 늘림.
 
-  구성 (모두 표준 브랜드 그라디언트 #4A3AFF -> #FF6B4A, docs/03-design-system.md 1.2와
+  구성 (모두 표준 브랜드 그라디언트 #3558C8 -> #3558C8, docs/03-design-system.md 1.2와
   동일 — 참고 스크린샷은 단색 블루지만, 순수 블루는 토스가 이미 선점했다는 기존 색상
   결정 근거(1.1절)를 유지하기 위해 이번에도 블루로 바꾸지 않고 브랜드 그라디언트 그대로 사용):
     1. 신발 메인 아웃라인 — 뾰족한 발끝 -> 갑피 -> 텅 봉우리 -> 노치 -> 힐 카운터 봉우리 ->
@@ -60,7 +60,7 @@
             android:strokeLineJoin="round"
             android:fillColor="#00000000">
             <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF4A3AFF" android:endColor="#FFFF6B4A" />
+                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF3558C8" android:endColor="#FF3558C8" />
             </aapt:attr>
         </path>
 
@@ -71,7 +71,7 @@
             android:strokeLineCap="round"
             android:fillColor="#00000000">
             <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF4A3AFF" android:endColor="#FFFF6B4A" />
+                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF3558C8" android:endColor="#FF3558C8" />
             </aapt:attr>
         </path>
 
@@ -82,7 +82,7 @@
             android:strokeLineCap="round"
             android:fillColor="#00000000">
             <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF4A3AFF" android:endColor="#FFFF6B4A" />
+                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF3558C8" android:endColor="#FF3558C8" />
             </aapt:attr>
         </path>
 
@@ -93,7 +93,7 @@
             android:strokeLineCap="round"
             android:fillColor="#00000000">
             <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF4A3AFF" android:endColor="#FFFF6B4A" />
+                <gradient android:type="linear" android:startX="6" android:startY="65" android:endX="96" android:endY="14" android:startColor="#FF3558C8" android:endColor="#FF3558C8" />
             </aapt:attr>
         </path>
 
@@ -103,7 +103,7 @@
                                M84,16.4 C86.1,16.4 87.85,18.15 87.85,20.25 C87.85,22.35 86.1,24.1 84,24.1 C81.9,24.1 80.15,22.35 80.15,20.25 C80.15,18.15 81.9,16.4 84,16.4 Z"
             android:fillType="evenOdd">
             <aapt:attr name="android:fillColor">
-                <gradient android:type="linear" android:startX="76" android:startY="36" android:endX="92" android:endY="14" android:startColor="#FF4A3AFF" android:endColor="#FFFF6B4A" />
+                <gradient android:type="linear" android:startX="76" android:startY="36" android:endX="92" android:endY="14" android:startColor="#FF3558C8" android:endColor="#FF3558C8" />
             </aapt:attr>
         </path>
     </group>

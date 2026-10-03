@@ -1,7 +1,6 @@
 package com.dallim.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,11 +10,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Text
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
+import com.dallim.ui.theme.DallimTypography
 
 /**
  * Primary action button — docs/04-ui-guide.md §6. One of these per screen at most (§2 위계).
@@ -33,20 +32,22 @@ fun DallimPrimaryButton(
             .fillMaxWidth()
             .height(DallimShapes.MinTapTarget)
             .clip(DallimShapes.ButtonCorner)
-            .background(if (enabled) DallimColors.Primary else DallimColors.Primary.copy(alpha = 0.3f))
+            .background(if (enabled) DallimColors.Ink else DallimColors.SurfaceMuted)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.material3.Text(
+        Text(
             text = text,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) Color.White else DallimColors.TextTertiary,
+            style = DallimTypography.Title3,
         )
     }
 }
 
-/** Secondary (outline) button — used when a screen needs a second, clearly de-emphasized action. */
+/**
+ * Secondary button — 외곽선 대신 옅은 회색 면(2026-10-04: 보라 외곽선 버튼은 Primary 버튼과 시선을
+ * 다투고 템플릿처럼 보였다). 텍스트는 본문색.
+ */
 @Composable
 fun DallimSecondaryButton(
     text: String,
@@ -59,16 +60,14 @@ fun DallimSecondaryButton(
             .fillMaxWidth()
             .height(DallimShapes.MinTapTarget)
             .clip(DallimShapes.ButtonCorner)
-            .background(Color.Transparent)
-            .border(1.dp, if (enabled) DallimColors.Primary else DallimColors.Border, DallimShapes.ButtonCorner)
+            .background(DallimColors.SurfaceMuted)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.material3.Text(
+        Text(
             text = text,
-            color = if (enabled) DallimColors.Primary else DallimColors.TextSecondary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) DallimColors.TextPrimary else DallimColors.TextTertiary,
+            style = DallimTypography.Title3,
         )
     }
 }
@@ -87,11 +86,10 @@ fun DallimTextButton(
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.material3.Text(
+        Text(
             text = text,
-            color = if (enabled) DallimColors.TextSecondary else DallimColors.TextSecondary.copy(alpha = 0.4f),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            color = if (enabled) DallimColors.TextSecondary else DallimColors.TextTertiary,
+            style = DallimTypography.Body.copy(fontWeight = FontWeight.Medium),
         )
     }
 }

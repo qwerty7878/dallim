@@ -1,8 +1,10 @@
 package com.dallim.ui.components
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,17 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Flag
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
+import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
 
 /**
@@ -54,11 +46,11 @@ enum class DallimTab(
     val outlinedIcon: ImageVector,
     val filledIcon: ImageVector,
 ) {
-    HOME("홈", Icons.Outlined.Home, Icons.Filled.Home),
-    EXPLORE("탐색", Icons.Outlined.Search, Icons.Filled.Search),
-    RACE("대회", Icons.Outlined.Flag, Icons.Filled.Flag),
-    CHAT("채팅", Icons.AutoMirrored.Outlined.Chat, Icons.AutoMirrored.Filled.Chat),
-    MY("마이", Icons.Outlined.Person, Icons.Filled.Person),
+    HOME("홈", DallimIcons.House, DallimIcons.House),
+    EXPLORE("탐색", DallimIcons.Search, DallimIcons.Search),
+    RACE("대회", DallimIcons.Flag, DallimIcons.Flag),
+    CHAT("채팅", DallimIcons.MessageCircle, DallimIcons.MessageCircle),
+    MY("마이", DallimIcons.User, DallimIcons.User),
 }
 
 /**
@@ -73,10 +65,12 @@ fun DallimBottomNavigation(
     onTabSelected: (DallimTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    Column(modifier = modifier.fillMaxWidth().background(DallimColors.Background)) {
+    // 그림자 대신 상단 헤어라인으로 콘텐츠와 구분한다(2026-10-04).
+    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DallimColors.Divider))
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .background(DallimColors.Surface)
             .navigationBarsPadding()
             .height(DallimShapes.MinTapTarget), // 탭 타깃 최소 56dp (docs/03-design-system.md §3.3)
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -86,7 +80,7 @@ fun DallimBottomNavigation(
             val selected = tab == selectedTab
             // 활성/비활성 모두 단일 Primary 색만 사용 — 그라디언트 금지
             // (docs/03-design-system.md 그라디언트 적용 범위 표: "탭바" 는 적용 X).
-            val tint = if (selected) DallimColors.Primary else DallimColors.TextSecondary
+            val tint = if (selected) DallimColors.TextPrimary else DallimColors.TextTertiary
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clickable { onTabSelected(tab) },
@@ -99,12 +93,13 @@ fun DallimBottomNavigation(
                 )
                 Text(
                     text = tab.label,
-                    fontSize = 11.sp,
+                    style = DallimTypography.Label.copy(fontSize = 11.sp),
                     color = tint,
-                    modifier = Modifier.padding(top = Spacing.xs),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
+    }
     }
 }
 

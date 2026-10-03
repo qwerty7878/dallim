@@ -20,27 +20,21 @@ import com.dallim.ui.theme.DallimTypography
  */
 @Composable
 fun UnverifiedBadge(modifier: Modifier = Modifier) {
-    Text(
-        text = "미인증",
-        style = DallimTypography.Caption,
-        color = DallimColors.TextSecondary,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DallimColors.TextSecondary.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+    DallimBadge(
+        label = "미인증",
+        foreground = DallimColors.TextSecondary,
+        background = DallimColors.SurfaceMuted,
+        modifier = modifier,
     )
 }
 
 /** `isPb`(서버가 계산한 종목별 개인 최고 기록) 강조 배지. */
 @Composable
 fun PbBadge(modifier: Modifier = Modifier) {
-    Text(
-        text = "PB",
-        style = DallimTypography.Caption,
-        color = DallimColors.Primary,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DallimColors.PrimaryLight)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+    DallimBadge(
+        label = "PB",
+        foreground = DallimColors.Primary,
+        background = DallimColors.PrimaryLight,
+        modifier = modifier,
     )
 }

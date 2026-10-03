@@ -42,13 +42,5 @@ fun SocialSessionStatusBadge(state: SocialSessionBadgeState, modifier: Modifier 
         SocialSessionBadgeState.CANCELLED ->
             Triple(DallimColors.Error.copy(alpha = 0.12f), DallimColors.Error, "취소됨")
     }
-    Text(
-        text = label,
-        style = DallimTypography.Caption,
-        color = fg,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    )
+    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier)
 }

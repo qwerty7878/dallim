@@ -1,5 +1,6 @@
 package com.dallim.ui.components
 
+import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,9 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +59,7 @@ fun DallimCheckboxRow(
         ) {
             if (checked) {
                 Icon(
-                    imageVector = Icons.Filled.Check,
+                    imageVector = DallimIcons.Check,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(16.dp),
@@ -84,7 +82,7 @@ fun DallimCheckboxRow(
 
         if (onDetailClick != null) {
             Icon(
-                imageVector = Icons.Filled.ChevronRight,
+                imageVector = DallimIcons.ChevronRight,
                 contentDescription = "약관 전문 보기",
                 tint = DallimColors.TextSecondary,
                 modifier = Modifier

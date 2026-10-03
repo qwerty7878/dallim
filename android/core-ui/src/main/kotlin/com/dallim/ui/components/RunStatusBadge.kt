@@ -29,13 +29,5 @@ fun RunStatusBadge(status: RunStatus, modifier: Modifier = Modifier) {
         RunStatus.ABORTED -> DallimColors.TextSecondary to "중단됨"
         RunStatus.UNDER_REVIEW -> DallimColors.Warning to "검토중"
     }
-    Text(
-        text = label,
-        style = DallimTypography.Caption,
-        color = fg,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(fg.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    )
+    DallimBadge(label = label, foreground = fg, background = fg.copy(alpha = 0.12f), modifier = modifier)
 }

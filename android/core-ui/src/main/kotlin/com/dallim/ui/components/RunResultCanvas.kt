@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -42,6 +41,8 @@ fun RunResultCanvas(
     modifier: Modifier = Modifier,
     animate: Boolean = true,
     animationDurationMillis: Int = 1800,
+    cornerRadius: Dp = 24.dp,
+    aspectRatio: Float = 1f,
 ) {
     val progressAnimatable = remember { Animatable(if (animate) 0f else 1f) }
     LaunchedEffect(animate, animationDurationMillis) {
@@ -54,12 +55,13 @@ fun RunResultCanvas(
     }
     val progress = progressAnimatable.value
 
+    // 2026-10-04: 라벤더 박스 + 그림자 → 어두운 캔버스 위의 글로우 라인(작품 느낌). 결과 화면에서는
+    // 전면 히어로로, 달림북 상세에서는 둥근 카드로 같은 컴포넌트를 쓴다.
     Box(
         modifier = modifier
-            .aspectRatio(1f)
-            .shadow(elevation = 16.dp, shape = RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.12f))
-            .clip(RoundedCornerShape(24.dp))
-            .background(DallimColors.PrimaryLight)
+            .aspectRatio(aspectRatio)
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(DallimColors.BackgroundDark)
             .padding(20.dp),
     ) {
         if (coordinates.size < 2) return@Box
@@ -96,11 +98,32 @@ fun RunResultCanvas(
             val trimmedPath = Path()
             measure.getSegment(0f, measure.length * progress, trimmedPath, true)
 
+            // 글로우: 같은 경로를 넓고 옅게 두 번 깔고 그 위에 본선을 그린다.
+            val unit = size.minDimension / 360f
+            drawPath(
+                path = trimmedPath,
+                color = DallimColors.Primary.copy(alpha = 0.10f),
+                style = Stroke(width = 30f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+            drawPath(
+                path = trimmedPath,
+                color = DallimColors.Primary.copy(alpha = 0.24f),
+                style = Stroke(width = 17f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
             drawPath(
                 path = trimmedPath,
                 brush = DallimGradient,
-                style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                style = Stroke(width = 8f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round),
             )
+
+            // 시작(흰 점)/현재 끝(코랄 점)
+            val start = project(coordinates.first())
+            drawCircle(color = Color.White, radius = 7f * unit, center = start)
+            if (progress >= 0.999f) {
+                val end = project(coordinates.last())
+                drawCircle(color = DallimColors.GradientEnd.copy(alpha = 0.35f), radius = 16f * unit, center = end)
+                drawCircle(color = DallimColors.GradientEnd, radius = 8f * unit, center = end)
+            }
         }
     }
 }

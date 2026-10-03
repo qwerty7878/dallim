@@ -8,7 +8,7 @@ import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
 
-/** Section header (Title2, 20sp SemiBold) — docs/04-ui-guide.md §6. */
+/** 섹션 제목 — Title2(20sp SemiBold). 섹션 간격은 호출부가 [Spacing.xl]로 준다. */
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(

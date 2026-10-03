@@ -38,13 +38,5 @@ fun MeetupStatusBadge(state: MeetupBadgeState, modifier: Modifier = Modifier) {
         MeetupBadgeState.FULL -> Triple(DallimColors.Warning.copy(alpha = 0.15f), DallimColors.Warning, "마감")
         MeetupBadgeState.NONE -> return
     }
-    Text(
-        text = label,
-        style = DallimTypography.Caption,
-        color = fg,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    )
+    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier)
 }

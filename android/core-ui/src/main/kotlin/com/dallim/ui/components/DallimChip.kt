@@ -11,16 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTypography
-import com.dallim.ui.theme.Spacing
+
+private val ChipShape = RoundedCornerShape(8.dp)
 
 /**
- * Single-select filter/option pill — selected = Primary fill, unselected = outline on Surface.
- * Never Material3's default `FilterChip` (docs/04-ui-guide.md §6 — custom components only).
- * Used for S-11 탐색 필터 rows; same visual language as the option chips already used in
- * S-04 프로필 설정 (kept private there, so this is the reusable core-ui version).
+ * 선택 칩 (2026-10-04 재설계). 알약(pill) 모양 + 옅은 면 채움은 "생성형 UI" 인상의 대표 요소라, 작은 라운드
+ * (8dp)의 직사각형 + 얇은 테두리로 바꿨다. 비선택 = 흰 바탕 + 1dp 테두리 + 보조색 글자, 선택 = Ink(거의 검정)
+ * 채움 + 흰 글자. Material3 기본 `FilterChip`은 쓰지 않는다(docs/04-ui-guide.md §6).
  */
 @Composable
 fun DallimFilterChip(
@@ -31,20 +32,16 @@ fun DallimFilterChip(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) DallimColors.Primary else DallimColors.Surface)
-            .border(
-                width = 1.dp,
-                color = if (selected) DallimColors.Primary else DallimColors.Border,
-                shape = RoundedCornerShape(16.dp),
-            )
+            .clip(ChipShape)
+            .background(if (selected) DallimColors.Ink else Color.Transparent)
+            .border(1.dp, if (selected) DallimColors.Ink else DallimColors.Border, ChipShape)
             .clickable { onClick() }
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
-            style = DallimTypography.Caption,
-            color = if (selected) Color.White else DallimColors.TextPrimary,
+            style = DallimTypography.Body.copy(fontWeight = FontWeight.Medium),
+            color = if (selected) Color.White else DallimColors.TextSecondary,
         )
     }
 }

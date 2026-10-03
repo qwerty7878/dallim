@@ -70,6 +70,22 @@ internal fun MapSnapshotThumbnail(
     modifier: Modifier,
     cornerRadius: Dp,
     fallback: @Composable () -> Unit,
+) = RouteMapSnapshot(coordinates, modifier, cornerRadius, renderPx = null, onBitmap = null, fallback = fallback)
+
+/**
+ * 실제 지도 위에 경로를 올린 정사각 이미지. 썸네일([MapSnapshotThumbnail])과 같은 캐시/렌더 큐를 쓰되,
+ * 결과 화면 히어로/공유 카드처럼 큰 크기가 필요하면 [renderPx]로 렌더 해상도를 고정하고(예: 1080),
+ * 이미지가 준비되면 [onBitmap]으로 비트맵을 돌려준다(공유 카드 합성용).
+ */
+@Composable
+fun RouteMapSnapshot(
+    coordinates: List<GeoPoint>,
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = androidx.compose.ui.unit.Dp(0f),
+    renderPx: Int? = null,
+    onBitmap: ((Bitmap) -> Unit)? = null,
+    paddingFraction: Float = 0.17f,
+    fallback: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     androidx.compose.foundation.layout.BoxWithConstraints(
@@ -79,9 +95,11 @@ internal fun MapSnapshotThumbnail(
         // 작게 직접 렌더하면 로고가 화면 대부분을 차지하고 경로 영역이 사라진다. 버킷 2개(480/640)만 써서
         // 같은 코스가 크기만 다른 여러 카드에서 캐시를 공유한다.
         val displayPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        val sizePx = if (displayPx <= RENDER_SMALL_PX) RENDER_SMALL_PX else RENDER_LARGE_PX
-        val key = remember(coordinates, sizePx) { MapSnapshotCache.key(coordinates, sizePx) }
+        val sizePx = renderPx ?: if (displayPx <= RENDER_SMALL_PX) RENDER_SMALL_PX else RENDER_LARGE_PX
+        val key = remember(coordinates, sizePx) { MapSnapshotCache.key(coordinates, sizePx, paddingFraction) }
         var bitmap by remember(key) { mutableStateOf(MapSnapshotCache.getMemory(key)) }
+        val currentOnBitmap by androidx.compose.runtime.rememberUpdatedState(onBitmap)
+        LaunchedEffect(bitmap) { bitmap?.let { currentOnBitmap?.invoke(it) } }
         var renderRequested by remember(key) { mutableStateOf(false) }
 
         LaunchedEffect(key) {
@@ -112,7 +130,7 @@ internal fun MapSnapshotThumbnail(
         }
 
         if (renderRequested && bitmap == null) {
-            SnapshotMapHost(coordinates = coordinates, renderPx = sizePx) { snapshot ->
+            SnapshotMapHost(coordinates = coordinates, renderPx = sizePx, paddingFraction = paddingFraction) { snapshot ->
                 MapSnapshotCache.putMemory(key, snapshot)
                 MapSnapshotCache.saveDisk(context, key, snapshot)
                 bitmap = snapshot
@@ -132,7 +150,7 @@ private object MapSnapshotRenderGate {
 
 /** 스냅샷만 찍고 버리는 비인터랙티브 지도. 호출부 Box 크기(=썸네일 크기) 그대로 레이아웃된다. */
 @Composable
-private fun SnapshotMapHost(coordinates: List<GeoPoint>, renderPx: Int, onSnapshot: (Bitmap) -> Unit) {
+private fun SnapshotMapHost(coordinates: List<GeoPoint>, renderPx: Int, paddingFraction: Float, onSnapshot: (Bitmap) -> Unit) {
     val context = LocalContext.current
     val mapView = remember {
         MapView(
@@ -164,7 +182,7 @@ private fun SnapshotMapHost(coordinates: List<GeoPoint>, renderPx: Int, onSnapsh
     }
 
     LaunchedEffect(mapView, coordinates) {
-        mapView.getMapAsync { map -> configureSnapshotMap(map, coordinates, renderPx, onSnapshot) }
+        mapView.getMapAsync { map -> configureSnapshotMap(map, coordinates, renderPx, paddingFraction, onSnapshot) }
     }
 
     // 지도는 렌더 해상도(renderPx)로 레이아웃해 찍고, 보이는 썸네일 크기에는 이미지로 축소 표시한다.
@@ -181,6 +199,7 @@ private fun configureSnapshotMap(
     map: NaverMap,
     coordinates: List<GeoPoint>,
     renderPx: Int,
+    paddingFraction: Float,
     onSnapshot: (Bitmap) -> Unit,
 ) {
     // 모든 치수를 렌더 해상도에 비례시킨다(작게 표시돼도 선/여백 비율이 같다). 기준: 640px에서 선 15px.
@@ -193,7 +212,7 @@ private fun configureSnapshotMap(
 
     val path = PathOverlay().apply {
         coords = latLngs
-        width = (15 * unit).toInt().coerceAtLeast(4)
+        width = (11 * unit).toInt().coerceAtLeast(4)
         color = DallimColors.Primary.toArgb()
         outlineWidth = (4 * unit).toInt().coerceAtLeast(2)
         outlineColor = DallimColors.Surface.toArgb()
@@ -228,22 +247,22 @@ private fun configureSnapshotMap(
             map.takeSnapshot(true) { bitmap -> onSnapshot(bitmap) }
         }
     }
-    map.moveCamera(CameraUpdate.fitBounds(bounds, (renderPx * 0.17f).toInt()))
+    map.moveCamera(CameraUpdate.fitBounds(bounds, (renderPx * paddingFraction).toInt()))
     // path는 GC로 사라지지 않게 지도에 붙어 있는 동안 참조가 유지된다(overlay.map이 강한 참조).
     check(path.map === map)
 }
 
 /** 메모리(LRU) + 디스크 캐시. 키는 경로 좌표(소수 5자리로 반올림)와 픽셀 크기, 스타일 버전의 해시. */
 internal object MapSnapshotCache {
-    private const val STYLE_VERSION = 2
+    private const val STYLE_VERSION = 3
     private val memory = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
     private val failed = HashSet<String>()
 
-    fun key(coordinates: List<GeoPoint>, sizePx: Int): String {
+    fun key(coordinates: List<GeoPoint>, sizePx: Int, paddingFraction: Float = 0.17f): String {
         val digest = MessageDigest.getInstance("SHA-1")
-        digest.update("v$STYLE_VERSION|$sizePx|".toByteArray())
+        digest.update("v$STYLE_VERSION|$sizePx|$paddingFraction|".toByteArray())
         coordinates.forEach { digest.update("%.5f,%.5f;".format(it.lat, it.lng).toByteArray()) }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
