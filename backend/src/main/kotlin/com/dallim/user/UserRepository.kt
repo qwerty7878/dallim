@@ -1,8 +1,14 @@
 package com.dallim.user
 
+import com.dallim.run.RunRecordTable
+import com.dallim.run.RunStatus
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.count
+import org.jetbrains.exposed.sql.sum
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -22,6 +28,7 @@ class UserRepository(private val database: Database) {
 
     fun findById(userId: String): User? = transaction(database) {
         UserTable.selectAll().where { UserTable.id eq userId }.map { it.toUser() }.singleOrNull()
+            ?.let { withRunTotals(listOf(it)).single() }
     }
 
     /** Batch lookup (social feedback-targets / running-mates 목록 등 N명 프로필을 한 번에
@@ -30,7 +37,28 @@ class UserRepository(private val database: Database) {
     fun findByIds(userIds: List<String>): List<User> {
         if (userIds.isEmpty()) return emptyList()
         return transaction(database) {
-            UserTable.selectAll().where { UserTable.id inList userIds }.map { it.toUser() }
+            withRunTotals(UserTable.selectAll().where { UserTable.id inList userIds }.map { it.toUser() })
+        }
+    }
+
+    /**
+     * `users.total_runs`/`total_distance_km`는 어디서도 갱신되지 않아 항상 0이었다(2026-10-03
+     * 발견 — 마이 화면 "총 러닝 횟수 0회"). 컬럼을 되살리는 대신(기존 데이터 백필 필요, 판정이 바뀌면
+     * 드리프트) 읽는 시점에 run_records의 COMPLETED 기록에서 집계한 값으로 덮어쓴다. 달림북 헤더
+     * (DallimbookRepository.sumCompletedDistanceKm)와 같은 기준이다. 반드시 transaction 안에서 호출.
+     */
+    private fun withRunTotals(users: List<User>): List<User> {
+        if (users.isEmpty()) return users
+        val count = RunRecordTable.id.count()
+        val distance = RunRecordTable.distanceKm.sum()
+        val totals = RunRecordTable
+            .select(RunRecordTable.userId, count, distance)
+            .where { (RunRecordTable.userId inList users.map { it.id }) and (RunRecordTable.status eq RunStatus.COMPLETED) }
+            .groupBy(RunRecordTable.userId)
+            .associate { it[RunRecordTable.userId] to (it[count].toInt() to (it[distance] ?: 0.0)) }
+        return users.map { user ->
+            val (runs, km) = totals[user.id] ?: (0 to 0.0)
+            user.copy(totalRuns = runs, totalDistanceKm = km)
         }
     }
 

@@ -12,6 +12,7 @@ import com.dallim.run.RunDetailResponse
 import com.dallim.run.RunFinishResponse
 import com.dallim.run.RunStartResponse
 import com.dallim.run.RunStatus
+import com.dallim.user.UserMeResponse
 import com.dallim.testsupport.ApiTestSupport.authGet
 import com.dallim.testsupport.ApiTestSupport.jsonClient
 import com.dallim.testsupport.ApiTestSupport.signupNewUser
@@ -52,6 +53,9 @@ class FreeformRunFlowIntegrationTest {
 
     @Serializable
     private data class RouteEnv(val success: Boolean, val data: RouteDetailResponse? = null, val error: ApiErrorBody? = null)
+
+    @Serializable
+    private data class MeEnv(val success: Boolean, val data: UserMeResponse? = null, val error: ApiErrorBody? = null)
 
     @Serializable
     private data class ErrEnv(val success: Boolean, val error: ApiErrorBody? = null)
@@ -202,5 +206,28 @@ class FreeformRunFlowIntegrationTest {
         }
         assertEquals(HttpStatusCode.BadRequest, tags.status)
         assertNotNull(errorCode(tags))
+    }
+
+    /** 마이 화면 "총 러닝 횟수/총 거리"는 users.total_* 컬럼(갱신되지 않던)이 아니라 COMPLETED 기록 집계여야 한다. */
+    @Test
+    fun `users me totals count only COMPLETED runs`() = testApplication {
+        val client = jsonClient()
+        val (_, token) = client.signupNewUser()
+
+        val before: MeEnv = client.authGet("/v1/users/me", token).body()
+        assertEquals(0, before.data!!.totalRuns)
+
+        val reviewRun = start(client, token, null)
+        upload(client, token, reviewRun, "under_review_run")
+        assertEquals(RunStatus.UNDER_REVIEW, finish(client, token, reviewRun).data!!.status)
+
+        val completedRun = start(client, token, null)
+        upload(client, token, completedRun, "completed_run")
+        val finished = finish(client, token, completedRun)
+        assertEquals(RunStatus.COMPLETED, finished.data!!.status)
+
+        val after: MeEnv = client.authGet("/v1/users/me", token).body()
+        assertEquals(1, after.data!!.totalRuns, "UNDER_REVIEW run must not be counted")
+        assertTrue(after.data.totalDistanceKm > 0.0)
     }
 }
