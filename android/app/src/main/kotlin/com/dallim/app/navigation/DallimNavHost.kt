@@ -188,6 +188,7 @@ fun DallimNavHost(
         composable(DallimDestinations.HOME) {
             HomeRoute(
                 onRouteClick = { routeId -> navController.navigate(DallimDestinations.routeDetail(routeId)) },
+                onFreeRunClick = { navController.navigate(DallimDestinations.runPrepare()) },
                 onSeeAllSavedRoutesClick = { navController.navigate(DallimDestinations.SAVED_ROUTES) },
                 onNotificationClick = { navController.navigate(DallimDestinations.NOTIFICATIONS) },
                 onTabSelected = { tab -> navController.navigateToTab(tab) },

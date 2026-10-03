@@ -46,6 +46,7 @@ import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimMark
 import com.dallim.ui.components.DallimPrimaryButton
+import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
@@ -72,6 +73,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeRoute(
     onRouteClick: (routeId: String) -> Unit,
+    onFreeRunClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
     onNotificationClick: () -> Unit,
     onTabSelected: (DallimTab) -> Unit,
@@ -83,6 +85,7 @@ fun HomeRoute(
     HomeScreen(
         uiState = uiState,
         onRouteClick = onRouteClick,
+        onFreeRunClick = onFreeRunClick,
         onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
         onNotificationClick = onNotificationClick,
         onTabSelected = onTabSelected,
@@ -95,6 +98,7 @@ fun HomeRoute(
 private fun HomeScreen(
     uiState: HomeUiState,
     onRouteClick: (routeId: String) -> Unit,
+    onFreeRunClick: () -> Unit,
     onSeeAllSavedRoutesClick: () -> Unit,
     onNotificationClick: () -> Unit,
     onTabSelected: (DallimTab) -> Unit,
@@ -168,7 +172,11 @@ private fun HomeScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = Spacing.ScreenHorizontal),
                 ) {
-                    HeroSection(todaySketch = uiState.home.todaySketch, onRouteClick = onRouteClick)
+                    HeroSection(
+                        todaySketch = uiState.home.todaySketch,
+                        onRouteClick = onRouteClick,
+                        onFreeRunClick = onFreeRunClick,
+                    )
 
                     // S-56 홈 네이티브 광고 배너 (docs/달림_화면별_상세기획서_v1.3.md 236행 "5번째
                     // 블록 아래에만"). v1.3 문서의 홈 블록 순서는 [..., 진행 중 미션(5), 최근 달림(6),
@@ -236,7 +244,7 @@ private fun NotificationBellButton(unreadCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Unit) {
+private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Unit, onFreeRunClick: () -> Unit) {
     SectionHeader(title = "오늘의 달림", modifier = Modifier.padding(top = Spacing.lg))
     if (todaySketch == null) {
         DallimCard {
@@ -246,6 +254,11 @@ private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Uni
                 color = DallimColors.TextSecondary,
             )
         }
+        DallimSecondaryButton(
+            text = "코스 없이 바로 달리기",
+            onClick = onFreeRunClick,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
         return
     }
 
@@ -280,6 +293,12 @@ private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Uni
             modifier = Modifier.padding(top = Spacing.md),
         )
     }
+    // 자유 러닝(2026-09-26) 진입점 — 코스를 고르지 않고 바로 시작. 주 CTA("코스 보기")와 구분되는 보조 버튼.
+    DallimSecondaryButton(
+        text = "코스 없이 바로 달리기",
+        onClick = onFreeRunClick,
+        modifier = Modifier.padding(top = Spacing.sm),
+    )
 }
 
 @Composable
@@ -468,6 +487,7 @@ private fun HomeScreenPreview() {
                 unreadNotificationCount = 3,
             ),
             onRouteClick = {},
+            onFreeRunClick = {},
             onSeeAllSavedRoutesClick = {},
             onNotificationClick = {},
             onTabSelected = {},

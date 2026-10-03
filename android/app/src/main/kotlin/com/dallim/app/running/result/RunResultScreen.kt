@@ -42,6 +42,7 @@ import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RunResultCanvas
+import com.dallim.ui.components.RunStatus
 import com.dallim.ui.components.RunStatusBadge
 import com.dallim.ui.components.SectionHeader
 import com.dallim.ui.components.toRunStatus
@@ -172,6 +173,7 @@ private fun ResultContent(
     modifier: Modifier = Modifier,
 ) {
     val isFreeform = run.routeId == null
+    val isCompleted = run.status.toRunStatus() == RunStatus.COMPLETED
     Column(modifier = modifier.padding(top = Spacing.xl)) {
         RunResultCanvas(
             coordinates = run.actualGeoJson.toGeoPoints(),
@@ -191,7 +193,7 @@ private fun ResultContent(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = if (isFreeform) "자유 러닝 완료" else "${run.routeName} 그리기 완료",
+                text = if (isFreeform) (if (isCompleted) "자유 러닝 완료" else "자유 러닝 기록") else "${run.routeName} 그리기 완료",
                 style = DallimTypography.Body,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
@@ -222,7 +224,8 @@ private fun ResultContent(
         }
 
         if (isFreeform) {
-            RegisterRouteSection(
+            // 서버가 COMPLETED만 코스 등록을 허용한다(RUN_NOT_COMPLETED) — 검토중 등은 폼을 숨긴다.
+            if (isCompleted) RegisterRouteSection(
                 state = registerRouteState,
                 onStartClick = onRegisterRouteStartClick,
                 onNameChange = onRegisterRouteNameChange,
@@ -313,7 +316,7 @@ private fun RegisterRouteSection(
                 }
             }
             is RegisterRouteUiState.Registered -> DallimCard {
-                Text(text = "코스로 등록됐어요 🎉", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(text = "코스로 등록됐어요", style = DallimTypography.Body, color = DallimColors.TextPrimary)
                 Text(
                     text = "탐색에서 다른 사람들도 이 코스를 찾을 수 있어요.",
                     style = DallimTypography.Caption,
