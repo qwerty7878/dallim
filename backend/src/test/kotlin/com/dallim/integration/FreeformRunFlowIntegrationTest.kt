@@ -11,6 +11,8 @@ import com.dallim.run.RegisterRouteResponse
 import com.dallim.run.RunDetailResponse
 import com.dallim.run.RunFinishResponse
 import com.dallim.run.RunStartResponse
+import com.dallim.dallimbook.DallimbookResponse
+import com.dallim.route.HomeResponse
 import com.dallim.run.RunStatus
 import com.dallim.user.UserMeResponse
 import com.dallim.testsupport.ApiTestSupport.authGet
@@ -56,6 +58,12 @@ class FreeformRunFlowIntegrationTest {
 
     @Serializable
     private data class MeEnv(val success: Boolean, val data: UserMeResponse? = null, val error: ApiErrorBody? = null)
+
+    @Serializable
+    private data class HomeEnv(val success: Boolean, val data: HomeResponse? = null, val error: ApiErrorBody? = null)
+
+    @Serializable
+    private data class BookEnv(val success: Boolean, val data: DallimbookResponse? = null, val error: ApiErrorBody? = null)
 
     @Serializable
     private data class ErrEnv(val success: Boolean, val error: ApiErrorBody? = null)
@@ -229,5 +237,43 @@ class FreeformRunFlowIntegrationTest {
         val after: MeEnv = client.authGet("/v1/users/me", token).body()
         assertEquals(1, after.data!!.totalRuns, "UNDER_REVIEW run must not be counted")
         assertTrue(after.data.totalDistanceKm > 0.0)
+    }
+
+    /** 자유 러닝은 route_id가 NULL이라 INNER JOIN 쿼리에서 빠지던 버그 회귀 방지 + 홈 주간 요약. */
+    @Test
+    fun `completed freeform run shows in home recent runs, week summary and dallimbook`() = testApplication {
+        val client = jsonClient()
+        val (_, token) = client.signupNewUser()
+
+        val emptyHome: HomeEnv = client.authGet("/v1/home?lat=37.25&lng=127.05", token).body()
+        assertEquals(0, emptyHome.data!!.weekSummary.runCount)
+        assertTrue(emptyHome.data.weekSummary.runDays.isEmpty())
+
+        val runId = start(client, token, null)
+        upload(client, token, runId, "completed_run")
+        // 서버는 finishedAt이 아니라 요청 시각 기준이 아닌 body 값을 쓰므로 현재 시각으로 보낸다(이번 주 집계에 들어가야 한다).
+        val finishedAt = java.time.Instant.now().toString()
+        val finish = client.post("/v1/runs/$runId/finish") {
+            header("Authorization", "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(FinishRunRequest(finishedAt = finishedAt))
+        }.body<FinishEnv>()
+        assertEquals(RunStatus.COMPLETED, finish.data!!.status)
+
+        val home: HomeEnv = client.authGet("/v1/home?lat=37.25&lng=127.05", token).body()
+        val recent = home.data!!.recentRuns.single()
+        assertEquals(runId, recent.runId)
+        assertNull(recent.routeId)
+        assertNull(recent.emoji)
+        assertEquals("자유 러닝", recent.routeName)
+        assertTrue(recent.thumbnailGeoJson.coordinates.isNotEmpty())
+        assertEquals(1, home.data.weekSummary.runCount)
+        assertTrue(home.data.weekSummary.distanceKm > 0.0)
+        assertTrue(home.data.weekSummary.todayDayOfWeek in home.data.weekSummary.runDays)
+
+        val book: BookEnv = client.authGet("/v1/users/me/runs", token).body()
+        assertEquals(1, book.data!!.totalCount)
+        assertEquals(runId, book.data.items.single().runId)
+        assertEquals("자유 러닝", book.data.items.single().routeName)
     }
 }

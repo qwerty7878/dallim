@@ -62,10 +62,12 @@ class DallimbookRepository(private val dataSource: DataSource) {
 
     private fun selectCompletedRuns(userId: String, page: Int, size: Int): List<RunListRow> {
         val sql = """
-            SELECT r.id AS run_id, s.name AS route_name, r.distance_km AS distance_km,
+            SELECT r.id AS run_id, COALESCE(s.name, '자유 러닝') AS route_name, r.distance_km AS distance_km,
                    r.finished_at AS finished_at, ${PostGis.asGeoJsonExpr("r.actual_path")} AS geojson
             FROM run_records r
-            JOIN sketch_routes s ON s.id = r.route_id
+            -- LEFT JOIN: 자유 러닝(route_id NULL, 2026-09-26)도 달림북 작품이다 — INNER JOIN이면 목록에서만 빠져
+            -- totalCount(위 countCompletedRuns)와 어긋났다.
+            LEFT JOIN sketch_routes s ON s.id = r.route_id
             WHERE r.user_id = ? AND r.status = 'COMPLETED' AND r.actual_path IS NOT NULL
             ORDER BY r.finished_at DESC
             LIMIT ? OFFSET ?

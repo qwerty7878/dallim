@@ -400,6 +400,16 @@ Refresh Token으로 Access Token 재발급
   달림 카드도 "코스 카드"이므로 `RouteThumbnailView`가 필수다(`docs/03-design-system.md` §3.2).
   `run_records.route_id`로 `sketch_routes`를 조인해 채운다(`com.dallim.run.RunRepository.
   findRecentCompletedRuns`).
+- **2026-10-04 `weekSummary` 추가**: 홈 상단 "이번 주 N km"와 월~일 점 표시용.
+  ```json
+  "weekSummary": { "distanceKm": 11.3, "runCount": 3, "runDays": [1, 3, 6], "todayDayOfWeek": 7 }
+  ```
+  이번 주는 월요일 00:00(Asia/Seoul)부터이며 `COMPLETED` 기록만 센다. `runDays`는 완주한 요일의
+  ISO 번호(1=월…7=일) 오름차순, `todayDayOfWeek`는 서버 기준 오늘 요일.
+- **2026-10-04 `recentRuns`에 자유 러닝 포함**: 자유 러닝(`route_id` NULL)이 INNER JOIN 때문에
+  빠지던 버그 수정. 이 경우 `routeId`/`emoji`는 `null`, `routeName`은 `"자유 러닝"`, 썸네일은
+  실제 궤적. `GET /users/me/runs`(달림북)도 같은 이유로 LEFT JOIN으로 고쳐 자유 러닝이
+  `routeName="자유 러닝"`으로 포함되고 `totalCount`와 목록이 일치한다.
 
 ---
 

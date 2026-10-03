@@ -40,10 +40,23 @@ data class HomeRecentRun(
     val runId: String,
     val distanceKm: Double,
     val completedAt: String,
-    val routeId: String,
+    // 자유 러닝(2026-09-26)이면 routeId/emoji는 null, routeName은 "자유 러닝", 썸네일은 실제 궤적.
+    val routeId: String?,
     val routeName: String,
-    val emoji: String,
+    val emoji: String?,
     val thumbnailGeoJson: GeoJsonLineString,
+)
+
+/**
+ * 이번 주(월~일, Asia/Seoul) 완주 요약 — 홈 상단 "이번 주 N km"와 요일 점. [runDays]는 완주한
+ * 요일의 ISO 번호(1=월 … 7=일) 오름차순, [todayDayOfWeek]는 서버 기준 오늘 요일(같은 번호 체계).
+ */
+@Serializable
+data class HomeWeekSummary(
+    val distanceKm: Double,
+    val runCount: Int,
+    val runDays: List<Int>,
+    val todayDayOfWeek: Int,
 )
 
 @Serializable
@@ -53,4 +66,5 @@ data class HomeResponse(
     val todaySketch: HomeTodaySketch?,
     val continueRoutes: List<HomeContinueRoute>,
     val recentRuns: List<HomeRecentRun>,
+    val weekSummary: HomeWeekSummary,
 )

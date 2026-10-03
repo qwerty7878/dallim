@@ -21,6 +21,7 @@ data class HomeResponseBody(
     val todaySketch: TodaySketch?,
     val continueRoutes: List<ContinueRoute> = emptyList(),
     val recentRuns: List<RecentRun> = emptyList(),
+    val weekSummary: WeekSummary = WeekSummary(),
 )
 
 @Serializable
@@ -46,8 +47,18 @@ data class RecentRun(
     val runId: String,
     val distanceKm: Double,
     val completedAt: String,
-    val routeId: String,
+    // 자유 러닝(2026-09-26)이면 routeId/emoji는 null, routeName은 "자유 러닝", 썸네일은 실제 궤적.
+    val routeId: String? = null,
     val routeName: String,
-    val emoji: String,
+    val emoji: String? = null,
     val thumbnailGeoJson: GeoJsonLineString,
+)
+
+/** 이번 주(월~일, KST) 요약. [runDays]/[todayDayOfWeek]는 ISO 요일 번호(1=월 … 7=일). */
+@Serializable
+data class WeekSummary(
+    val distanceKm: Double = 0.0,
+    val runCount: Int = 0,
+    val runDays: List<Int> = emptyList(),
+    val todayDayOfWeek: Int = 1,
 )

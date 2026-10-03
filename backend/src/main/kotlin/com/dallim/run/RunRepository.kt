@@ -70,11 +70,15 @@ class RunRepository(
         val runId: String,
         val distanceKm: Double,
         val completedAt: Instant,
-        val routeId: String,
+        /** null이면 자유 러닝 — 이때 [routeName]은 "자유 러닝", [emoji]는 null, 썸네일은 실제 궤적. */
+        val routeId: String?,
         val routeName: String,
-        val emoji: String,
+        val emoji: String?,
         val thumbnailGeoJson: GeoJsonLineString,
     )
+
+    /** 이번 주 요약용 — 완주(COMPLETED) 기록의 종료 시각과 거리만. */
+    data class WeekRunRow(val finishedAt: Instant, val distanceKm: Double)
 
     /**
      * POST /runs — creates the session row (IN_PROGRESS) and returns its generated id. [routeId]
@@ -169,10 +173,11 @@ class RunRepository(
     fun findRecentCompletedRuns(userId: String, limit: Int): List<RecentRunRow> {
         val sql = """
             SELECT r.id AS run_id, r.distance_km, r.finished_at, r.route_id,
-                   sr.name AS route_name, sr.emoji AS emoji, ${PostGis.asGeoJsonExpr("sr.path")} AS geojson
+                   COALESCE(sr.name, '자유 러닝') AS route_name, sr.emoji AS emoji,
+                   ${PostGis.asGeoJsonExpr("COALESCE(sr.path, r.actual_path)")} AS geojson
             FROM run_records r
-            JOIN sketch_routes sr ON sr.id = r.route_id
-            WHERE r.user_id = ? AND r.status = 'COMPLETED'
+            LEFT JOIN sketch_routes sr ON sr.id = r.route_id
+            WHERE r.user_id = ? AND r.status = 'COMPLETED' AND COALESCE(sr.path, r.actual_path) IS NOT NULL
             ORDER BY r.finished_at DESC
             LIMIT ?
         """.trimIndent()
@@ -194,6 +199,28 @@ class RunRepository(
                                     thumbnailGeoJson = GeoJsonLineString.fromJson(rs.getString("geojson")),
                                 ),
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** [since] 이후 끝난 완주 기록 전부(주간 요약 계산용, 한 주치라 건수가 작다). */
+    fun findCompletedRunsSince(userId: String, since: Instant): List<WeekRunRow> {
+        val sql = """
+            SELECT finished_at, distance_km
+            FROM run_records
+            WHERE user_id = ? AND status = 'COMPLETED' AND finished_at >= ? AND distance_km IS NOT NULL
+        """.trimIndent()
+        dataSource.connection.use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.setTimestamp(2, java.sql.Timestamp.from(since))
+                stmt.executeQuery().use { rs ->
+                    return buildList {
+                        while (rs.next()) {
+                            add(WeekRunRow(rs.getTimestamp("finished_at").toInstant(), rs.getDouble("distance_km")))
                         }
                     }
                 }

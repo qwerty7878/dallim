@@ -1,6 +1,7 @@
 package com.dallim.app.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,10 +18,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -39,19 +40,16 @@ import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.home.HomeResponseBody
 import com.dallim.network.home.RecentRun
 import com.dallim.network.home.TodaySketch
+import com.dallim.network.home.WeekSummary
 import com.dallim.network.user.SavedRouteItem
 import com.dallim.ui.components.DallimBottomNavigation
-import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimMark
-import com.dallim.ui.components.DallimPrimaryButton
-import com.dallim.ui.components.DallimSecondaryButton
 import com.dallim.ui.components.DallimTab
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
-import com.dallim.ui.components.SectionHeader
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
@@ -118,44 +116,20 @@ private fun HomeScreen(
                 .background(DallimColors.Background)
                 .padding(innerPadding),
         ) {
-            // 프로필 설정을 마친 사용자만 닉네임을 받아온다 — 실패/미설정 시 null로 흡수돼
-            // 인사말 없이 기존 "달림" 타이틀만 보인다 (HomeViewModel KDoc 참고).
-            val nickname = (uiState as? HomeUiState.Success)?.nickname
             val unreadNotificationCount = (uiState as? HomeUiState.Success)?.unreadNotificationCount ?: 0
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                        start = Spacing.ScreenHorizontal,
-                        end = Spacing.sm,
-                        top = Spacing.md,
-                        bottom = if (nickname != null) Spacing.xs else Spacing.md,
-                    ),
+                    .padding(start = Spacing.ScreenHorizontal, end = Spacing.sm, top = Spacing.md),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DallimMark(modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(Spacing.sm))
-                    Text(
-                        text = "달림",
-                        style = DallimTypography.Title1,
-                        color = DallimColors.TextPrimary,
-                    )
+                    Text(text = "달림", style = DallimTypography.Title1, color = DallimColors.TextPrimary)
                 }
                 NotificationBellButton(unreadCount = unreadNotificationCount, onClick = onNotificationClick)
-            }
-            if (nickname != null) {
-                Text(
-                    text = "${nickname}님, 오늘도 달려볼까요?",
-                    style = DallimTypography.Body,
-                    color = DallimColors.TextSecondary,
-                    modifier = Modifier.padding(
-                        start = Spacing.ScreenHorizontal,
-                        end = Spacing.ScreenHorizontal,
-                        bottom = Spacing.md,
-                    ),
-                )
             }
 
             when (uiState) {
@@ -169,42 +143,281 @@ private fun HomeScreen(
                 is HomeUiState.Success -> Column(
                     modifier = Modifier
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = Spacing.ScreenHorizontal),
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    HeroSection(
-                        todaySketch = uiState.home.todaySketch,
-                        onRouteClick = onRouteClick,
-                        onFreeRunClick = onFreeRunClick,
+                    WeekSummaryBlock(
+                        summary = uiState.home.weekSummary,
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal).padding(top = Spacing.lg),
                     )
 
-                    // S-56 홈 네이티브 광고 배너 (docs/달림_화면별_상세기획서_v1.3.md 236행 "5번째
-                    // 블록 아래에만"). v1.3 문서의 홈 블록 순서는 [..., 진행 중 미션(5), 최근 달림(6),
-                    // Native Ad(7)]이지만 이 화면엔 아직 진행 중 미션 블록이 없다 — 광고가 "최근 달림
-                    // 바로 위"라는 v1.3의 상대 위치를 그대로 지켜, 현재 구현에서 최근 달림 바로 앞
-                    // 블록인 오늘의 달림(Hero)과 최근 달림 사이에 넣는다. 로드 실패 시 자리를
-                    // 전혀 차지하지 않으므로 실패해도 이 위 여백이 중복되지 않는다.
-                    HomeNativeAdBanner(modifier = Modifier.padding(top = Spacing.xl))
+                    StartBlock(
+                        onStartClick = onFreeRunClick,
+                        onPickCourseClick = { onTabSelected(DallimTab.EXPLORE) },
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl),
+                    )
 
-                    SectionHeader(title = "최근 달림", modifier = Modifier.padding(top = Spacing.xl))
-                    RecentRunsSection(recentRuns = uiState.home.recentRuns.take(3))
+                    CoursesSection(
+                        todaySketch = uiState.home.todaySketch,
+                        savedRoutes = uiState.savedRoutesPreview,
+                        onRouteClick = onRouteClick,
+                        onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
+                        modifier = Modifier.padding(top = Spacing.xl),
+                    )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.xl),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SectionHeader(title = "저장한 코스", modifier = Modifier.padding(bottom = 0.dp))
-                        DallimTextButton(text = "더보기", onClick = onSeeAllSavedRoutesClick)
-                    }
-                    SavedRoutesPreviewSection(savedRoutes = uiState.savedRoutesPreview, onRouteClick = onRouteClick)
+                    // S-56 홈 네이티브 광고 배너 (docs/달림_화면별_상세기획서_v1.3.md 236행: 최근 달림
+                    // 바로 위). 로드 실패 시 자리를 차지하지 않는다.
+                    HomeNativeAdBanner(
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal).padding(top = Spacing.xl),
+                    )
+
+                    RecentRunsSection(
+                        recentRuns = uiState.home.recentRuns.take(3),
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal).padding(top = Spacing.xl),
+                    )
 
                     Box(modifier = Modifier.padding(bottom = Spacing.xxl))
                 }
             }
         }
+    }
+}
+
+private val DAY_LABELS = listOf("월", "화", "수", "목", "금", "토", "일")
+
+/**
+ * 이번 주 누적 거리(큰 숫자) + 월~일 점. 인사말·섹션 제목 대신 "내 숫자"를 첫 화면의 주인공으로 둔다
+ * (나이키 런 클럽 류 러닝 앱 홈 구조). 완주한 요일은 Primary 채움, 오늘은 링, 나머지는 회색 점.
+ */
+@Composable
+private fun WeekSummaryBlock(summary: WeekSummary, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = "이번 주", style = DallimTypography.Caption, color = DallimColors.TextSecondary)
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = Spacing.xs)) {
+            Text(
+                text = RunFormat.km(summary.distanceKm),
+                style = DallimTypography.Display,
+                color = DallimColors.TextPrimary,
+            )
+            Text(
+                text = "km",
+                style = DallimTypography.Title2,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            DAY_LABELS.forEachIndexed { index, label ->
+                val day = index + 1
+                DayDot(label = label, ran = day in summary.runDays, isToday = day == summary.todayDayOfWeek)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayDot(label: String, ran: Boolean, isToday: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(if (ran) DallimColors.Primary else DallimColors.Border.copy(alpha = 0.6f))
+                .then(if (isToday && !ran) Modifier.border(2.dp, DallimColors.Primary, CircleShape) else Modifier),
+        )
+        Text(
+            text = label,
+            style = DallimTypography.Caption,
+            color = if (isToday) DallimColors.TextPrimary else DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/**
+ * 자유 러닝 시작(S-20, routeId 없음)이 이 화면의 유일한 Primary 액션이다(docs/04-ui-guide.md §2).
+ * 코스를 고르려면 아래 텍스트 링크로 탐색 탭으로 간다.
+ */
+@Composable
+private fun StartBlock(onStartClick: () -> Unit, onPickCourseClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(START_HALO_SIZE)
+                .clip(CircleShape)
+                .background(DallimColors.PrimaryLight),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(START_BUTTON_SIZE)
+                    .clip(CircleShape)
+                    .background(DallimColors.Primary)
+                    .clickable(onClick = onStartClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "시작", style = DallimTypography.Title1, color = DallimColors.Surface)
+            }
+        }
+        DallimTextButton(text = "코스 고르기  \u203A", onClick = onPickCourseClick, modifier = Modifier.padding(top = Spacing.xs))
+    }
+}
+
+private val START_HALO_SIZE = 168.dp
+private val START_BUTTON_SIZE = 136.dp
+
+/** 오늘의 추천 코스 + 저장한 코스를 한 줄 가로 목록으로 — 카드 껍데기 없이 썸네일과 글자만 둔다. */
+@Composable
+private fun CoursesSection(
+    todaySketch: TodaySketch?,
+    savedRoutes: List<SavedRouteItem>,
+    onRouteClick: (String) -> Unit,
+    onSeeAllSavedRoutesClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tiles = buildList {
+        if (todaySketch != null) {
+            add(
+                CourseTile(
+                    routeId = todaySketch.routeId,
+                    name = todaySketch.name,
+                    emoji = todaySketch.emoji,
+                    caption = "오늘의 추천 \u00b7 ${RunFormat.km(todaySketch.distanceKm)}km",
+                    thumbnailGeoJson = todaySketch.thumbnailGeoJson,
+                ),
+            )
+        }
+        savedRoutes
+            .filter { it.routeId != todaySketch?.routeId }
+            .forEach {
+                add(
+                    CourseTile(
+                        routeId = it.routeId,
+                        name = it.name,
+                        emoji = it.emoji,
+                        caption = "저장 \u00b7 ${RunFormat.km(it.distanceKm)}km",
+                        thumbnailGeoJson = it.thumbnailGeoJson,
+                    ),
+                )
+            }
+    }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "추천 코스", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+            DallimTextButton(text = "저장한 코스", onClick = onSeeAllSavedRoutesClick)
+        }
+        if (tiles.isEmpty()) {
+            Text(
+                text = "아직 추천할 코스가 없어요",
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal),
+            )
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                items(tiles, key = { it.routeId }) { tile -> CourseTileView(tile, onClick = { onRouteClick(tile.routeId) }) }
+            }
+        }
+    }
+}
+
+private data class CourseTile(
+    val routeId: String,
+    val name: String,
+    val emoji: String,
+    val caption: String,
+    val thumbnailGeoJson: GeoJsonLineString,
+)
+
+@Composable
+private fun CourseTileView(tile: CourseTile, onClick: () -> Unit) {
+    Column(modifier = Modifier.width(COURSE_TILE_WIDTH).clickable(onClick = onClick)) {
+        RouteThumbnailView(coordinates = tile.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.sm)) {
+            // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
+            Text(text = tile.emoji, style = DallimTypography.Body)
+            Text(
+                text = tile.name,
+                style = DallimTypography.Body,
+                color = DallimColors.TextPrimary,
+                modifier = Modifier.padding(start = Spacing.xs),
+            )
+        }
+        Text(
+            text = tile.caption,
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+private val COURSE_TILE_WIDTH = 148.dp
+
+/** 최근 달림은 카드 대신 구분선 목록 [썸네일 | 이름·날짜 | 거리] — 같은 카드가 연달아 반복되지 않게. */
+@Composable
+private fun RecentRunsSection(recentRuns: List<RecentRun>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = "최근 달림",
+            style = DallimTypography.Title2,
+            color = DallimColors.TextPrimary,
+            modifier = Modifier.padding(bottom = Spacing.sm),
+        )
+        if (recentRuns.isEmpty()) {
+            Text(
+                text = "아직 달린 기록이 없어요. 위의 시작 버튼으로 첫 달림을 남겨보세요.",
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+            )
+            return
+        }
+        recentRuns.forEachIndexed { index, run ->
+            if (index > 0) HorizontalDivider(color = DallimColors.Border)
+            RecentRunRow(run)
+        }
+    }
+}
+
+@Composable
+private fun RecentRunRow(run: RecentRun) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RouteThumbnailView(
+            coordinates = run.thumbnailGeoJson.toGeoPoints(),
+            modifier = Modifier.width(56.dp),
+            cornerRadius = 12.dp,
+        )
+        Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
+            Text(
+                text = listOfNotNull(run.emoji, run.routeName).joinToString(" "),
+                style = DallimTypography.Body,
+                color = DallimColors.TextPrimary,
+            )
+            Text(
+                text = run.completedAt.toShortDateLabel(),
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+        Text(
+            text = "${RunFormat.km(run.distanceKm)}km",
+            style = DallimTypography.Title2,
+            color = DallimColors.TextPrimary,
+        )
     }
 }
 
@@ -243,188 +456,6 @@ private fun NotificationBellButton(unreadCount: Int, onClick: () -> Unit) {
     }
 }
 
-private val HERO_THUMBNAIL_WIDTH = 120.dp
-
-@Composable
-private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Unit, onFreeRunClick: () -> Unit) {
-    SectionHeader(title = "오늘의 달림", modifier = Modifier.padding(top = Spacing.lg))
-    if (todaySketch == null) {
-        DallimCard {
-            Text(
-                text = "오늘 추천할 코스가 아직 없어요",
-                style = DallimTypography.Body,
-                color = DallimColors.TextSecondary,
-            )
-        }
-        DallimSecondaryButton(
-            text = "코스 없이 바로 달리기",
-            onClick = onFreeRunClick,
-            modifier = Modifier.padding(top = Spacing.sm),
-        )
-        return
-    }
-
-    // 썸네일이 카드 가로 전체를 차지해 첫 화면의 절반 이상을 먹던 것을 [썸네일 | 텍스트블록] 가로
-    // 배치로 줄였다(docs/04-ui-guide.md §5 리스트형 기본 구조, §1 "여백을 두려워하지 말 것").
-    DallimCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RouteThumbnailView(
-                coordinates = todaySketch.thumbnailGeoJson.toGeoPoints(),
-                useGradient = true,
-                modifier = Modifier.width(HERO_THUMBNAIL_WIDTH),
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = Spacing.md),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
-                    Text(text = todaySketch.emoji, style = DallimTypography.Title2)
-                    Text(
-                        text = todaySketch.name,
-                        style = DallimTypography.Title2,
-                        color = DallimColors.TextPrimary,
-                        modifier = Modifier.padding(start = Spacing.xs),
-                    )
-                }
-                Text(
-                    text = "${RunFormat.km(todaySketch.distanceKm)}km · 약 ${todaySketch.estimatedMinutes}분",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                    modifier = Modifier.padding(top = Spacing.xs),
-                )
-                DallimPrimaryButton(
-                    text = "코스 보기",
-                    onClick = { onRouteClick(todaySketch.routeId) },
-                    modifier = Modifier.padding(top = Spacing.md),
-                )
-            }
-        }
-    }
-    // 자유 러닝(2026-09-26) 진입점 — 코스를 고르지 않고 바로 시작. 주 CTA("코스 보기")와 구분되는 보조 버튼.
-    DallimSecondaryButton(
-        text = "코스 없이 바로 달리기",
-        onClick = onFreeRunClick,
-        modifier = Modifier.padding(top = Spacing.sm),
-    )
-}
-
-@Composable
-private fun RecentRunsSection(recentRuns: List<RecentRun>) {
-    if (recentRuns.isEmpty()) {
-        DallimCard {
-            Text(text = "아직 달린 기록이 없어요", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-            Text(
-                text = "코스를 하나 골라 오늘 첫 달림을 기록해보세요.",
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-        }
-        return
-    }
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        contentPadding = PaddingValues(vertical = Spacing.xs),
-    ) {
-        items(recentRuns) { run -> RecentRunCard(run) }
-    }
-}
-
-/**
- * 최근 달림도 "코스 카드"라 [RouteThumbnailView]가 필수다(docs/03-design-system.md §3.2) —
- * 2026-09-26까지는 `GET /home`의 `recentRuns`에 route 정보가 없어 거리/날짜만 보이는 텍스트
- * 전용 카드였다(design system 규칙 위반 상태). 백엔드가 route를 조인해 내려주도록 고쳐 Hero
- * 카드와 같은 [썸네일 → 이모지+이름 → 캡션] 구성으로 맞췄다.
- */
-@Composable
-private fun RecentRunCard(run: RecentRun) {
-    Column(
-        modifier = Modifier
-            .width(120.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(DallimColors.Surface)
-            .padding(Spacing.sm),
-    ) {
-        RouteThumbnailView(coordinates = run.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = Spacing.sm),
-        ) {
-            // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
-            Text(text = run.emoji, style = DallimTypography.Body)
-            Text(
-                text = run.routeName,
-                style = DallimTypography.Body,
-                color = DallimColors.TextPrimary,
-                modifier = Modifier.padding(start = Spacing.xs),
-            )
-        }
-        Text(
-            text = "${RunFormat.km(run.distanceKm)}km · ${run.completedAt.toShortDateLabel()}",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-    }
-}
-
-@Composable
-private fun SavedRoutesPreviewSection(savedRoutes: List<SavedRouteItem>, onRouteClick: (String) -> Unit) {
-    if (savedRoutes.isEmpty()) {
-        DallimCard {
-            Text(text = "아직 저장한 코스가 없어요", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-            Text(
-                text = "탐색에서 마음에 드는 코스를 저장해보세요.",
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-        }
-        return
-    }
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        contentPadding = PaddingValues(vertical = Spacing.xs),
-    ) {
-        items(savedRoutes) { route -> SavedRoutePreviewCard(route, onClick = { onRouteClick(route.routeId) }) }
-    }
-}
-
-/** [RecentRunCard]와 동일한 이유로 썸네일을 필수로 쓴다(docs/03-design-system.md §3.2). */
-@Composable
-private fun SavedRoutePreviewCard(route: SavedRouteItem, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .width(120.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(DallimColors.Surface)
-            .clickable { onClick() }
-            .padding(Spacing.sm),
-    ) {
-        RouteThumbnailView(coordinates = route.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = Spacing.sm),
-        ) {
-            Text(text = route.emoji, style = DallimTypography.Body)
-            Text(
-                text = route.name,
-                style = DallimTypography.Body,
-                color = DallimColors.TextPrimary,
-                modifier = Modifier.padding(start = Spacing.xs),
-            )
-        }
-        Text(
-            text = "${RunFormat.km(route.distanceKm)}km",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-    }
-}
-
 private fun GeoJsonLineString.toGeoPoints(): List<GeoPoint> =
     toLngLatPairs().map { (lng, lat) -> GeoPoint(lng = lng, lat = lat) }
 
@@ -455,6 +486,7 @@ private fun HomeScreenPreview() {
                         ),
                     ),
                     continueRoutes = emptyList(),
+                    weekSummary = WeekSummary(distanceKm = 11.3, runCount = 3, runDays = listOf(1, 3, 4), todayDayOfWeek = 5),
                     recentRuns = listOf(
                         RecentRun(
                             runId = "run_101",

@@ -10,6 +10,7 @@ import com.dallim.run.RunRepository
 class HomeService(
     private val routeService: RouteService,
     private val runRepository: RunRepository,
+    private val clock: java.time.Clock = java.time.Clock.systemUTC(),
 ) {
 
     /**
@@ -62,11 +63,26 @@ class HomeService(
             todaySketch = todaySketch,
             continueRoutes = continueRoutes,
             recentRuns = recentRuns,
+            weekSummary = weekSummary(userId, clock.instant()),
+        )
+    }
+
+    /** 월요일 00:00(Asia/Seoul)부터 지금까지의 완주 기록으로 요일/거리를 집계한다. */
+    private fun weekSummary(userId: String, now: java.time.Instant): HomeWeekSummary {
+        val today = now.atZone(KST).toLocalDate()
+        val weekStart = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        val rows = runRepository.findCompletedRunsSince(userId, weekStart.atStartOfDay(KST).toInstant())
+        return HomeWeekSummary(
+            distanceKm = Math.round(rows.sumOf { it.distanceKm } * 100) / 100.0,
+            runCount = rows.size,
+            runDays = rows.map { it.finishedAt.atZone(KST).dayOfWeek.value }.distinct().sorted(),
+            todayDayOfWeek = today.dayOfWeek.value,
         )
     }
 
     private companion object {
         const val CONTINUE_ROUTES_LIMIT = 5
         const val RECENT_RUNS_LIMIT = 3
+        val KST: java.time.ZoneId = java.time.ZoneId.of("Asia/Seoul")
     }
 }
