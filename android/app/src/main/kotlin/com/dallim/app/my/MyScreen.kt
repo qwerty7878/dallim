@@ -1,6 +1,7 @@
 package com.dallim.app.my
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -27,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -40,7 +44,7 @@ import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
-import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.DallimTab
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
@@ -151,23 +155,28 @@ private fun MyScreen(
                 is MyUiState.Success -> Column(
                     modifier = Modifier
                         .weight(1f)
+                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = Spacing.ScreenHorizontal),
                 ) {
                     ProfileCard(user = uiState.user, onEditClick = onEditProfileClick)
 
-                    DallimbookEntryCard(onClick = onDallimbookClick, modifier = Modifier.padding(top = Spacing.lg))
+                    // 진입점 4개가 각각 큰 카드 4장이던 것을 카드 하나 + 구분선 목록으로 합쳤다
+                    // (docs/04-ui-guide.md §4 반복 카드 지양, §2 위계 — 아이콘도 강조색 대신 보조색).
+                    DallimCard(modifier = Modifier.padding(top = Spacing.lg)) {
+                        MenuRow(Icons.AutoMirrored.Filled.MenuBook, "달림북", "완주한 GPS 그림을 모아보세요", onDallimbookClick)
+                        MenuDivider()
+                        MenuRow(Icons.Filled.EmojiEvents, "완주 메달 선반", "대회 완주 이력을 모아보세요", onMedalShelfClick)
+                        MenuDivider()
+                        MenuRow(Icons.Filled.Groups, "러닝메이트", "같이 달린 러너와의 인연을 확인해보세요", onRunningMatesClick)
+                        MenuDivider()
+                        MenuRow(Icons.Filled.Block, "차단 관리", "채팅에서 차단한 사용자를 관리하세요", onBlockedUsersClick)
+                    }
 
-                    MedalShelfEntryCard(onClick = onMedalShelfClick, modifier = Modifier.padding(top = Spacing.md))
-
-                    RunningMatesEntryCard(onClick = onRunningMatesClick, modifier = Modifier.padding(top = Spacing.md))
-
-                    BlockedUsersEntryCard(onClick = onBlockedUsersClick, modifier = Modifier.padding(top = Spacing.md))
-
-                    DallimSecondaryButton(
+                    DallimTextButton(
                         text = if (uiState.isLoggingOut) "로그아웃 중…" else "로그아웃",
                         onClick = onLogoutClick,
                         enabled = !uiState.isLoggingOut,
-                        modifier = Modifier.padding(top = Spacing.xl),
+                        modifier = Modifier.padding(top = Spacing.lg).align(Alignment.CenterHorizontally),
                     )
                 }
             }
@@ -182,6 +191,19 @@ private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
             AvatarBadge(avatarId = user.avatarId)
             Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
                 Text(text = user.nickname, style = DallimTypography.Title1, color = DallimColors.TextPrimary)
+                // 경력/편안한 페이스는 통계가 아니라 설정값이라 닉네임 아래 한 줄 보조 텍스트로 내렸다.
+                val profileLine = listOfNotNull(
+                    user.runningExperience.toRunningExperienceLabel(),
+                    user.comfortablePace.toComfortablePaceLabel()?.let { "페이스 ${it.replace(" ~ ", "~")}" },
+                ).joinToString(" · ")
+                if (profileLine.isNotEmpty()) {
+                    Text(
+                        text = profileLine,
+                        style = DallimTypography.Caption,
+                        color = DallimColors.TextSecondary,
+                        modifier = Modifier.padding(top = Spacing.xs),
+                    )
+                }
             }
             IconButton(onClick = onEditClick) {
                 Icon(
@@ -200,19 +222,6 @@ private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
         Row(modifier = Modifier.fillMaxWidth()) {
             StatItem(label = "총 러닝 횟수", value = "${user.totalRuns}회", modifier = Modifier.weight(1f))
             StatItem(label = "총 거리", value = "%.1fkm".format(user.totalDistanceKm), modifier = Modifier.weight(1f))
-        }
-
-        val experienceLabel = user.runningExperience.toRunningExperienceLabel()
-        val paceLabel = user.comfortablePace.toComfortablePaceLabel()
-        if (experienceLabel != null || paceLabel != null) {
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = Spacing.md),
-                color = DallimColors.Border,
-            )
-            Row(modifier = Modifier.fillMaxWidth()) {
-                StatItem(label = "러닝 경력", value = experienceLabel ?: "미설정", modifier = Modifier.weight(1f))
-                StatItem(label = "편안한 페이스", value = paceLabel ?: "미설정", modifier = Modifier.weight(1f))
-            }
         }
     }
 }
@@ -253,93 +262,30 @@ private fun AvatarBadge(avatarId: String) {
 }
 
 /**
- * S-40 달림북 진입점 (2026-09-16 재편, 사용자 지시) — 바텀탭이 UI/UX상 4~5개가 적정하다는
- * 지적과 "달림북은 내 기록이니 마이 안에 있는 게 자연스럽다"는 지시에 따라 최상위 탭에서
- * 빼서 여기 카드 하나로 옮겼다. 아이콘은 기존 바텀탭에서 쓰던 것과 동일한
- * [Icons.AutoMirrored.Filled.MenuBook]을 그대로 쓴다.
+ * 마이 메뉴 한 줄 — [아이콘 | 제목+설명 | ▸]. 진입점 목록: 달림북(S-40, 2026-09-16 탭에서 이동),
+ * 완주 메달 선반(S-91), 러닝메이트(S-39, docs/02-api-spec.md 17.17), 차단 관리(18.2).
  */
 @Composable
-private fun DallimbookEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = DallimColors.Primary)
-            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
-                Text(text = "달림북", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-                Text(
-                    text = "완주한 GPS 그림을 모아보세요",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                )
-            }
-            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+private fun MenuRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = DallimColors.TextSecondary)
+        Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
+            Text(text = title, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            Text(text = subtitle, style = DallimTypography.Caption, color = DallimColors.TextSecondary)
         }
+        Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
     }
 }
 
-/**
- * S-91(완주 메달 선반) 진입점 — 새 탭을 만들지 않고 마이(S-42)에 카드 하나로 추가한다
- * (docs/달림_화면별_상세기획서_v1.3.md PART 3-H, 작업 브리핑 "새 탭 만들지 말 것" 원칙).
- */
 @Composable
-private fun MedalShelfEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Filled.EmojiEvents, contentDescription = null, tint = DallimColors.Primary)
-            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
-                Text(text = "완주 메달 선반", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-                Text(
-                    text = "대회 완주 이력을 모아보세요",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                )
-            }
-            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
-        }
-    }
-}
-
-/**
- * S-39 Running Mate 목록 진입점 (2026-09-15 신규, docs/02-api-spec.md 17.17) — [MedalShelfEntryCard]
- * 와 동일한 관례로 마이(S-42)에 카드 하나만 추가한다(새 탭을 만들지 않는다는 원칙 유지).
- */
-@Composable
-private fun RunningMatesEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Filled.Groups, contentDescription = null, tint = DallimColors.Primary)
-            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
-                Text(text = "러닝메이트", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-                Text(
-                    text = "같이 달린 러너와의 인연을 확인해보세요",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                )
-            }
-            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
-        }
-    }
-}
-
-/**
- * 차단 관리 진입점 (2026-09-16 신규, docs/02-api-spec.md 18.2) — [RunningMatesEntryCard]와
- * 동일한 관례로 마이(S-42)에 카드 하나만 추가한다.
- */
-@Composable
-private fun BlockedUsersEntryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    DallimCard(onClick = onClick, modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Filled.Block, contentDescription = null, tint = DallimColors.Primary)
-            Column(modifier = Modifier.padding(start = Spacing.sm).weight(1f)) {
-                Text(text = "차단 관리", style = DallimTypography.Body, color = DallimColors.TextPrimary)
-                Text(
-                    text = "채팅에서 차단한 사용자를 관리하세요",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                )
-            }
-            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
-        }
-    }
+private fun MenuDivider() {
+    HorizontalDivider(color = DallimColors.Border)
 }
 
 @Composable
