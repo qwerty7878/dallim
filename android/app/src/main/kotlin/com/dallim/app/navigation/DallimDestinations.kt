@@ -67,13 +67,20 @@ object DallimDestinations {
     const val COURSE_DRAW = "s44_course_draw" // S-44
     const val COURSE_AI_GENERATE = "s45_course_ai_generate" // S-45
 
+    /**
+     * `routeId`는 옵셔널 쿼리 인자다(SOCIAL_SESSION_CREATE와 동일한 패턴) — 없으면 자유 러닝
+     * (2026-09-26, 사용자 요청: 코스를 먼저 고르지 않고 바로 달리기 시작, 완주 후 실제 궤적이
+     * 곧 그림 결과가 되는 나이키 런 클럽 스타일 모드).
+     */
     private const val RUN_PREPARE_BASE = "s20_run_prepare" // S-20
-    const val RUN_PREPARE = "$RUN_PREPARE_BASE/{$ARG_ROUTE_ID}"
-    fun runPrepare(routeId: String) = "$RUN_PREPARE_BASE/$routeId"
+    const val RUN_PREPARE = "$RUN_PREPARE_BASE?$ARG_ROUTE_ID={$ARG_ROUTE_ID}"
+    fun runPrepare(routeId: String? = null) =
+        if (routeId != null) "$RUN_PREPARE_BASE?$ARG_ROUTE_ID=$routeId" else RUN_PREPARE_BASE
 
     private const val RUN_NAVIGATION_BASE = "s21_run_navigation" // S-21 (also covers S-22/S-23/S-24 states)
-    const val RUN_NAVIGATION = "$RUN_NAVIGATION_BASE/{$ARG_RUN_ID}/{$ARG_ROUTE_ID}"
-    fun runNavigation(runId: String, routeId: String) = "$RUN_NAVIGATION_BASE/$runId/$routeId"
+    const val RUN_NAVIGATION = "$RUN_NAVIGATION_BASE/{$ARG_RUN_ID}?$ARG_ROUTE_ID={$ARG_ROUTE_ID}"
+    fun runNavigation(runId: String, routeId: String? = null) =
+        if (routeId != null) "$RUN_NAVIGATION_BASE/$runId?$ARG_ROUTE_ID=$routeId" else "$RUN_NAVIGATION_BASE/$runId"
 
     private const val RUN_RESULT_BASE = "s25_run_result" // S-25
     const val RUN_RESULT = "$RUN_RESULT_BASE/{$ARG_RUN_ID}"

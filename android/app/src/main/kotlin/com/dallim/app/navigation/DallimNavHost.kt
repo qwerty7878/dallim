@@ -507,7 +507,13 @@ fun DallimNavHost(
 
         composable(
             route = DallimDestinations.RUN_PREPARE,
-            arguments = listOf(navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument(DallimDestinations.ARG_ROUTE_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
         ) {
             RunPrepareRoute(
                 onStarted = { runId, routeId ->
@@ -523,7 +529,11 @@ fun DallimNavHost(
             route = DallimDestinations.RUN_NAVIGATION,
             arguments = listOf(
                 navArgument(DallimDestinations.ARG_RUN_ID) { type = NavType.StringType },
-                navArgument(DallimDestinations.ARG_ROUTE_ID) { type = NavType.StringType },
+                navArgument(DallimDestinations.ARG_ROUTE_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) {
             RunNavigationRoute(

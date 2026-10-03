@@ -62,7 +62,7 @@ import com.dallim.ui.theme.Spacing
  */
 @Composable
 fun RunPrepareRoute(
-    onStarted: (runId: String, routeId: String) -> Unit,
+    onStarted: (runId: String, routeId: String?) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RunPrepareViewModel = hiltViewModel(),
@@ -248,13 +248,24 @@ private fun ReadyContent(
             color = DallimColors.TextPrimary,
             modifier = Modifier.padding(top = Spacing.lg),
         )
-        Row(modifier = Modifier.padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = uiState.route.emoji, fontSize = 20.sp)
+        val route = uiState.route
+        if (route != null) {
+            Row(modifier = Modifier.padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = route.emoji, fontSize = 20.sp)
+                Text(
+                    text = "${route.name} · ${RunFormat.km(route.distanceKm)}km",
+                    style = DallimTypography.Body,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(start = Spacing.xs),
+                )
+            }
+        } else {
+            // 자유 러닝(2026-09-26, 사용자 요청) — 목표 코스 없이 바로 시작.
             Text(
-                text = "${uiState.route.name} · ${RunFormat.km(uiState.route.distanceKm)}km",
+                text = "자유 러닝 · 달린 만큼이 그림이 돼요",
                 style = DallimTypography.Body,
                 color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(start = Spacing.xs),
+                modifier = Modifier.padding(top = Spacing.xs),
             )
         }
 
@@ -395,6 +406,29 @@ private fun RunPrepareScreenPreview() {
                 gpsAccuracyM = 8f,
                 isBatteryOptimizationIgnored = false,
                 hasBackgroundLocationPermission = false,
+            ),
+            onBackClick = {},
+            onRetryClick = {},
+            onRefreshGpsClick = {},
+            onRequestBackgroundLocationClick = {},
+            onRequestBatteryOptimizationClick = {},
+            onStartRunClick = {},
+            onCancelCountdown = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 900)
+@Composable
+private fun RunPrepareScreenFreeformPreview() {
+    DallimTheme {
+        RunPrepareScreen(
+            uiState = RunPrepareUiState.Ready(
+                route = null,
+                gpsSignal = GpsSignalStrength.STRONG,
+                gpsAccuracyM = 8f,
+                isBatteryOptimizationIgnored = true,
+                hasBackgroundLocationPermission = true,
             ),
             onBackClick = {},
             onRetryClick = {},

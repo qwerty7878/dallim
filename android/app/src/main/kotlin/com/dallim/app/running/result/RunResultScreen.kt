@@ -1,6 +1,7 @@
 package com.dallim.app.running.result
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,20 +12,28 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.run.RunDetailResponseBody
+import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
@@ -57,13 +66,20 @@ fun RunResultRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedFeedbackTags by viewModel.selectedFeedbackTags.collectAsStateWithLifecycle()
     val feedbackTagsSubmitted by viewModel.feedbackTagsSubmitted.collectAsStateWithLifecycle()
+    val registerRouteState by viewModel.registerRouteState.collectAsStateWithLifecycle()
 
     RunResultScreen(
         uiState = uiState,
         selectedFeedbackTags = selectedFeedbackTags,
         feedbackTagsSubmitted = feedbackTagsSubmitted,
+        registerRouteState = registerRouteState,
         onFeedbackTagToggle = viewModel::toggleFeedbackTag,
         onFeedbackTagsSubmit = viewModel::submitFeedbackTags,
+        onRegisterRouteStartClick = viewModel::onRegisterRouteStartClick,
+        onRegisterRouteNameChange = viewModel::onRegisterRouteNameChange,
+        onRegisterRouteEmojiSelect = viewModel::onRegisterRouteEmojiSelect,
+        onRegisterRouteCancel = viewModel::onRegisterRouteCancel,
+        onRegisterRouteConfirm = viewModel::onRegisterRouteConfirm,
         onShareClick = { onShareClick(viewModel.runId) },
         onDoneClick = onDoneClick,
         onRetryClick = viewModel::load,
@@ -76,8 +92,14 @@ private fun RunResultScreen(
     uiState: RunResultUiState,
     selectedFeedbackTags: Set<String>,
     feedbackTagsSubmitted: Boolean,
+    registerRouteState: RegisterRouteUiState,
     onFeedbackTagToggle: (String) -> Unit,
     onFeedbackTagsSubmit: () -> Unit,
+    onRegisterRouteStartClick: () -> Unit,
+    onRegisterRouteNameChange: (String) -> Unit,
+    onRegisterRouteEmojiSelect: (String) -> Unit,
+    onRegisterRouteCancel: () -> Unit,
+    onRegisterRouteConfirm: () -> Unit,
     onShareClick: () -> Unit,
     onDoneClick: () -> Unit,
     onRetryClick: () -> Unit,
@@ -104,8 +126,14 @@ private fun RunResultScreen(
                         run = uiState.run,
                         selectedFeedbackTags = selectedFeedbackTags,
                         feedbackTagsSubmitted = feedbackTagsSubmitted,
+                        registerRouteState = registerRouteState,
                         onFeedbackTagToggle = onFeedbackTagToggle,
                         onFeedbackTagsSubmit = onFeedbackTagsSubmit,
+                        onRegisterRouteStartClick = onRegisterRouteStartClick,
+                        onRegisterRouteNameChange = onRegisterRouteNameChange,
+                        onRegisterRouteEmojiSelect = onRegisterRouteEmojiSelect,
+                        onRegisterRouteCancel = onRegisterRouteCancel,
+                        onRegisterRouteConfirm = onRegisterRouteConfirm,
                     )
                 }
                 Row(
@@ -123,15 +151,27 @@ private fun RunResultScreen(
     }
 }
 
+/**
+ * [run.routeId]가 null이면 자유 러닝(2026-09-26, 사용자 요청) 결과다 — Match/커버리지 %와
+ * "이 코스 어땠나요" 코스 평가는 목표 코스가 있어야 의미가 있는 지표라 둘 다 숨기고, 대신
+ * "이 경로를 코스로 등록" 섹션을 보여준다.
+ */
 @Composable
 private fun ResultContent(
     run: RunDetailResponseBody,
     selectedFeedbackTags: Set<String>,
     feedbackTagsSubmitted: Boolean,
+    registerRouteState: RegisterRouteUiState,
     onFeedbackTagToggle: (String) -> Unit,
     onFeedbackTagsSubmit: () -> Unit,
+    onRegisterRouteStartClick: () -> Unit,
+    onRegisterRouteNameChange: (String) -> Unit,
+    onRegisterRouteEmojiSelect: (String) -> Unit,
+    onRegisterRouteCancel: () -> Unit,
+    onRegisterRouteConfirm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isFreeform = run.routeId == null
     Column(modifier = modifier.padding(top = Spacing.xl)) {
         RunResultCanvas(
             coordinates = run.actualGeoJson.toGeoPoints(),
@@ -151,7 +191,7 @@ private fun ResultContent(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "${run.routeName} 그리기 완료",
+                text = if (isFreeform) "자유 러닝 완료" else "${run.routeName} 그리기 완료",
                 style = DallimTypography.Body,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
@@ -171,23 +211,131 @@ private fun ResultContent(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 RunStatusBadge(status = run.status.toRunStatus())
-                Text(
-                    text = "Match ${run.sketchMatchPercent}% · 커버리지 ${run.routeCompletionPercent}%",
-                    style = DallimTypography.Caption,
-                    color = DallimColors.TextSecondary,
-                )
+                if (!isFreeform) {
+                    Text(
+                        text = "Match ${run.sketchMatchPercent}% · 커버리지 ${run.routeCompletionPercent}%",
+                        style = DallimTypography.Caption,
+                        color = DallimColors.TextSecondary,
+                    )
+                }
             }
         }
 
-        FeedbackTagsSection(
-            selectedTags = selectedFeedbackTags,
-            submitted = feedbackTagsSubmitted,
-            onTagToggle = onFeedbackTagToggle,
-            onSubmit = onFeedbackTagsSubmit,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.xl, start = Spacing.ScreenHorizontal, end = Spacing.ScreenHorizontal),
-        )
+        if (isFreeform) {
+            RegisterRouteSection(
+                state = registerRouteState,
+                onStartClick = onRegisterRouteStartClick,
+                onNameChange = onRegisterRouteNameChange,
+                onEmojiSelect = onRegisterRouteEmojiSelect,
+                onCancel = onRegisterRouteCancel,
+                onConfirm = onRegisterRouteConfirm,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xl, start = Spacing.ScreenHorizontal, end = Spacing.ScreenHorizontal),
+            )
+        } else {
+            FeedbackTagsSection(
+                selectedTags = selectedFeedbackTags,
+                submitted = feedbackTagsSubmitted,
+                onTagToggle = onFeedbackTagToggle,
+                onSubmit = onFeedbackTagsSubmit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xl, start = Spacing.ScreenHorizontal, end = Spacing.ScreenHorizontal),
+            )
+        }
+    }
+}
+
+/**
+ * 2026-09-26, 사용자 요청 — 자유 러닝을 완주한 뒤 그 궤적을 새 코스로 공개 등록하는 섹션.
+ * 필터 없이 즉시 공개된다(UGC 모더레이션은 이번 라운드에 없음, CLAUDE.md 2026-09-26 결정).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RegisterRouteSection(
+    state: RegisterRouteUiState,
+    onStartClick: () -> Unit,
+    onNameChange: (String) -> Unit,
+    onEmojiSelect: (String) -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        SectionHeader(title = "이 경로, 코스로 남길까요?")
+        when (state) {
+            is RegisterRouteUiState.Hidden -> DallimCard(onClick = onStartClick) {
+                Text(text = "이 경로를 코스로 등록", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "이름을 붙이면 다른 사람도 이 그림을 달려볼 수 있어요.",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+            is RegisterRouteUiState.Editing -> DallimCard {
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = onNameChange,
+                    placeholder = { Text("코스 이름 (예: 저녁 산책길)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.padding(top = Spacing.sm),
+                ) {
+                    ROUTE_EMOJI_OPTIONS.forEach { emoji ->
+                        EmojiChip(emoji = emoji, selected = emoji == state.emoji, onClick = { onEmojiSelect(emoji) })
+                    }
+                }
+                if (state.errorMessage != null) {
+                    Text(
+                        text = state.errorMessage,
+                        style = DallimTypography.Caption,
+                        color = DallimColors.Error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    DallimSecondaryButton(text = "취소", onClick = onCancel, modifier = Modifier.weight(1f))
+                    DallimPrimaryButton(
+                        text = if (state.isSubmitting) "등록 중..." else "등록하기",
+                        onClick = onConfirm,
+                        enabled = !state.isSubmitting,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            is RegisterRouteUiState.Registered -> DallimCard {
+                Text(text = "코스로 등록됐어요 🎉", style = DallimTypography.Body, color = DallimColors.TextPrimary)
+                Text(
+                    text = "탐색에서 다른 사람들도 이 코스를 찾을 수 있어요.",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmojiChip(emoji: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(if (selected) DallimColors.PrimaryLight else DallimColors.Background)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = emoji, style = DallimTypography.Title2)
     }
 }
 
@@ -281,8 +429,58 @@ private fun RunResultScreenPreview() {
             ),
             selectedFeedbackTags = emptySet(),
             feedbackTagsSubmitted = false,
+            registerRouteState = RegisterRouteUiState.Hidden,
             onFeedbackTagToggle = {},
             onFeedbackTagsSubmit = {},
+            onRegisterRouteStartClick = {},
+            onRegisterRouteNameChange = {},
+            onRegisterRouteEmojiSelect = {},
+            onRegisterRouteCancel = {},
+            onRegisterRouteConfirm = {},
+            onShareClick = {},
+            onDoneClick = {},
+            onRetryClick = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 1000)
+@Composable
+private fun RunResultScreenFreeformPreview() {
+    DallimTheme {
+        RunResultScreen(
+            uiState = RunResultUiState.Success(
+                run = RunDetailResponseBody(
+                    runId = "run_302",
+                    routeId = null,
+                    routeName = null,
+                    status = "COMPLETED",
+                    actualGeoJson = GeoJsonLineString(
+                        coordinates = listOf(
+                            listOf(127.05, 37.25),
+                            listOf(127.052, 37.253),
+                            listOf(127.055, 37.251),
+                        ),
+                    ),
+                    plannedGeoJson = null,
+                    distanceKm = 3.2,
+                    durationSeconds = 1200,
+                    averagePaceSecPerKm = 375,
+                    sketchMatchPercent = 0,
+                    routeCompletionPercent = 0,
+                    completedAt = "2026-09-26T09:34:38Z",
+                ),
+            ),
+            selectedFeedbackTags = emptySet(),
+            feedbackTagsSubmitted = false,
+            registerRouteState = RegisterRouteUiState.Editing(name = "저녁 산책길"),
+            onFeedbackTagToggle = {},
+            onFeedbackTagsSubmit = {},
+            onRegisterRouteStartClick = {},
+            onRegisterRouteNameChange = {},
+            onRegisterRouteEmojiSelect = {},
+            onRegisterRouteCancel = {},
+            onRegisterRouteConfirm = {},
             onShareClick = {},
             onDoneClick = {},
             onRetryClick = {},

@@ -49,8 +49,9 @@ class RunNavigationViewModel @Inject constructor(
 ) : ViewModel() {
 
     val runId: String = checkNotNull(savedStateHandle[DallimDestinations.ARG_RUN_ID]) { "runId 인자가 없습니다." }
-    private val routeId: String =
-        checkNotNull(savedStateHandle[DallimDestinations.ARG_ROUTE_ID]) { "routeId 인자가 없습니다." }
+
+    /** null이면 자유 러닝(2026-09-26, 사용자 요청) — 목표 코스가 없으니 계획 경로도 없다. */
+    private val routeId: String? = savedStateHandle[DallimDestinations.ARG_ROUTE_ID]
 
     private val _plannedRouteState = MutableStateFlow<UiResult<List<GeoPoint>>>(UiResult.Loading)
 
@@ -70,8 +71,18 @@ class RunNavigationViewModel @Inject constructor(
     }
 
     private fun loadRouteAndStartTracking() {
+        val currentRouteId = routeId
+        if (currentRouteId == null) {
+            // 자유 러닝 — 계획 경로가 없다(LocationTrackingService는 빈 리스트를 받으면 코스
+            // 이탈 검사를 하지 않는다, LocationTrackingService.onNewLocation 참고).
+            _plannedRouteState.value = UiResult.Success(emptyList())
+            if (repository.state.value.phase == RunPhase.IDLE) {
+                ContextCompat.startForegroundService(context, LocationTrackingService.startIntent(context, runId, emptyList()))
+            }
+            return
+        }
         viewModelScope.launch {
-            when (val result = safeApiCall { routeApi.getRouteDetail(routeId) }) {
+            when (val result = safeApiCall { routeApi.getRouteDetail(currentRouteId) }) {
                 is UiResult.Success -> {
                     val planned = result.data.geoJson.toLngLatPairs().map { (lng, lat) -> GeoPoint(lng, lat) }
                     _plannedRouteState.value = UiResult.Success(planned)

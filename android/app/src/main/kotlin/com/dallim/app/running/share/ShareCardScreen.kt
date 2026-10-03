@@ -96,7 +96,8 @@ fun ShareCardRoute(
                         ShareCardRenderer.render(
                             options = options,
                             actualRoute = run.actualGeoJson.toGeoPoints(),
-                            routeName = run.routeName,
+                            // 자유 러닝(2026-09-26, routeId == null)은 코스 이름이 없다.
+                            routeName = run.routeName ?: "자유 러닝",
                             routeEmoji = "🐳",
                             distanceKm = run.distanceKm,
                             durationSeconds = run.durationSeconds,

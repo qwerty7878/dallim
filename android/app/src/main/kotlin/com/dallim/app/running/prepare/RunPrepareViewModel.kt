@@ -29,8 +29,9 @@ sealed interface RunPrepareUiState {
     data object Loading : RunPrepareUiState
     data class Error(val message: String) : RunPrepareUiState
 
+    /** [route]가 null이면 자유 러닝(2026-09-26, 사용자 요청 — 코스 미선택 바로 시작)이다. */
     data class Ready(
-        val route: RouteDetailResponseBody,
+        val route: RouteDetailResponseBody?,
         val gpsSignal: GpsSignalStrength = GpsSignalStrength.CHECKING,
         val gpsAccuracyM: Float? = null,
         val isBatteryOptimizationIgnored: Boolean = false,
@@ -42,7 +43,7 @@ sealed interface RunPrepareUiState {
     ) : RunPrepareUiState
 
     /** 카운트다운 + 러닝 시작 API 성공 — 화면(Route)이 S-21로 내비게이션할 차례. */
-    data class Started(val runId: String, val routeId: String) : RunPrepareUiState
+    data class Started(val runId: String, val routeId: String?) : RunPrepareUiState
 }
 
 /**
@@ -66,8 +67,8 @@ class RunPrepareViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    val routeId: String =
-        checkNotNull(savedStateHandle[DallimDestinations.ARG_ROUTE_ID]) { "routeId 인자가 없습니다." }
+    /** null이면 자유 러닝(2026-09-26, 사용자 요청) — 코스를 먼저 고르지 않고 바로 시작한다. */
+    val routeId: String? = savedStateHandle[DallimDestinations.ARG_ROUTE_ID]
 
     private val _uiState = MutableStateFlow<RunPrepareUiState>(RunPrepareUiState.Loading)
     val uiState: StateFlow<RunPrepareUiState> = _uiState.asStateFlow()
@@ -79,9 +80,16 @@ class RunPrepareViewModel @Inject constructor(
     }
 
     fun load() {
+        val currentRouteId = routeId
+        if (currentRouteId == null) {
+            // 자유 러닝 — 조회할 코스가 없으니 바로 준비 상태로 진입한다.
+            _uiState.value = RunPrepareUiState.Ready(route = null)
+            checkGpsSignal()
+            return
+        }
         viewModelScope.launch {
             _uiState.value = RunPrepareUiState.Loading
-            when (val result = safeApiCall { routeApi.getRouteDetail(routeId) }) {
+            when (val result = safeApiCall { routeApi.getRouteDetail(currentRouteId) }) {
                 is UiResult.Success -> {
                     _uiState.value = RunPrepareUiState.Ready(route = result.data)
                     checkGpsSignal()
@@ -141,6 +149,7 @@ class RunPrepareViewModel @Inject constructor(
             updateReady { it.copy(isStarting = true, startError = null) }
             val request = StartRunRequest(
                 routeId = routeId,
+                mode = if (routeId == null) "FREE" else "SOLO",
                 startedAt = Instant.now().toString(),
                 clientDeviceInfo = ClientDeviceInfo(gpsAccuracyM = (lastGpsAccuracyM ?: 0f).toInt()),
             )

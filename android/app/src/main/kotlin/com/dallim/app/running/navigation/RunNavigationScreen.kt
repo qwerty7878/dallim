@@ -182,17 +182,23 @@ private fun TrackingContent(
             }
         }
 
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            RunProgressRing(progressPercent = snapshot.coveragePercent)
-            Text(
-                text = "그림 완성도",
-                style = DallimTypography.Body,
-                color = DallimColors.Surface.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = Spacing.sm),
-            )
+        // 자유 러닝(plannedRoute 없음, 2026-09-26 사용자 요청)은 목표 경로가 없어 "완성도"라는
+        // 개념 자체가 성립하지 않는다 — 링 자체를 숨긴다(0%로 표시하면 마치 실패한 것처럼 보임).
+        if (plannedRoute.isNotEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                RunProgressRing(progressPercent = snapshot.coveragePercent)
+                Text(
+                    text = "그림 완성도",
+                    style = DallimTypography.Body,
+                    color = DallimColors.Surface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
 
         Row(

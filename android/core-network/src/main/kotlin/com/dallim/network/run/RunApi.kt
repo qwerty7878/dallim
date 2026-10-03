@@ -50,14 +50,29 @@ interface RunApi {
         @Path("runId") runId: String,
         @Body request: FeedbackTagsRequestBody,
     ): Response<ApiResponse<FeedbackTagsResponseBody>>
+
+    /**
+     * 2026-09-26, 사용자 요청 — 자유 러닝(코스 미선택, 나이키 런 클럽처럼 바로 시작해 완주 후
+     * 실제 궤적이 그림이 되는 모드) 완주 결과를 새 코스로 공개 등록한다. [RunDetailResponseBody.routeId]가
+     * null인(자유 러닝) COMPLETED 결과에서만 호출 가능 — S-25 결과 화면 참고.
+     */
+    @POST("runs/{runId}/register-as-route")
+    suspend fun registerAsRoute(
+        @Path("runId") runId: String,
+        @Body request: RegisterRouteRequestBody,
+    ): Response<ApiResponse<RegisterRouteResponseBody>>
 }
 
 @Serializable
 data class ClientDeviceInfo(val gpsAccuracyM: Int)
 
+/**
+ * [routeId]가 null이면 자유 러닝(2026-09-26, 사용자 요청)이다 — 코스를 먼저 고르지 않고 바로
+ * 달리기 시작, 완주 후 실제 궤적이 곧 그림 결과가 된다.
+ */
 @Serializable
 data class StartRunRequest(
-    val routeId: String,
+    val routeId: String? = null,
     val mode: String = "SOLO",
     val startedAt: String,
     val clientDeviceInfo: ClientDeviceInfo,
@@ -110,14 +125,18 @@ data class FeedbackTagsRequestBody(val tags: List<String>)
 @Serializable
 data class FeedbackTagsResponseBody(val runId: String, val tags: List<String>)
 
+/**
+ * 자유 러닝(2026-09-26)이면 [routeId]/[routeName]/[plannedGeoJson]이 전부 null이다.
+ * [registeredRouteId]는 이미 "코스로 등록"됐다면 그 코스 id (자유 러닝에서만 의미 있음).
+ */
 @Serializable
 data class RunDetailResponseBody(
     val runId: String,
-    val routeId: String,
-    val routeName: String,
+    val routeId: String? = null,
+    val routeName: String? = null,
     val status: String,
     val actualGeoJson: GeoJsonLineString,
-    val plannedGeoJson: GeoJsonLineString,
+    val plannedGeoJson: GeoJsonLineString? = null,
     val distanceKm: Double,
     val durationSeconds: Int,
     val averagePaceSecPerKm: Int,
@@ -125,4 +144,11 @@ data class RunDetailResponseBody(
     val routeCompletionPercent: Int,
     val completedAt: String,
     val stepCount: Int? = null,
+    val registeredRouteId: String? = null,
 )
+
+@Serializable
+data class RegisterRouteRequestBody(val name: String, val emoji: String)
+
+@Serializable
+data class RegisterRouteResponseBody(val routeId: String)

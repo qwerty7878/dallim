@@ -166,8 +166,15 @@ class LocationTrackingService : LifecycleService() {
         val nowMillis = System.currentTimeMillis()
 
         // S-23: 계획 경로 대비 이격거리는 기록 필터와 무관하게 매 위치 콜백마다 즉시 반응해야 한다.
-        val distanceToRoute = RouteDeviationChecker.distanceToRouteMeters(point, plannedRoute)
-        val isOffRoute = deviationTracker.onLocation(distanceToRoute, nowMillis)
+        // 자유 러닝(plannedRoute가 비어있음, 2026-09-26 사용자 요청)은 목표 경로 자체가 없으므로
+        // "이탈"이라는 개념이 성립하지 않는다 — distanceToRouteMeters는 빈 경로에 Double.MAX_VALUE를
+        // 반환해 방치하면 시작하자마자 이탈 상태가 되므로 여기서 명시적으로 걸러낸다.
+        val isOffRoute = if (plannedRoute.isEmpty()) {
+            false
+        } else {
+            val distanceToRoute = RouteDeviationChecker.distanceToRouteMeters(point, plannedRoute)
+            deviationTracker.onLocation(distanceToRoute, nowMillis)
+        }
 
         val previous = lastRecordedPoint
         val movedEnough = previous == null ||
