@@ -243,6 +243,8 @@ private fun NotificationBellButton(unreadCount: Int, onClick: () -> Unit) {
     }
 }
 
+private val HERO_THUMBNAIL_WIDTH = 120.dp
+
 @Composable
 private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Unit, onFreeRunClick: () -> Unit) {
     SectionHeader(title = "오늘의 달림", modifier = Modifier.padding(top = Spacing.lg))
@@ -262,36 +264,43 @@ private fun HeroSection(todaySketch: TodaySketch?, onRouteClick: (String) -> Uni
         return
     }
 
+    // 썸네일이 카드 가로 전체를 차지해 첫 화면의 절반 이상을 먹던 것을 [썸네일 | 텍스트블록] 가로
+    // 배치로 줄였다(docs/04-ui-guide.md §5 리스트형 기본 구조, §1 "여백을 두려워하지 말 것").
     DallimCard {
-        RouteThumbnailView(
-            coordinates = todaySketch.thumbnailGeoJson.toGeoPoints(),
-            useGradient = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(
-            modifier = Modifier.padding(top = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
-            Text(text = todaySketch.emoji, style = DallimTypography.Title2)
-            Text(
-                text = todaySketch.name,
-                style = DallimTypography.Title2,
-                color = DallimColors.TextPrimary,
-                modifier = Modifier.padding(start = Spacing.xs),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RouteThumbnailView(
+                coordinates = todaySketch.thumbnailGeoJson.toGeoPoints(),
+                useGradient = true,
+                modifier = Modifier.width(HERO_THUMBNAIL_WIDTH),
             )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = Spacing.md),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
+                    Text(text = todaySketch.emoji, style = DallimTypography.Title2)
+                    Text(
+                        text = todaySketch.name,
+                        style = DallimTypography.Title2,
+                        color = DallimColors.TextPrimary,
+                        modifier = Modifier.padding(start = Spacing.xs),
+                    )
+                }
+                Text(
+                    text = "${RunFormat.km(todaySketch.distanceKm)}km · 약 ${todaySketch.estimatedMinutes}분",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+                DallimPrimaryButton(
+                    text = "코스 보기",
+                    onClick = { onRouteClick(todaySketch.routeId) },
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+            }
         }
-        Text(
-            text = "${RunFormat.km(todaySketch.distanceKm)}km · 약 ${todaySketch.estimatedMinutes}분",
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        DallimPrimaryButton(
-            text = "코스 보기",
-            onClick = { onRouteClick(todaySketch.routeId) },
-            modifier = Modifier.padding(top = Spacing.md),
-        )
     }
     // 자유 러닝(2026-09-26) 진입점 — 코스를 고르지 않고 바로 시작. 주 CTA("코스 보기")와 구분되는 보조 버튼.
     DallimSecondaryButton(
