@@ -21,12 +21,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -55,6 +51,7 @@ import com.dallim.app.social.list.SocialSessionListViewModel
 import com.dallim.network.common.GeoJsonLineString
 import com.dallim.network.route.RouteListItem
 import com.dallim.ui.components.DallimBottomNavigation
+import com.dallim.ui.components.DallimDropdownText
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimFilterChip
@@ -343,46 +340,17 @@ private fun FilterSection(
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.weight(1f),
             )
-            DropdownText(
+            DallimDropdownText(
                 label = statusFilter.label,
                 options = RouteStatusFilter.entries.map { it.label },
                 onSelect = { onStatusFilterChange(RouteStatusFilter.entries[it]) },
             )
             Spacer(modifier = Modifier.width(Spacing.md))
-            DropdownText(
+            DallimDropdownText(
                 label = sort.label,
                 options = SortOption.entries.map { it.label },
                 onSelect = { onSortChange(SortOption.entries[it]) },
             )
-        }
-    }
-}
-
-@Composable
-private fun DropdownText(label: String, options: List<String>, onSelect: (Int) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.clickable { expanded = true }.padding(vertical = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = label, style = DallimTypography.Caption, color = DallimColors.TextPrimary)
-            Icon(
-                imageVector = Icons.Filled.ArrowDropDown,
-                contentDescription = null,
-                tint = DallimColors.TextSecondary,
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = { Text(text = option, style = DallimTypography.Body) },
-                    onClick = {
-                        expanded = false
-                        onSelect(index)
-                    },
-                )
-            }
         }
     }
 }

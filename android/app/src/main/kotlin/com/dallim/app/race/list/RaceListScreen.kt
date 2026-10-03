@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -35,6 +37,7 @@ import com.dallim.ui.components.DallimBottomNavigation
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
+import com.dallim.ui.components.DallimDropdownText
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTab
@@ -113,6 +116,7 @@ fun RaceListBody(
             .background(DallimColors.Background),
     ) {
         RaceFilterSection(
+            count = uiState.items.size,
             regionFilter = uiState.regionFilter,
             categoryFilter = uiState.categoryFilter,
             statusFilter = uiState.statusFilter,
@@ -159,6 +163,7 @@ fun RaceListBody(
 
 @Composable
 private fun RaceFilterSection(
+    count: Int,
     regionFilter: RaceRegionFilter,
     categoryFilter: RaceCategoryFilter,
     statusFilter: RaceStatusFilter,
@@ -173,37 +178,36 @@ private fun RaceFilterSection(
         ) {
             items(RaceRegionFilter.entries.toList()) { option ->
                 DallimFilterChip(
-                    label = option.label,
+                    label = if (option == RaceRegionFilter.ALL) "전체" else option.label,
                     selected = regionFilter == option,
                     onClick = { onRegionFilterChange(option) },
                 )
             }
         }
-        LazyRow(
-            modifier = Modifier.padding(top = Spacing.sm),
-            contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.ScreenHorizontal)
+                .padding(top = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(RaceCategoryFilter.entries.toList()) { option ->
-                DallimFilterChip(
-                    label = option.label,
-                    selected = categoryFilter == option,
-                    onClick = { onCategoryFilterChange(option) },
-                )
-            }
-        }
-        LazyRow(
-            modifier = Modifier.padding(top = Spacing.sm),
-            contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            items(RaceStatusFilter.entries.toList()) { option ->
-                DallimFilterChip(
-                    label = option.label,
-                    selected = statusFilter == option,
-                    onClick = { onStatusFilterChange(option) },
-                )
-            }
+            Text(
+                text = "대회 ${count}개",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            DallimDropdownText(
+                label = categoryFilter.label,
+                options = RaceCategoryFilter.entries.map { it.label },
+                onSelect = { onCategoryFilterChange(RaceCategoryFilter.entries[it]) },
+            )
+            Spacer(modifier = Modifier.width(Spacing.md))
+            DallimDropdownText(
+                label = statusFilter.label,
+                options = RaceStatusFilter.entries.map { it.label },
+                onSelect = { onStatusFilterChange(RaceStatusFilter.entries[it]) },
+            )
         }
     }
 }
@@ -226,10 +230,11 @@ private fun RaceCard(
                     modifier = Modifier.padding(top = Spacing.xs),
                 )
             }
+            // D-day는 강조색 대신 본문색 — 마감 지난 대회(D+)는 보조색으로 눌러 목록에서 "지금 볼 대회"가 먼저 보이게 한다.
             Text(
                 text = RaceFormat.dDayLabel(race.dDay),
                 style = DallimTypography.Title2,
-                color = DallimColors.Primary,
+                color = if (race.dDay >= 0) DallimColors.TextPrimary else DallimColors.TextSecondary,
             )
             IconButton(onClick = onToggleSaveClick, enabled = !isTogglingSave) {
                 Icon(
@@ -241,15 +246,21 @@ private fun RaceCard(
         }
 
         Row(
-            modifier = Modifier.padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            race.categories.forEach { category -> RaceCategoryBadge(label = RaceFormat.categoryLabel(category)) }
+            Text(
+                text = race.categories.joinToString(" · ") { RaceFormat.categoryLabel(it) },
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.weight(1f),
+            )
             RaceStatusChip(status = race.status)
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
@@ -257,11 +268,14 @@ private fun RaceCard(
                 style = DallimTypography.Caption,
                 color = DallimColors.TextSecondary,
             )
-            Text(
-                text = "달림 러너 ${race.savedCount}명 참가 예정",
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-            )
+            // savedCount는 "내 대회에 담은" 수이지 참가 확정 수가 아니다 — 0명이면 숨기고 문구도 사실대로.
+            if (race.savedCount > 0) {
+                Text(
+                    text = "${race.savedCount}명이 담았어요",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
         }
 
         // S-85(코스 미리 달리기) 답사 진행률 — 공식 코스가 없는 대회는 previewProgressPercent가
@@ -275,18 +289,6 @@ private fun RaceCard(
                 modifier = Modifier.padding(top = Spacing.xs),
             )
         }
-    }
-}
-
-@Composable
-private fun RaceCategoryBadge(label: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(DallimColors.PrimaryLight)
-            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-    ) {
-        Text(text = label, style = DallimTypography.Caption, color = DallimColors.Primary)
     }
 }
 
