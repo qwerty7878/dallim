@@ -149,21 +149,22 @@ private fun MyScreen(
                 is MyUiState.Success -> Column(
                     modifier = Modifier
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = Spacing.ScreenHorizontal),
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    ProfileCard(user = uiState.user, onEditClick = onEditProfileClick)
+                    ProfileHeader(
+                        user = uiState.user,
+                        onEditClick = onEditProfileClick,
+                        modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal),
+                    )
 
-                    // 진입점 4개가 각각 큰 카드 4장이던 것을 카드 하나 + 구분선 목록으로 합쳤다
-                    // (docs/04-ui-guide.md §4 반복 카드 지양, §2 위계 — 아이콘도 강조색 대신 보조색).
-                    DallimCard(modifier = Modifier.padding(top = Spacing.lg)) {
-                        MenuRow(DallimIcons.BookOpen, "달림북", "완주한 GPS 그림을 모아보세요", onDallimbookClick)
-                        MenuDivider()
-                        MenuRow(DallimIcons.Trophy, "완주 메달 선반", "대회 완주 이력을 모아보세요", onMedalShelfClick)
-                        MenuDivider()
-                        MenuRow(DallimIcons.Users, "러닝메이트", "같이 달린 러너와의 인연을 확인해보세요", onRunningMatesClick)
-                        MenuDivider()
-                        MenuRow(DallimIcons.Ban, "차단 관리", "채팅에서 차단한 사용자를 관리하세요", onBlockedUsersClick)
+                    // 2026-10-05: 메뉴 4줄에 "~해보세요" 설명문을 하나씩 달아둔 것이 이 화면이 가장
+                    // "자동 생성된 앱"처럼 보이던 이유였다(네 줄이 전부 같은 문장 구조). 제목만 남기고
+                    // 회색 카드 껍데기도 벗겨 구분선 목록으로 폈다(docs/04-ui-guide.md §4).
+                    Column(modifier = Modifier.padding(top = Spacing.xl)) {
+                        MenuRow(DallimIcons.BookOpen, "달림북", onDallimbookClick)
+                        MenuRow(DallimIcons.Trophy, "완주 메달 선반", onMedalShelfClick)
+                        MenuRow(DallimIcons.Users, "러닝메이트", onRunningMatesClick)
+                        MenuRow(DallimIcons.Ban, "차단 관리", onBlockedUsersClick)
                     }
 
                     DallimTextButton(
@@ -172,15 +173,21 @@ private fun MyScreen(
                         enabled = !uiState.isLoggingOut,
                         modifier = Modifier.padding(top = Spacing.lg).align(Alignment.CenterHorizontally),
                     )
+
+                    Box(modifier = Modifier.padding(bottom = Spacing.xxl))
                 }
             }
         }
     }
 }
 
+/**
+ * 2026-10-05: 회색 카드 안에 아바타·닉네임·숫자를 전부 욱여넣던 [DallimCard]를 없애고, 화면 상단
+ * 자체를 프로필로 쓴다 — 누적 거리/횟수를 카드 안 작은 글씨가 아니라 화면에서 가장 큰 숫자로 둔다.
+ */
 @Composable
-private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
-    DallimCard {
+private fun ProfileHeader(user: UserMeResponseBody, onEditClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AvatarBadge(avatarId = user.avatarId)
             Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
@@ -208,14 +215,9 @@ private fun ProfileCard(user: UserMeResponseBody, onEditClick: () -> Unit) {
             }
         }
 
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = Spacing.md),
-            color = DallimColors.Border,
-        )
-
-        Row(modifier = Modifier.fillMaxWidth()) {
-            StatItem(label = "총 러닝 횟수", value = "${user.totalRuns}회", modifier = Modifier.weight(1f))
-            StatItem(label = "총 거리", value = "%.1fkm".format(user.totalDistanceKm), modifier = Modifier.weight(1f))
+        Row(modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl)) {
+            StatItem(label = "달린 횟수", value = "${user.totalRuns}", unit = "회", modifier = Modifier.weight(1f))
+            StatItem(label = "누적 거리", value = "%.1f".format(user.totalDistanceKm), unit = "km", modifier = Modifier.weight(1f))
         }
     }
 }
@@ -256,41 +258,59 @@ private fun AvatarBadge(avatarId: String) {
 }
 
 /**
- * 마이 메뉴 한 줄 — [아이콘 | 제목+설명 | ▸]. 진입점 목록: 달림북(S-40, 2026-09-16 탭에서 이동),
+ * 마이 메뉴 한 줄 — [아이콘 | 제목 | ▸]. 진입점 목록: 달림북(S-40, 2026-09-16 탭에서 이동),
  * 완주 메달 선반(S-91), 러닝메이트(S-39, docs/02-api-spec.md 17.17), 차단 관리(18.2).
+ *
+ * 2026-10-05: 제목 아래 설명문("완주한 GPS 그림을 모아보세요" 류)을 전부 뺐다 — 네 줄이 같은
+ * 문장 구조로 반복돼 화면이 설명서처럼 보였고, 메뉴 이름만으로 뜻이 충분히 전달된다.
  */
 @Composable
-private fun MenuRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+private fun MenuRow(icon: ImageVector, title: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = Spacing.sm),
+            .padding(horizontal = Spacing.ScreenHorizontal, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = DallimColors.TextSecondary)
-        Column(modifier = Modifier.padding(start = Spacing.md).weight(1f)) {
-            Text(text = title, style = DallimTypography.Body, color = DallimColors.TextPrimary)
-            Text(text = subtitle, style = DallimTypography.Caption, color = DallimColors.TextSecondary)
-        }
-        Icon(imageVector = DallimIcons.ChevronRight, contentDescription = null, tint = DallimColors.TextSecondary)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = DallimColors.TextSecondary,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = title,
+            style = DallimTypography.Title3,
+            color = DallimColors.TextPrimary,
+            modifier = Modifier.padding(start = Spacing.md).weight(1f),
+        )
+        Icon(
+            imageVector = DallimIcons.ChevronRight,
+            contentDescription = null,
+            tint = DallimColors.TextTertiary,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
+/** 숫자가 주인공 — 라벨은 숫자 아래 작게. */
 @Composable
-private fun MenuDivider() {
-    HorizontalDivider(color = DallimColors.Border)
-}
-
-@Composable
-private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
+private fun StatItem(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(text = value, style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(text = value, style = DallimTypography.Display, color = DallimColors.TextPrimary)
+            Text(
+                text = unit,
+                style = DallimTypography.Title3,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.sm),
+            )
+        }
         Text(
             text = label,
             style = DallimTypography.Caption,
             color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
         )
     }
 }
