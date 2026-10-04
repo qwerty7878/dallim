@@ -2,6 +2,7 @@ package com.dallim.app.race.list
 
 import com.dallim.ui.icons.DallimIcons
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -32,13 +37,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dallim.app.race.RaceFormat
 import com.dallim.network.race.RaceSummaryItem
 import com.dallim.ui.components.DallimBottomNavigation
-import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimEmptyState
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimDropdownText
 import com.dallim.ui.components.DallimFilterChip
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimTab
+import com.dallim.ui.components.BadgeTone
 import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.theme.DallimColors
 import com.dallim.ui.theme.DallimTheme
@@ -145,10 +150,12 @@ fun RaceListBody(
                     top = Spacing.sm,
                     bottom = Spacing.xxl,
                 ),
-                verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
             ) {
-                items(uiState.items, key = { it.raceId }) { race ->
-                    RaceCard(
+                // 2026-10-05: 같은 회색 카드가 끝없이 반복되면 "자동 생성된 목록"처럼 보인다
+                // (docs/04-ui-guide.md §0 #4, §4). 카드 껍데기를 벗기고 구분선 목록으로 폈다.
+                itemsIndexed(uiState.items, key = { _, race -> race.raceId }) { index, race ->
+                    if (index > 0) HorizontalDivider(color = DallimColors.Divider)
+                    RaceRow(
                         race = race,
                         isTogglingSave = race.raceId in uiState.togglingSaveRaceIds,
                         onClick = { onRaceClick(race.raceId) },
@@ -212,13 +219,22 @@ private fun RaceFilterSection(
 }
 
 @Composable
-private fun RaceCard(
+private fun RaceRow(
     race: RaceSummaryItem,
     isTogglingSave: Boolean,
     onClick: () -> Unit,
     onToggleSaveClick: () -> Unit,
 ) {
-    DallimCard(onClick = onClick) {
+    // 접수가 끝난 대회는 목록 뒤로 밀릴 뿐 아니라 시각적으로도 가라앉혀, 지금 신청할 수 있는 대회가
+    // 먼저 눈에 들어오게 한다(2026-10-05).
+    val closed = race.status != "OPEN" && race.status != "UPCOMING"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .alpha(if (closed) 0.55f else 1f)
+            .padding(vertical = Spacing.md),
+    ) {
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = race.name, style = DallimTypography.Body, color = DallimColors.TextPrimary)
@@ -298,7 +314,12 @@ private fun RaceStatusChip(status: String) {
         "UPCOMING" -> DallimColors.RouteVerified
         else -> DallimColors.TextSecondary
     }
-    DallimBadge(label = RaceFormat.statusLabel(status), foreground = color)
+    DallimBadge(
+        label = RaceFormat.statusLabel(status),
+        foreground = color,
+        // 접수가 끝난 대회는 더 신청할 수 없으니 가라앉힌다.
+        tone = if (status == "OPEN" || status == "UPCOMING") BadgeTone.ACTIVE else BadgeTone.QUIET,
+    )
 }
 
 @Preview(showBackground = true, heightDp = 1000)

@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -87,9 +90,11 @@ fun SocialSessionListBody(
                             top = Spacing.sm,
                             bottom = Spacing.xxl + FabClearance,
                         ),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
                     ) {
-                        items(uiState.items, key = { it.sessionId }) { session ->
+                        // 2026-10-05: 같은 회색 카드가 끝없이 반복되면 "자동 생성된 목록"처럼 보인다
+                        // (docs/04-ui-guide.md §0 #10, §4). 카드 껍데기를 벗기고 구분선 목록으로 폈다.
+                        itemsIndexed(uiState.items, key = { _, it -> it.sessionId }) { index, session ->
+                            if (index > 0) HorizontalDivider(color = DallimColors.Divider)
                             SocialSessionRow(session = session, onClick = { onSessionClick(session.sessionId) })
                         }
                     }
@@ -106,13 +111,15 @@ fun SocialSessionListBody(
 
 @Composable
 private fun SocialSessionRow(session: SocialSessionListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    // 끝난 세션은 서버 정렬로 목록 뒤로 밀릴 뿐 아니라(docs/02-api-spec.md 17.2) 시각적으로도 가라앉혀,
+    // 지금 신청할 수 있는 세션이 먼저 눈에 들어오게 한다(2026-10-05).
+    val ended = session.status == "CLOSED" || session.status == "CANCELLED"
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(DallimShapes.CardCorner)
-            .background(DallimColors.Surface)
             .clickable { onClick() }
-            .padding(Spacing.md),
+            .alpha(if (ended) 0.5f else 1f)
+            .padding(vertical = Spacing.md),
     ) {
         Row(verticalAlignment = Alignment.Top) {
             RouteThumbnailView(

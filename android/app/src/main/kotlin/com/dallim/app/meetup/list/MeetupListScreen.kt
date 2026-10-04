@@ -16,14 +16,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -119,9 +123,11 @@ private fun MeetupListScreen(
                                 top = Spacing.sm,
                                 bottom = Spacing.xxl + FabClearance,
                             ),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
                         ) {
-                            items(uiState.items, key = { it.meetupId }) { meetup ->
+                            // 2026-10-05: 같은 회색 카드가 끝없이 반복되면 "자동 생성된 목록"처럼 보인다
+                            // (docs/04-ui-guide.md §0 #4, §4). 카드 껍데기를 벗기고 구분선 목록으로 폈다.
+                            itemsIndexed(uiState.items, key = { _, m -> m.meetupId }) { index, meetup ->
+                                if (index > 0) HorizontalDivider(color = DallimColors.Divider)
                                 MeetupRow(meetup = meetup, onClick = { onMeetupClick(meetup.meetupId) })
                             }
                         }
@@ -140,35 +146,41 @@ private fun MeetupListScreen(
 
 @Composable
 private fun MeetupRow(meetup: MeetupListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    // 끝난 모집은 목록 뒤로 밀릴 뿐 아니라 시각적으로도 가라앉혀, 지금 참가할 수 있는 모집이 먼저
+    // 눈에 들어오게 한다(2026-10-05 — 서버 정렬은 com.dallim.meetup.MeetupService.listByRoute).
+    val ended = meetup.isPast || meetup.status == "CANCELLED"
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(DallimShapes.CardCorner)
-            .background(DallimColors.Surface)
             .clickable { onClick() }
-            .padding(Spacing.md),
+            .alpha(if (ended) 0.5f else 1f)
+            .padding(vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(DallimColors.PrimaryLight),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = DallimIcons.User, contentDescription = null, tint = DallimColors.Primary)
+            Icon(
+                imageVector = DallimIcons.User,
+                contentDescription = null,
+                tint = DallimColors.Primary,
+                modifier = Modifier.size(20.dp),
+            )
         }
 
         Column(modifier = Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-            Text(text = meetup.hostNickname, style = DallimTypography.Body, color = DallimColors.TextPrimary)
+            // 이 화면에서 제일 먼저 읽어야 하는 건 호스트 이름이 아니라 "언제"다 — 날짜를 제목 자리로 올렸다.
             Text(
                 text = MeetupFormat.displayDateTime(meetup.scheduledAt),
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
+                style = DallimTypography.Title3,
+                color = DallimColors.TextPrimary,
             )
             Text(
-                text = "${meetup.currentParticipants}/${meetup.maxParticipants}명 참가",
+                text = "${meetup.hostNickname} \u00b7 ${meetup.currentParticipants}/${meetup.maxParticipants}명 참가",
                 style = DallimTypography.Caption,
                 color = DallimColors.TextSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
