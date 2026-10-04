@@ -38,5 +38,7 @@ fun MeetupStatusBadge(state: MeetupBadgeState, modifier: Modifier = Modifier) {
         MeetupBadgeState.FULL -> Triple(DallimColors.Warning.copy(alpha = 0.15f), DallimColors.Warning, "마감")
         MeetupBadgeState.NONE -> return
     }
-    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier)
+    // 이 배지는 취소됨/종료/마감 셋뿐 — 전부 "지금은 참가할 수 없다"는 뜻이라 모두 가라앉힌다.
+    // 참가 가능한 모집은 [MeetupBadgeState.NONE]이라 애초에 배지를 그리지 않는다.
+    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier, tone = BadgeTone.QUIET)
 }

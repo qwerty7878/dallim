@@ -25,5 +25,7 @@ fun RouteStatusBadge(status: RouteStatus, modifier: Modifier = Modifier) {
         RouteStatus.POPULAR -> Triple(DallimColors.Primary.copy(alpha = 0.12f), DallimColors.Primary, "인기")
         RouteStatus.UNDER_REVIEW -> Triple(DallimColors.RouteUnderReview.copy(alpha = 0.15f), DallimColors.RouteUnderReview, "검토중")
     }
-    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier)
+    // "발견"은 아직 아무 판정도 없는 기본 상태라 띄울 이유가 없다 — 나머지는 알아야 할 정보다.
+    val tone = if (status == RouteStatus.DISCOVERY) BadgeTone.QUIET else BadgeTone.ACTIVE
+    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier, tone = tone)
 }

@@ -34,6 +34,7 @@ import com.dallim.network.race.RaceCategoryDetail
 import com.dallim.network.race.RaceDetailResponseBody
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimSecondaryButton
+import com.dallim.ui.components.BadgeTone
 import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
@@ -277,6 +278,7 @@ private fun RaceDetailStatusChip(status: String, modifier: Modifier = Modifier) 
         foreground = color,
         background = color.copy(alpha = 0.12f),
         modifier = modifier,
+        tone = if (status == "OPEN" || status == "UPCOMING") BadgeTone.ACTIVE else BadgeTone.QUIET,
     )
 }
 

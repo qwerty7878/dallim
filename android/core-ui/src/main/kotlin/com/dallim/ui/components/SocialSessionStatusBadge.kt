@@ -42,5 +42,9 @@ fun SocialSessionStatusBadge(state: SocialSessionBadgeState, modifier: Modifier 
         SocialSessionBadgeState.CANCELLED ->
             Triple(DallimColors.Error.copy(alpha = 0.12f), DallimColors.Error, "취소됨")
     }
-    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier)
+    val tone = when (state) {
+        SocialSessionBadgeState.CLOSED, SocialSessionBadgeState.CANCELLED -> BadgeTone.QUIET
+        else -> BadgeTone.ACTIVE
+    }
+    DallimBadge(label = label, foreground = fg, background = bg, modifier = modifier, tone = tone)
 }

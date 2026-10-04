@@ -36,6 +36,7 @@ import com.dallim.network.trainingplan.TrainingPlanSessionItem
 import com.dallim.network.trainingplan.TrainingPlanWeekItem
 import com.dallim.ui.components.DallimCard
 import com.dallim.ui.components.DallimFilterChip
+import com.dallim.ui.components.BadgeTone
 import com.dallim.ui.components.DallimBadge
 import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
@@ -321,7 +322,13 @@ private fun SessionTypeBadge(type: String, modifier: Modifier = Modifier) {
         "REST" -> "휴식" to DallimColors.TextTertiary
         else -> type to DallimColors.TextTertiary
     }
-    DallimBadge(label = label, foreground = color, modifier = modifier)
+    // "휴식"은 달릴 게 없는 날이라 띄우지 않는다.
+    DallimBadge(
+        label = label,
+        foreground = color,
+        modifier = modifier,
+        tone = if (type == "REST") BadgeTone.QUIET else BadgeTone.ACTIVE,
+    )
 }
 
 @Preview(showBackground = true, heightDp = 1400)

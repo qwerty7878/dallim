@@ -25,6 +25,7 @@ fun UnverifiedBadge(modifier: Modifier = Modifier) {
         foreground = DallimColors.TextSecondary,
         background = DallimColors.SurfaceMuted,
         modifier = modifier,
+        tone = BadgeTone.QUIET,
     )
 }
 

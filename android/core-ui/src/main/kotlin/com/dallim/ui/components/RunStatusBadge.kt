@@ -29,5 +29,10 @@ fun RunStatusBadge(status: RunStatus, modifier: Modifier = Modifier) {
         RunStatus.ABORTED -> DallimColors.TextSecondary to "중단됨"
         RunStatus.UNDER_REVIEW -> DallimColors.Warning to "검토중"
     }
-    DallimBadge(label = label, foreground = fg, background = fg.copy(alpha = 0.12f), modifier = modifier)
+    // 부분 완주/중단은 "끝났고 더 할 게 없는" 상태라 가라앉힌다.
+    val tone = when (status) {
+        RunStatus.COMPLETED, RunStatus.UNDER_REVIEW -> BadgeTone.ACTIVE
+        RunStatus.PARTIAL, RunStatus.ABORTED -> BadgeTone.QUIET
+    }
+    DallimBadge(label = label, foreground = fg, background = fg.copy(alpha = 0.12f), modifier = modifier, tone = tone)
 }
