@@ -83,7 +83,9 @@ fun NaverRouteMapView(
         MapView(
             context,
             NaverMapOptions()
+                // 2026-10-05 전면 다크 전환: 야간 모드는 Navi 지도 타입에서만 적용된다(네이버 지도 SDK).
                 .mapType(NaverMap.MapType.Navi)
+                .nightModeEnabled(true)
                 .locationButtonEnabled(false)
                 // 2026-10-04: 기본 줌 +/- 버튼과 축척자는 "기본 지도 SDK" 인상이 강해 숨긴다(핀치로 줌).
                 .zoomControlEnabled(false)
@@ -112,6 +114,8 @@ fun NaverRouteMapView(
     var hasCenteredOnInitial by remember { mutableStateOf(false) }
     val plannedOverlay = remember { PathOverlay() }
     val actualOverlay = remember { MultipartPathOverlay() }
+    val actualGlowOverlay = remember { PathOverlay() }
+    val plannedGlowOverlay = remember { PathOverlay() }
     val currentPositionDot = remember { CircleOverlay() }
     val currentPositionHalo = remember { CircleOverlay() }
     val waypointMarkers = remember { mutableStateListOf<Marker>() }
@@ -123,6 +127,10 @@ fun NaverRouteMapView(
         // LaunchedEffect(naverMap, plannedRoute, actualRoute, ...)에서 데이터 설정 "이후"에 한다.
         mapView.getMapAsync { map ->
             map.locale = java.util.Locale.KOREAN // 영문/한글 병기 라벨 대신 한글만
+            // 2026-10-05: 지면을 눌러 어둡게 하고 POI 심볼을 줄여 궤적이 주인공이 되게 한다. 썸네일
+            // (MapSnapshotThumbnail)보다는 덜 눌러 두는데, 이 지도는 달리면서 실제로 주변을 봐야 한다.
+            map.lightness = -0.3f
+            map.symbolScale = 0.6f
             naverMap = map
         }
     }
@@ -133,27 +141,52 @@ fun NaverRouteMapView(
     LaunchedEffect(naverMap, plannedRoute, actualRoute, strokeWidthPx) {
         val map = naverMap ?: return@LaunchedEffect
 
+        // 실제 궤적이 아직 없는 화면(코스 상세 S-16, 러닝 준비 S-20의 미리보기)에서는 계획 경로가
+        // 곧 그 화면의 주인공이다 — 이때는 "보조선"이 아니라 네온 본선으로 그린다. 둘 다 있을 때만
+        // 계획=가라앉은 회색 / 실제=네온으로 갈라 색맹 접근성 구분(§9)을 유지한다.
+        val plannedIsSubject = actualRoute.size < 2
+
         if (plannedRoute.size >= 2) {
             plannedOverlay.coords = plannedRoute.toLatLngList()
-            plannedOverlay.width = strokeWidthPx
-            // 흰색 반투명 + patternImage로 "점선"을 흉내 낸 첫 시도는 color=TRANSPARENT일 때
-            // PathOverlay 자체가 아무것도 그리지 않는 실제 기기 버그(?)로 밝혀져(NCP 키 발급 후
-            // 실기기/에뮬레이터 검증에서 발견, 2026-09-03) 완전히 안 보였다. 실제 지도(밝은 배경)
-            // 위에서 항상 또렷이 보이도록 흰색 채움 + 남색 아웃라인의 불투명 실선으로 교체 —
-            // "점선 vs 그라디언트 실선"이 아니라 "옅은 흰색 실선(아웃라인 있음) vs 진한 그라디언트
-            // 실선(아웃라인 없음)"으로 색맹 접근성 구분을 유지한다.
-            plannedOverlay.color = android.graphics.Color.WHITE
+            plannedOverlay.width = if (plannedIsSubject) (strokeWidthPx * 1.4f).toInt() else strokeWidthPx
+            // 점선(patternImage + color=TRANSPARENT)은 실기기에서 PathOverlay가 아무것도 그리지 않아
+            // 폐기했고(2026-09-03 검증), 대신 "옅고 얇은 실선 vs 진하고 두꺼운 네온 실선"으로 계획/실제를
+            // 구분한다 — 색상뿐 아니라 밝기와 굵기가 함께 달라 색맹 접근성 규칙(§9)을 만족한다.
+            // 2026-10-05: 야간 지도에서는 흰색 채움 + 밝은 아웃라인이 서로 뭉개져, 계획 경로를
+            // 가라앉은 회색 실선 + 어두운 아웃라인으로 바꿨다.
+            plannedOverlay.color =
+                if (plannedIsSubject) DallimColors.PrimaryGlow.toArgb() else DallimColors.TextSecondary.toArgb()
             plannedOverlay.outlineWidth = (strokeWidthPx / 3).coerceAtLeast(1)
-            plannedOverlay.outlineColor = DallimColors.TextPrimary.toArgb()
+            plannedOverlay.outlineColor = DallimColors.Background.toArgb()
             plannedOverlay.patternImage = null
             plannedOverlay.map = map
+
+            if (plannedIsSubject) {
+                plannedGlowOverlay.coords = plannedRoute.toLatLngList()
+                plannedGlowOverlay.width = (strokeWidthPx * 3.4f).toInt().coerceAtLeast(strokeWidthPx + 2)
+                plannedGlowOverlay.color = DallimColors.Primary.copy(alpha = 0.3f).toArgb()
+                plannedGlowOverlay.outlineWidth = 0
+                plannedGlowOverlay.zIndex = -2
+                plannedGlowOverlay.map = map
+            } else {
+                plannedGlowOverlay.map = null
+            }
         } else {
             plannedOverlay.map = null
+            plannedGlowOverlay.map = null
         }
 
         if (actualRoute.size >= 2) {
             val latLngs = actualRoute.toLatLngList()
             val (coordParts, colorParts) = buildGradientParts(latLngs)
+            // 네온 글로우: 본선 아래에 넓고 옅은 같은 색 선을 한 겹 깔아 어두운 지도 위에서 빛나 보이게 한다.
+            actualGlowOverlay.coords = latLngs
+            actualGlowOverlay.width = (strokeWidthPx * 2.6f).toInt().coerceAtLeast(strokeWidthPx + 2)
+            actualGlowOverlay.color = DallimColors.Primary.copy(alpha = 0.3f).toArgb()
+            actualGlowOverlay.outlineWidth = 0
+            actualGlowOverlay.zIndex = -1
+            actualGlowOverlay.map = map
+
             actualOverlay.coordParts = coordParts
             actualOverlay.colorParts = colorParts
             actualOverlay.width = strokeWidthPx
@@ -162,15 +195,16 @@ fun NaverRouteMapView(
             val current = latLngs.last()
             currentPositionHalo.center = current
             currentPositionHalo.radius = 7.0
-            currentPositionHalo.color = DallimColors.Surface.toArgb()
+            currentPositionHalo.color = DallimColors.White.toArgb()
             currentPositionHalo.outlineWidth = 0
             currentPositionHalo.map = map
             currentPositionDot.center = current
             currentPositionDot.radius = 4.0
-            currentPositionDot.color = DallimColors.GradientEnd.toArgb()
+            currentPositionDot.color = DallimColors.TrailEnd.toArgb()
             currentPositionDot.outlineWidth = 0
             currentPositionDot.map = map
         } else {
+            actualGlowOverlay.map = null
             actualOverlay.map = null
             currentPositionHalo.map = null
             currentPositionDot.map = null
@@ -231,6 +265,8 @@ fun NaverRouteMapView(
     DisposableEffect(Unit) {
         onDispose {
             plannedOverlay.map = null
+            plannedGlowOverlay.map = null
+            actualGlowOverlay.map = null
             actualOverlay.map = null
             currentPositionHalo.map = null
             currentPositionDot.map = null
@@ -267,8 +303,10 @@ private fun buildGradientParts(
         if (endIdx <= startIdx) continue
 
         coordParts.add(points.subList(startIdx, endIdx + 1))
+        // 그라데이션 폐지(2026-10-04) 이후 양 끝 색이 같아 사실상 단색이다. 2026-10-05 다크 전환에서는
+        // 야간 지도 위에서 가장 밝게 떠 보이는 [DallimColors.PrimaryGlow] 단색으로 그린다.
         val t = if (segmentCount == 1) 0f else i.toFloat() / (segmentCount - 1)
-        val color = lerp(DallimColors.GradientStart, DallimColors.GradientEnd, t).toArgb()
+        val color = lerp(DallimColors.PrimaryGlow, DallimColors.PrimaryGlow, t).toArgb()
         colorParts.add(MultipartPathOverlay.ColorPart(color, color, color, color))
     }
     return coordParts to colorParts

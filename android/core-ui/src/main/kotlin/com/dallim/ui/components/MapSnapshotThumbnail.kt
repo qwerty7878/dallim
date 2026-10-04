@@ -69,8 +69,9 @@ internal fun MapSnapshotThumbnail(
     coordinates: List<GeoPoint>,
     modifier: Modifier,
     cornerRadius: Dp,
+    renderPx: Int? = null,
     fallback: @Composable () -> Unit,
-) = RouteMapSnapshot(coordinates, modifier, cornerRadius, renderPx = null, onBitmap = null, fallback = fallback)
+) = RouteMapSnapshot(coordinates, modifier, cornerRadius, renderPx = renderPx, onBitmap = null, fallback = fallback)
 
 /**
  * 실제 지도 위에 경로를 올린 정사각 이미지. 썸네일([MapSnapshotThumbnail])과 같은 캐시/렌더 큐를 쓰되,
@@ -156,7 +157,9 @@ private fun SnapshotMapHost(coordinates: List<GeoPoint>, renderPx: Int, paddingF
         MapView(
             context,
             NaverMapOptions()
-                .mapType(NaverMap.MapType.Basic)
+                // 2026-10-05 전면 다크 전환: 야간 모드는 Navi 지도 타입에서만 적용된다(네이버 지도 SDK).
+                .mapType(NaverMap.MapType.Navi)
+                .nightModeEnabled(true)
                 .locationButtonEnabled(false)
                 .zoomControlEnabled(false)
                 .scaleBarEnabled(false)
@@ -210,32 +213,49 @@ private fun configureSnapshotMap(
     map.setLayerGroupEnabled(NaverMap.LAYER_GROUP_BUILDING, false)
     map.setLayerGroupEnabled(NaverMap.LAYER_GROUP_TRANSIT, false)
     map.maxZoom = 18.0
+    // 2026-10-05: 야간 지도라도 기본 밝기/기본 심볼 크기 그대로면 상점·건물 POI 라벨이 빽빽해서 정작
+    // 주인공인 궤적이 묻힌다. 지면을 더 눌러 어둡게 하고 POI 심볼/라벨을 작게 줄여 "궤적만 빛나는" 그림으로
+    // 만든다(지도 자체는 그대로라 위치감은 남는다).
+    map.lightness = -0.35f
+    map.symbolScale = 0.5f
 
+    // 2026-10-05 네온 궤적: 어두운 야간 지도 위에서 선이 "빛나 보이게" 넓고 옅은 글로우를 한 겹 깔고
+    // 그 위에 또렷한 액센트 선을 얹는다(정적 스냅샷이라 실제 블러 대신 2겹 스트로크로 근사).
+    // zIndex를 낮춰 글로우가 본선 아래에 깔리게 한다.
+    val glow = PathOverlay().apply {
+        coords = latLngs
+        width = (26 * unit).toInt().coerceAtLeast(9)
+        color = DallimColors.Primary.copy(alpha = 0.28f).toArgb()
+        outlineWidth = 0
+        zIndex = -1
+        this.map = map
+    }
     val path = PathOverlay().apply {
         coords = latLngs
         width = (11 * unit).toInt().coerceAtLeast(4)
-        color = DallimColors.Primary.toArgb()
-        outlineWidth = (4 * unit).toInt().coerceAtLeast(2)
-        outlineColor = DallimColors.Surface.toArgb()
+        color = DallimColors.PrimaryGlow.toArgb()
+        outlineWidth = (3 * unit).toInt().coerceAtLeast(1)
+        // 어두운 지면 위에서는 외곽선도 어두워야 선이 떠 보인다(흰 외곽선은 선을 흐릿하게 만든다).
+        outlineColor = DallimColors.Background.toArgb()
         this.map = map
     }
 
     val bounds = LatLngBounds.from(latLngs)
-    // 시작(흰 원+Primary 테두리)/끝(코랄) 점 — 경로 길이에 비례한 반지름이라 짧은 코스도 긴 코스도 비슷한 크기로 보인다.
+    // 시작(흰 점)/끝(코랄) — 경로 길이에 비례한 반지름이라 짧은 코스도 긴 코스도 비슷한 크기로 보인다.
     val radius = (bounds.northEast.distanceTo(bounds.southWest) * 0.03).coerceIn(5.0, 80.0)
     CircleOverlay().apply {
         center = latLngs.first()
         this.radius = radius
-        color = DallimColors.Surface.toArgb()
-        outlineColor = DallimColors.Primary.toArgb()
+        color = DallimColors.White.toArgb()
+        outlineColor = DallimColors.Background.toArgb()
         outlineWidth = (4 * unit).toInt().coerceAtLeast(2)
         this.map = map
     }
     CircleOverlay().apply {
         center = latLngs.last()
         this.radius = radius
-        color = DallimColors.GradientEnd.toArgb()
-        outlineColor = DallimColors.Surface.toArgb()
+        color = DallimColors.TrailEnd.toArgb()
+        outlineColor = DallimColors.Background.toArgb()
         outlineWidth = (4 * unit).toInt().coerceAtLeast(2)
         this.map = map
     }
@@ -249,13 +269,15 @@ private fun configureSnapshotMap(
         }
     }
     map.moveCamera(CameraUpdate.fitBounds(bounds, (renderPx * paddingFraction).toInt()))
-    // path는 GC로 사라지지 않게 지도에 붙어 있는 동안 참조가 유지된다(overlay.map이 강한 참조).
-    check(path.map === map)
+    // 오버레이는 GC로 사라지지 않게 지도에 붙어 있는 동안 참조가 유지된다(overlay.map이 강한 참조).
+    check(path.map === map && glow.map === map)
 }
 
 /** 메모리(LRU) + 디스크 캐시. 키는 경로 좌표(소수 5자리로 반올림)와 픽셀 크기, 스타일 버전의 해시. */
 internal object MapSnapshotCache {
-    private const val STYLE_VERSION = 4
+    // 6 = 2026-10-05 전면 다크(야간 지도 + 네온 궤적 + 지면 눌러 어둡게/POI 축소).
+    // 올리면 기존 캐시가 무시돼 새 스타일로 다시 렌더된다.
+    private const val STYLE_VERSION = 6
     private val memory = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }

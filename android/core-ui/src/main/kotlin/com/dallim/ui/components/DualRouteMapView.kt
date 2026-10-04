@@ -80,7 +80,7 @@ fun DualRouteMapView(
             if (plannedRoute.size >= 2) {
                 drawPath(
                     path = pathOf(plannedRoute),
-                    brush = SolidColor(DallimColors.Surface.copy(alpha = 0.4f)),
+                    brush = SolidColor(DallimColors.White.copy(alpha = 0.4f)),
                     style = Stroke(
                         width = strokeWidth.toPx(),
                         cap = StrokeCap.Round,
@@ -102,7 +102,7 @@ fun DualRouteMapView(
 
             if (actualRoute.isNotEmpty()) {
                 val current = project(actualRoute.last())
-                drawCircle(color = DallimColors.Surface, radius = strokeWidth.toPx() * 1.6f, center = current)
+                drawCircle(color = DallimColors.White, radius = strokeWidth.toPx() * 1.6f, center = current)
                 drawCircle(color = DallimColors.GradientEnd, radius = strokeWidth.toPx() * 1.0f, center = current)
             }
         }

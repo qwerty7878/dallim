@@ -44,12 +44,18 @@ fun RouteThumbnailView(
     useGradient: Boolean = false,
     strokeWidth: Dp = 3.dp,
     cornerRadius: Dp = 16.dp, // slightly smaller than the 20dp card corner — thumbnail sits inside a card
+    /**
+     * 지도 스냅샷 렌더 해상도(px). 기본값(null)이면 표시 크기에 따라 480/640 버킷을 자동 선택한다.
+     * 홈 히어로처럼 화면 폭을 꽉 채우는 큰 썸네일만 명시한다 — 작은 카드와 캐시를 공유하지 못하므로
+     * 아무 데나 지정하면 같은 코스를 여러 번 렌더하게 된다.
+     */
+    renderPx: Int? = null,
 ) {
     // 2026-10-04 — 실사용 피드백("미리보기가 AI 티가 난다"): 앱이 네이버 지도 키를 갖고 있으면 실제 지도
     // 위에 경로를 올린 스냅샷 이미지를 쓰고, 캐시되기 전(첫 로딩)이나 실패 시에는 아래 Canvas 실루엣을
     // 그대로 보여준다. 키가 없는 빌드/프리뷰는 기존 Canvas 그대로다.
     if (LocalMapThumbnailsEnabled.current && coordinates.size >= 2) {
-        MapSnapshotThumbnail(coordinates = coordinates, modifier = modifier, cornerRadius = cornerRadius) {
+        MapSnapshotThumbnail(coordinates = coordinates, modifier = modifier, cornerRadius = cornerRadius, renderPx = renderPx) {
             RouteThumbnailCanvas(
                 coordinates = coordinates,
                 modifier = Modifier.fillMaxSize(),

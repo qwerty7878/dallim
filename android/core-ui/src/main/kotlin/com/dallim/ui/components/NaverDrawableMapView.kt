@@ -65,7 +65,9 @@ fun NaverDrawableMapView(
         MapView(
             context,
             NaverMapOptions()
+                // 2026-10-05 전면 다크 전환: 야간 모드는 Navi 지도 타입에서만 적용된다(네이버 지도 SDK).
                 .mapType(NaverMap.MapType.Navi)
+                .nightModeEnabled(true)
                 .locationButtonEnabled(false)
                 // 2026-10-04: 기본 줌 +/- 버튼과 축척자는 "기본 지도 SDK" 인상이 강해 숨긴다(핀치로 줌).
                 .zoomControlEnabled(false)
@@ -98,6 +100,9 @@ fun NaverDrawableMapView(
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
             map.locale = java.util.Locale.KOREAN
+            // 지면을 눌러 어둡게 하고 POI 심볼을 줄여 내가 그린 선이 묻히지 않게 한다(2026-10-05).
+            map.lightness = -0.3f
+            map.symbolScale = 0.6f
             // 그리기 전용 지도 — 팬/줌/회전/기울기 제스처를 모두 끄고 드래그는 아래
             // pointerInput 오버레이가 전담한다.
             map.uiSettings.isScrollGesturesEnabled = false
@@ -136,7 +141,7 @@ fun NaverDrawableMapView(
         if (start != null) {
             startDot.center = LatLng(start.lat, start.lng)
             startDot.radius = 6.0
-            startDot.color = DallimColors.Surface.toArgb()
+            startDot.color = DallimColors.White.toArgb()
             startDot.outlineWidth = (strokeWidthPx / 2).coerceAtLeast(1)
             startDot.outlineColor = DallimColors.Primary.toArgb()
             startDot.map = map
