@@ -51,7 +51,7 @@ fun RaceRecordFormFields(
         DallimTextField(
             value = state.raceName,
             onValueChange = onRaceNameChange,
-            label = "대회명",
+            label = "", // 바로 위 섹션 헤더가 같은 이름을 말한다
             placeholder = "예: 2026 서울 하프마라톤",
         )
 
@@ -81,7 +81,7 @@ fun RaceRecordFormFields(
         DallimTextField(
             value = state.yearInput,
             onValueChange = onYearChange,
-            label = "연도",
+            label = "", // 바로 위 섹션 헤더가 같은 이름을 말한다
             placeholder = "예: 2026",
             keyboardType = KeyboardType.Number,
             errorText = state.yearError,

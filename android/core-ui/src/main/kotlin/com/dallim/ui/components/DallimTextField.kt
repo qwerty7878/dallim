@@ -55,12 +55,17 @@ fun DallimTextField(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(bottom = Spacing.xs),
-        )
+        // 2026-10-05: 바로 위 섹션 헤더가 이미 같은 이름을 말하고 있는 폼들이 있어("제목" 헤더 + "제목"
+        // 라벨), 그런 호출부는 빈 문자열을 넘겨 라벨 줄을 아예 그리지 않는다. 같은 단어를 두 번 적는 것은
+        // 화면을 설명서처럼 보이게 하는 대표적인 군더더기다(docs/04-ui-guide.md §0 #8).
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                style = DallimTypography.Caption,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(bottom = Spacing.xs),
+            )
+        }
         BasicTextField(
             value = value,
             onValueChange = onValueChange,

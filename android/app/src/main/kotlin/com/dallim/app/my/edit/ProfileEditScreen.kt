@@ -110,7 +110,7 @@ private fun ProfileEditScreen(
                 DallimTextField(
                     value = uiState.nickname,
                     onValueChange = onNicknameChange,
-                    label = "닉네임",
+                    label = "", // 바로 위 섹션 헤더가 같은 이름을 말한다
                     errorText = uiState.nicknameError,
                 )
 

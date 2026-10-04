@@ -105,7 +105,7 @@ private fun ProfileSetupScreen(
         DallimTextField(
             value = uiState.nickname,
             onValueChange = onNicknameChange,
-            label = "닉네임",
+            label = "", // 바로 위 섹션 헤더가 같은 이름을 말한다
             placeholder = "달림에서 사용할 닉네임",
             errorText = when (uiState.nicknameCheckState) {
                 NicknameCheckState.TAKEN -> "이미 사용 중인 닉네임이에요."
@@ -248,7 +248,7 @@ private fun SelectableChip(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = if (selected) androidx.compose.ui.graphics.Color.White else DallimColors.TextPrimary,
+            color = if (selected) DallimColors.OnPrimary else DallimColors.TextPrimary,
         )
     }
 }

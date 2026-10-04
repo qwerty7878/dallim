@@ -183,7 +183,7 @@ private fun SocialSessionCreateScreen(
             DallimTextField(
                 value = uiState.title,
                 onValueChange = onTitleChange,
-                label = "제목",
+                label = "", // 바로 위 섹션 헤더가 같은 이름을 말한다
                 placeholder = "예: 안양천 야간 러닝",
             )
 
