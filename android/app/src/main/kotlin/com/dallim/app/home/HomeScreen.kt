@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,6 +31,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,10 +49,12 @@ import com.dallim.ui.components.DallimErrorState
 import com.dallim.ui.components.DallimLoadingState
 import com.dallim.ui.components.DallimMark
 import com.dallim.ui.components.DallimTab
+import com.dallim.ui.components.DallimPrimaryButton
 import com.dallim.ui.components.DallimTextButton
 import com.dallim.ui.components.GeoPoint
 import com.dallim.ui.components.RouteThumbnailView
 import com.dallim.ui.theme.DallimColors
+import com.dallim.ui.theme.DallimShapes
 import com.dallim.ui.theme.DallimTheme
 import com.dallim.ui.theme.DallimTypography
 import com.dallim.ui.theme.Spacing
@@ -149,17 +154,27 @@ private fun HomeScreen(
                         modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal).padding(top = Spacing.lg),
                     )
 
+                    TodayHero(
+                        todaySketch = uiState.home.todaySketch,
+                        onRouteClick = onRouteClick,
+                        modifier = Modifier
+                            .padding(horizontal = Spacing.ScreenHorizontal)
+                            .padding(top = Spacing.xl),
+                    )
+
                     StartBlock(
                         onStartClick = onFreeRunClick,
                         onPickCourseClick = { onTabSelected(DallimTab.EXPLORE) },
-                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.ScreenHorizontal)
+                            .padding(top = Spacing.lg),
                     )
 
-                    CoursesSection(
-                        todaySketch = uiState.home.todaySketch,
-                        savedRoutes = uiState.savedRoutesPreview,
+                    SavedRoutesStrip(
+                        savedRoutes = uiState.savedRoutesPreview.filter { it.routeId != uiState.home.todaySketch?.routeId },
                         onRouteClick = onRouteClick,
-                        onSeeAllSavedRoutesClick = onSeeAllSavedRoutesClick,
+                        onSeeAllClick = onSeeAllSavedRoutesClick,
                         modifier = Modifier.padding(top = Spacing.xl),
                     )
 
@@ -184,13 +199,27 @@ private fun HomeScreen(
 private val DAY_LABELS = listOf("월", "화", "수", "목", "금", "토", "일")
 
 /**
- * 이번 주 누적 거리(큰 숫자) + 월~일 점. 인사말·섹션 제목 대신 "내 숫자"를 첫 화면의 주인공으로 둔다
- * (나이키 런 클럽 류 러닝 앱 홈 구조). 완주한 요일은 Primary 채움, 오늘은 링, 나머지는 회색 점.
+ * 이번 주 누적 거리(큰 숫자) + 월~일 스트립. 인사말·섹션 제목 대신 "내 숫자"를 첫 화면의 주인공으로 둔다
+ * (나이키 런 클럽 류 러닝 앱 홈 구조).
+ *
+ * 2026-10-05: 지름 28dp 원 7개는 "체크리스트"처럼 보여, 달린 날이 액센트로 길게 차오르는 세로 막대
+ * 스트립으로 바꿨다. `weekSummary`에는 요일별 거리가 없고 "달린 요일 목록"만 있으므로 막대 높이를
+ * 거리에 비례시키지 않는다 — 없는 데이터를 그럴듯하게 그리지 않기 위함이다(달린 날/안 달린 날 2단계).
  */
 @Composable
 private fun WeekSummaryBlock(summary: WeekSummary, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(text = "이번 주", style = DallimTypography.Caption, color = DallimColors.TextSecondary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "이번 주", style = DallimTypography.Caption, color = DallimColors.TextSecondary)
+            Spacer(modifier = Modifier.weight(1f))
+            if (summary.runCount > 0) {
+                Text(
+                    text = "${summary.runCount}회 달림",
+                    style = DallimTypography.Caption,
+                    color = DallimColors.TextSecondary,
+                )
+            }
+        }
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = Spacing.xs)) {
             Text(
                 text = RunFormat.km(summary.distanceKm),
@@ -207,161 +236,180 @@ private fun WeekSummaryBlock(summary: WeekSummary, modifier: Modifier = Modifier
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
         ) {
             DAY_LABELS.forEachIndexed { index, label ->
                 val day = index + 1
-                DayDot(label = label, ran = day in summary.runDays, isToday = day == summary.todayDayOfWeek)
+                DayBar(label = label, ran = day in summary.runDays, isToday = day == summary.todayDayOfWeek)
             }
         }
     }
 }
 
 @Composable
-private fun DayDot(label: String, ran: Boolean, isToday: Boolean) {
+private fun DayBar(label: String, ran: Boolean, isToday: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .width(DAY_BAR_WIDTH)
+                .height(if (ran) DAY_BAR_FULL_HEIGHT else DAY_BAR_EMPTY_HEIGHT)
                 .clip(CircleShape)
-                .background(if (ran) DallimColors.Primary else DallimColors.Border.copy(alpha = 0.6f))
-                .then(if (isToday && !ran) Modifier.border(2.dp, DallimColors.Primary, CircleShape) else Modifier),
+                .background(
+                    when {
+                        ran -> DallimColors.Primary
+                        isToday -> DallimColors.PrimaryDim
+                        else -> DallimColors.SurfaceMuted
+                    },
+                ),
         )
         Text(
             text = label,
             style = DallimTypography.Caption,
-            color = if (isToday) DallimColors.TextPrimary else DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
+            color = if (isToday) DallimColors.TextPrimary else DallimColors.TextTertiary,
+            modifier = Modifier.padding(top = Spacing.sm),
         )
     }
 }
 
+private val DAY_BAR_WIDTH = 6.dp
+private val DAY_BAR_FULL_HEIGHT = 40.dp
+private val DAY_BAR_EMPTY_HEIGHT = 16.dp
+
+/**
+ * 오늘의 추천 코스를 화면 폭을 꽉 채우는 지도 한 장으로 보여준다 — 이 앱에서 기억에 남아야 하는 단
+ * 하나가 "지도 위에 그려지는 GPS 궤적"이라(docs/04-ui-guide.md §8) 홈에서 가장 큰 면적을 준다.
+ * 글자는 지도 위에 얹고, 가독성을 위해 아래쪽에 어두운 스크림을 깐다(장식용 그라데이션이 아니라
+ * 이미지 위 텍스트 가독성 처리라 §3의 그라데이션 금지 대상이 아니다).
+ */
+@Composable
+private fun TodayHero(todaySketch: TodaySketch?, onRouteClick: (String) -> Unit, modifier: Modifier = Modifier) {
+    if (todaySketch == null) return
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(DallimShapes.CardCorner)
+            .clickable { onRouteClick(todaySketch.routeId) },
+    ) {
+        RouteThumbnailView(
+            coordinates = todaySketch.thumbnailGeoJson.toGeoPoints(),
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 0.dp,
+            renderPx = HERO_RENDER_PX,
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(HERO_SCRIM_HEIGHT)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.45f to DallimColors.Background.copy(alpha = 0.72f),
+                        1f to DallimColors.Background.copy(alpha = 0.97f),
+                    ),
+                ),
+        )
+        Column(
+            // 네이버 지도 로고는 약관상 가릴 수 없다(docs/03-design-system.md §3.2). 스냅샷 좌하단에
+            // 찍혀 들어오므로 글자 블록을 그 위로 띄운다.
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = Spacing.md, end = Spacing.md, bottom = HERO_LOGO_CLEARANCE),
+        ) {
+            Text(text = "오늘의 추천", style = DallimTypography.Label, color = DallimColors.Primary)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.xs)) {
+                // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
+                Text(text = todaySketch.emoji, style = DallimTypography.Title1)
+                Text(
+                    text = todaySketch.name,
+                    style = DallimTypography.Title1,
+                    color = DallimColors.TextPrimary,
+                    modifier = Modifier.padding(start = Spacing.sm),
+                )
+            }
+            Text(
+                text = "${RunFormat.km(todaySketch.distanceKm)}km · 약 ${todaySketch.estimatedMinutes}분",
+                style = DallimTypography.Body,
+                color = DallimColors.TextSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+    }
+}
+
+private const val HERO_RENDER_PX = 900
+private val COURSE_TILE_WIDTH = 148.dp
+private val HERO_SCRIM_HEIGHT = 240.dp
+
+/** 스냅샷 좌하단 네이버 로고를 가리지 않도록 히어로 글자 블록을 띄우는 높이. */
+private val HERO_LOGO_CLEARANCE = 44.dp
+
 /**
  * 자유 러닝 시작(S-20, routeId 없음)이 이 화면의 유일한 Primary 액션이다(docs/04-ui-guide.md §2).
  * 코스를 고르려면 아래 텍스트 링크로 탐색 탭으로 간다.
+ *
+ * 2026-10-05: 빈 화면 한가운데 떠 있던 136dp 원형 버튼을 전폭 버튼으로 바꿨다 — 원형 버튼은 위아래로
+ * 큰 공백을 요구해 홈이 "요소 하나만 있는 빈 화면"처럼 보이던 가장 큰 원인이었다.
  */
 @Composable
 private fun StartBlock(onStartClick: () -> Unit, onPickCourseClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(START_HALO_SIZE)
-                .clip(CircleShape)
-                .background(DallimColors.SurfaceMuted),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(START_BUTTON_SIZE)
-                    .clip(CircleShape)
-                    .background(DallimColors.ActionFill)
-                    .clickable(onClick = onStartClick),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "시작", style = DallimTypography.Title1, color = DallimColors.Surface)
-            }
-        }
+        DallimPrimaryButton(text = "달리기 시작", onClick = onStartClick)
         DallimTextButton(text = "코스 고르기  \u203A", onClick = onPickCourseClick, modifier = Modifier.padding(top = Spacing.xs))
     }
 }
 
-private val START_HALO_SIZE = 168.dp
-private val START_BUTTON_SIZE = 136.dp
-
-/** 오늘의 추천 코스 + 저장한 코스를 한 줄 가로 목록으로 — 카드 껍데기 없이 썸네일과 글자만 둔다. */
+/** 저장한 코스 가로 목록 — 카드 껍데기 없이 썸네일과 글자만 둔다. 없으면 섹션 자체를 그리지 않는다. */
 @Composable
-private fun CoursesSection(
-    todaySketch: TodaySketch?,
+private fun SavedRoutesStrip(
     savedRoutes: List<SavedRouteItem>,
     onRouteClick: (String) -> Unit,
-    onSeeAllSavedRoutesClick: () -> Unit,
+    onSeeAllClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tiles = buildList {
-        if (todaySketch != null) {
-            add(
-                CourseTile(
-                    routeId = todaySketch.routeId,
-                    name = todaySketch.name,
-                    emoji = todaySketch.emoji,
-                    caption = "오늘의 추천 \u00b7 ${RunFormat.km(todaySketch.distanceKm)}km",
-                    thumbnailGeoJson = todaySketch.thumbnailGeoJson,
-                ),
-            )
-        }
-        savedRoutes
-            .filter { it.routeId != todaySketch?.routeId }
-            .forEach {
-                add(
-                    CourseTile(
-                        routeId = it.routeId,
-                        name = it.name,
-                        emoji = it.emoji,
-                        caption = "저장 \u00b7 ${RunFormat.km(it.distanceKm)}km",
-                        thumbnailGeoJson = it.thumbnailGeoJson,
-                    ),
-                )
-            }
-    }
-
+    if (savedRoutes.isEmpty()) return
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "추천 코스", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
-            DallimTextButton(text = "저장한 코스", onClick = onSeeAllSavedRoutesClick)
+            Text(text = "저장한 코스", style = DallimTypography.Title2, color = DallimColors.TextPrimary)
+            DallimTextButton(text = "전체", onClick = onSeeAllClick)
         }
-        if (tiles.isEmpty()) {
-            Text(
-                text = "아직 추천할 코스가 없어요",
-                style = DallimTypography.Body,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(horizontal = Spacing.ScreenHorizontal),
-            )
-        } else {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                items(tiles, key = { it.routeId }) { tile -> CourseTileView(tile, onClick = { onRouteClick(tile.routeId) }) }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = Spacing.ScreenHorizontal),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            items(savedRoutes, key = { it.routeId }) { route ->
+                Column(
+                    modifier = Modifier
+                        .width(COURSE_TILE_WIDTH)
+                        .clickable { onRouteClick(route.routeId) },
+                ) {
+                    RouteThumbnailView(coordinates = route.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.sm)) {
+                        // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
+                        Text(text = route.emoji, style = DallimTypography.Body)
+                        Text(
+                            text = route.name,
+                            style = DallimTypography.Title3,
+                            color = DallimColors.TextPrimary,
+                            modifier = Modifier.padding(start = Spacing.xs),
+                        )
+                    }
+                    Text(
+                        text = "${RunFormat.km(route.distanceKm)}km",
+                        style = DallimTypography.Caption,
+                        color = DallimColors.TextSecondary,
+                        modifier = Modifier.padding(top = Spacing.xs),
+                    )
+                }
             }
         }
     }
 }
 
-private data class CourseTile(
-    val routeId: String,
-    val name: String,
-    val emoji: String,
-    val caption: String,
-    val thumbnailGeoJson: GeoJsonLineString,
-)
-
-@Composable
-private fun CourseTileView(tile: CourseTile, onClick: () -> Unit) {
-    Column(modifier = Modifier.width(COURSE_TILE_WIDTH).clickable(onClick = onClick)) {
-        RouteThumbnailView(coordinates = tile.thumbnailGeoJson.toGeoPoints(), modifier = Modifier.fillMaxWidth())
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.sm)) {
-            // 코스 이름의 이모지는 콘텐츠 데이터이므로 예외적으로 허용된다 (docs/04-ui-guide.md §7).
-            Text(text = tile.emoji, style = DallimTypography.Body)
-            Text(
-                text = tile.name,
-                style = DallimTypography.Body,
-                color = DallimColors.TextPrimary,
-                modifier = Modifier.padding(start = Spacing.xs),
-            )
-        }
-        Text(
-            text = tile.caption,
-            style = DallimTypography.Caption,
-            color = DallimColors.TextSecondary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-    }
-}
-
-private val COURSE_TILE_WIDTH = 148.dp
 
 /** 최근 달림은 카드 대신 구분선 목록 [썸네일 | 이름·날짜 | 거리] — 같은 카드가 연달아 반복되지 않게. */
 @Composable
