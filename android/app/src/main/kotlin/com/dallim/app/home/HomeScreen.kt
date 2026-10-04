@@ -253,7 +253,7 @@ private fun StartBlock(onStartClick: () -> Unit, onPickCourseClick: () -> Unit, 
                 modifier = Modifier
                     .size(START_BUTTON_SIZE)
                     .clip(CircleShape)
-                    .background(DallimColors.Ink)
+                    .background(DallimColors.ActionFill)
                     .clickable(onClick = onStartClick),
                 contentAlignment = Alignment.Center,
             ) {

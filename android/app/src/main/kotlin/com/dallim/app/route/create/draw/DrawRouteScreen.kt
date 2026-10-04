@@ -128,11 +128,11 @@ private fun DrawRouteScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = DallimColors.Surface)
+                            CircularProgressIndicator(color = DallimColors.TextPrimary)
                             Text(
                                 text = "실제 도로에 맞춰 변환하는 중이에요",
                                 style = DallimTypography.Body,
-                                color = DallimColors.Surface,
+                                color = DallimColors.TextPrimary,
                                 modifier = Modifier.padding(top = Spacing.md),
                             )
                         }

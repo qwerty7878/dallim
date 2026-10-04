@@ -309,8 +309,8 @@ private fun InputSection(
                 steps = 27, // 0.5km 단위 (1.0~15.0)
                 enabled = enabled,
                 colors = SliderDefaults.colors(
-                    thumbColor = DallimColors.Ink,
-                    activeTrackColor = DallimColors.Ink,
+                    thumbColor = DallimColors.ActionFill,
+                    activeTrackColor = DallimColors.ActionFill,
                     inactiveTrackColor = DallimColors.Border,
                     activeTickColor = androidx.compose.ui.graphics.Color.Transparent,
                     inactiveTickColor = androidx.compose.ui.graphics.Color.Transparent,

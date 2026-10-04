@@ -1,0 +1,6 @@
+<resources>
+    <!-- Compose 바깥(런치 테마 windowBackground)에서만 쓰는 값. 화면 안의 모든 색은 Compose의
+         com.dallim.ui.theme.DallimColors 토큰을 쓴다 — 이 파일에 색을 더 늘리지 말 것.
+         DallimColors.Background와 같은 값으로 유지한다(2026-10-05 전면 다크 전환). -->
+    <color name="dallim_background">#FF09090D</color>
+</resources>

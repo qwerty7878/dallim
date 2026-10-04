@@ -61,7 +61,7 @@ fun DallimCheckboxRow(
                 Icon(
                     imageVector = DallimIcons.Check,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = DallimColors.OnPrimary,
                     modifier = Modifier.size(16.dp),
                 )
             }

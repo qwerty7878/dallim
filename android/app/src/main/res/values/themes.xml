@@ -1,5 +1,9 @@
 <resources>
     <!-- Manifest/splash-time-only theme. All actual screen styling happens in Compose via
-         com.dallim.ui.theme.DallimTheme (core-ui) — do not add colors/dimens here. -->
-    <style name="Theme.Dallim" parent="android:Theme.Material.Light.NoActionBar" />
+         com.dallim.ui.theme.DallimTheme (core-ui) — do not add colors/dimens here.
+         2026-10-05: 앱 전체 다크 고정이라 Compose가 그려지기 전 한 프레임 동안 흰 화면이
+         번쩍이지 않도록 런치 테마도 다크로 바꿨다(windowBackground = DallimColors.Background). -->
+    <style name="Theme.Dallim" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dallim_background</item>
+    </style>
 </resources>

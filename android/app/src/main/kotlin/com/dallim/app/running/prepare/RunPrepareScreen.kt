@@ -354,12 +354,12 @@ private fun CountdownOverlay(secondsRemaining: Int, onCancel: () -> Unit, modifi
             text = "$secondsRemaining",
             fontSize = 96.sp,
             fontWeight = FontWeight.Bold,
-            color = DallimColors.Surface,
+            color = DallimColors.TextPrimary,
         )
         Text(
             text = "곧 달리기가 시작돼요",
             style = DallimTypography.Body,
-            color = DallimColors.Surface.copy(alpha = 0.7f),
+            color = DallimColors.TextPrimary.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = Spacing.md),
         )

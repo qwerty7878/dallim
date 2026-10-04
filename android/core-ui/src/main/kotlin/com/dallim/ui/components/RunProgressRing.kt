@@ -35,7 +35,7 @@ fun RunProgressRing(
             val inset = strokeWidth.toPx() / 2
             val arcSize = Size(this.size.width - strokeWidth.toPx(), this.size.height - strokeWidth.toPx())
             drawArc(
-                color = DallimColors.Surface.copy(alpha = 0.15f),
+                color = DallimColors.TextPrimary.copy(alpha = 0.15f),
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -56,7 +56,7 @@ fun RunProgressRing(
         Text(
             text = "${progressPercent.coerceIn(0, 100)}%",
             style = DallimTypography.Title1,
-            color = DallimColors.Surface,
+            color = DallimColors.TextPrimary,
             textAlign = TextAlign.Center,
         )
     }

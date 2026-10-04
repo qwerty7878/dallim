@@ -191,7 +191,7 @@ private fun TrackingContent(
                 Text(
                     text = "그림 완성도",
                     style = DallimTypography.Body,
-                    color = DallimColors.Surface.copy(alpha = 0.7f),
+                    color = DallimColors.TextPrimary.copy(alpha = 0.7f),
                     modifier = Modifier.padding(top = Spacing.sm),
                 )
             }
@@ -227,11 +227,11 @@ private fun TrackingContent(
 @Composable
 private fun StatColumn(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, style = DallimTypography.NavLarge, color = DallimColors.Surface)
+        Text(text = value, style = DallimTypography.NavLarge, color = DallimColors.TextPrimary)
         Text(
             text = label,
             style = DallimTypography.Body,
-            color = DallimColors.Surface.copy(alpha = 0.6f),
+            color = DallimColors.TextPrimary.copy(alpha = 0.6f),
             modifier = Modifier.padding(top = Spacing.xs),
         )
     }
@@ -289,11 +289,11 @@ private fun DarkCenteredMessage(text: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator(color = DallimColors.Surface)
+        CircularProgressIndicator(color = DallimColors.TextPrimary)
         Text(
             text = text,
             style = DallimTypography.Body,
-            color = DallimColors.Surface,
+            color = DallimColors.TextPrimary,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = Spacing.md),
         )
@@ -316,7 +316,7 @@ private fun FinishFailedOverlay(message: String, onRetryClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(text = message, style = DallimTypography.Body, color = DallimColors.Surface, textAlign = TextAlign.Center)
+        Text(text = message, style = DallimTypography.Body, color = DallimColors.TextPrimary, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(Spacing.lg))
         DallimTextButton(text = "다시 시도", onClick = onRetryClick)
     }

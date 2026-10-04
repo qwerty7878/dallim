@@ -36,15 +36,15 @@ fun DallimFab(text: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
         modifier = modifier
             .shadow(6.dp, shape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.18f))
             .clip(shape)
-            .background(DallimColors.Ink)
+            .background(DallimColors.ActionFill)
             .clickable(onClick = onClick)
             .height(48.dp)
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        Icon(imageVector = icon, contentDescription = null, tint = DallimColors.OnActionFill, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(Spacing.sm))
-        Text(text = text, style = DallimTypography.Title3, color = Color.White)
+        Text(text = text, style = DallimTypography.Title3, color = DallimColors.OnActionFill)
     }
 }
 
@@ -54,9 +54,9 @@ fun DallimSnackbar(data: SnackbarData) {
     Snackbar(
         modifier = Modifier.padding(Spacing.md),
         shape = RoundedCornerShape(12.dp),
-        containerColor = DallimColors.Ink,
-        contentColor = Color.White,
+        containerColor = DallimColors.ActionFill,
+        contentColor = DallimColors.OnActionFill,
     ) {
-        Text(text = data.visuals.message, style = DallimTypography.Body, color = Color.White)
+        Text(text = data.visuals.message, style = DallimTypography.Body, color = DallimColors.OnActionFill)
     }
 }

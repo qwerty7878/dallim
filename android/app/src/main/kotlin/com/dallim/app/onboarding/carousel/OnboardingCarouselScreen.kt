@@ -123,7 +123,7 @@ fun OnboardingCarouselScreen(
                         .height(6.dp)
                         .width(if (current) 20.dp else 6.dp)
                         .clip(CircleShape)
-                        .background(if (current) DallimColors.Ink else DallimColors.Border),
+                        .background(if (current) DallimColors.ActionFill else DallimColors.Border),
                 )
             }
         }

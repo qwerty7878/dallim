@@ -33,15 +33,15 @@ fun DallimFilterChip(
     Box(
         modifier = modifier
             .clip(ChipShape)
-            .background(if (selected) DallimColors.Ink else Color.Transparent)
-            .border(1.dp, if (selected) DallimColors.Ink else DallimColors.Border, ChipShape)
+            .background(if (selected) DallimColors.ActionFill else Color.Transparent)
+            .border(1.dp, if (selected) DallimColors.ActionFill else DallimColors.Border, ChipShape)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
             style = DallimTypography.Body.copy(fontWeight = FontWeight.Medium),
-            color = if (selected) Color.White else DallimColors.TextSecondary,
+            color = if (selected) DallimColors.OnActionFill else DallimColors.TextSecondary,
         )
     }
 }

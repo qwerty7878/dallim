@@ -32,13 +32,13 @@ fun DallimPrimaryButton(
             .fillMaxWidth()
             .height(DallimShapes.MinTapTarget)
             .clip(DallimShapes.ButtonCorner)
-            .background(if (enabled) DallimColors.Ink else DallimColors.SurfaceMuted)
+            .background(if (enabled) DallimColors.ActionFill else DallimColors.SurfaceMuted)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            color = if (enabled) Color.White else DallimColors.TextTertiary,
+            color = if (enabled) DallimColors.OnActionFill else DallimColors.TextTertiary,
             style = DallimTypography.Title3,
         )
     }
