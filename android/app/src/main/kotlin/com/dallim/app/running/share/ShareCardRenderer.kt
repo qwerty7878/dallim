@@ -44,9 +44,10 @@ object ShareCardRenderer {
         val canvas = Canvas(bitmap)
 
         val dark = options.background == ShareCardBackground.DARK
-        val bg = if (dark) DallimColors.BackgroundDark.toArgb() else DallimColors.Background.toArgb()
-        val primaryText = if (dark) DallimColors.Surface.toArgb() else DallimColors.TextPrimary.toArgb()
-        val secondaryText = if (dark) DallimColors.Surface.copy(alpha = 0.6f).toArgb() else DallimColors.TextSecondary.toArgb()
+        // 앱 테마(다크 고정)와 분리된 공유 카드 전용 팔레트 — DallimColors.ShareCard 주석 참고.
+        val bg = if (dark) DallimColors.ShareCard.DarkBackground.toArgb() else DallimColors.ShareCard.LightBackground.toArgb()
+        val primaryText = if (dark) DallimColors.ShareCard.DarkText.toArgb() else DallimColors.ShareCard.LightText.toArgb()
+        val secondaryText = if (dark) DallimColors.ShareCard.DarkTextSecondary.toArgb() else DallimColors.ShareCard.LightTextSecondary.toArgb()
         canvas.drawColor(bg)
 
         val bold = ResourcesCompat.getFont(context, UiR.font.pretendard_bold) ?: Typeface.DEFAULT_BOLD
@@ -66,7 +67,13 @@ object ShareCardRenderer {
             val dst = RectF(mapRect.centerX() - w / 2, mapRect.centerY() - h / 2, mapRect.centerX() + w / 2, mapRect.centerY() + h / 2)
             canvas.drawBitmap(mapBitmap, null, dst, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
         } else {
-            canvas.drawRect(mapRect, Paint().apply { color = if (dark) DallimColors.TextPrimary.toArgb() else DallimColors.SurfaceMuted.toArgb() })
+            canvas.drawRect(
+                mapRect,
+                Paint().apply {
+                    color = if (dark) DallimColors.ShareCard.DarkMapPlaceholder.toArgb()
+                    else DallimColors.ShareCard.LightMapPlaceholder.toArgb()
+                },
+            )
             drawFallbackRoute(canvas, actualRoute, mapRect)
         }
         canvas.restore()

@@ -212,8 +212,10 @@ private fun SharePreviewCard(
     modifier: Modifier = Modifier,
 ) {
     val dark = options.background == ShareCardBackground.DARK
-    val primaryText = if (dark) DallimColors.Surface else DallimColors.TextPrimary
-    val secondaryText = if (dark) DallimColors.Surface.copy(alpha = 0.6f) else DallimColors.TextSecondary
+    // 공유 카드는 앱 밖으로 나가는 이미지라 앱 테마(다크 고정)가 아니라 자체 팔레트를 쓴다
+    // (DallimColors.ShareCard 주석 참고) — 앱 토큰을 쓰면 "라이트"를 골라도 다크로 렌더된다.
+    val primaryText = if (dark) DallimColors.ShareCard.DarkText else DallimColors.ShareCard.LightText
+    val secondaryText = if (dark) DallimColors.ShareCard.DarkTextSecondary else DallimColors.ShareCard.LightTextSecondary
     val coordinates = run.actualGeoJson.toGeoPoints()
     val isStory = options.ratio == ShareCardRatio.STORY
 
@@ -221,8 +223,8 @@ private fun SharePreviewCard(
         modifier = modifier
             .aspectRatio(options.ratio.widthPx.toFloat() / options.ratio.heightPx.toFloat())
             .clip(RoundedCornerShape(12.dp))
-            .background(if (dark) DallimColors.BackgroundDark else DallimColors.Background)
-            .border(1.dp, DallimColors.Divider, RoundedCornerShape(12.dp))
+            .background(if (dark) DallimColors.ShareCard.DarkBackground else DallimColors.ShareCard.LightBackground)
+            .border(1.dp, DallimColors.Border, RoundedCornerShape(12.dp))
             .padding(Spacing.md),
     ) {
         // 지도 영역(카드 폭, 비율 968:640 / 968:1100) — 정사각 스냅샷을 가운데 기준으로 잘라 보여준다.
@@ -231,7 +233,7 @@ private fun SharePreviewCard(
                 .fillMaxWidth()
                 .aspectRatio(if (isStory) 968f / 1100f else 968f / 640f)
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (dark) DallimColors.TextPrimary else DallimColors.SurfaceMuted),
+                .background(if (dark) DallimColors.ShareCard.DarkMapPlaceholder else DallimColors.ShareCard.LightMapPlaceholder),
         ) {
             Box(modifier = Modifier.wrapContentHeight(align = Alignment.CenterVertically, unbounded = true)) {
                 if (coordinates.size >= 2) {
