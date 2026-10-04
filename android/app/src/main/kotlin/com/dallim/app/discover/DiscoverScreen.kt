@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -131,7 +134,7 @@ private fun DiscoverScreen(
     onToggleSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberLazyGridState()
 
     LaunchedEffect(listState) {
         snapshotFlow {
@@ -208,7 +211,10 @@ private fun DiscoverScreen(
                             description = "필터를 바꿔서 다시 찾아보세요.",
                             modifier = Modifier.weight(1f),
                         )
-                        else -> LazyColumn(
+                        // 2026-10-05: 64dp 썸네일 + 오른쪽 빈 공간의 얇은 리스트를, 지도 타일이 주인공인
+                        // 2열 갤러리로 바꿨다 — 코스를 고르는 화면에서 정작 코스의 "그림"이 가장 작았다.
+                        else -> LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
                             state = listState,
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(
@@ -217,10 +223,11 @@ private fun DiscoverScreen(
                                 top = Spacing.sm,
                                 bottom = Spacing.xxl,
                             ),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.ListItemGap),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
                         ) {
                             items(uiState.items, key = { it.routeId }) { route ->
-                                RouteRow(
+                                RouteTile(
                                     route = route,
                                     isTogglingSave = route.routeId in uiState.togglingSaveRouteIds,
                                     onClick = { onRouteClick(route.routeId) },
@@ -228,7 +235,7 @@ private fun DiscoverScreen(
                                 )
                             }
                             if (uiState.isLoadingMore) {
-                                item {
+                                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                                     Box(modifier = Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
                                         CircularProgressIndicator(color = DallimColors.Primary)
                                     }
@@ -346,61 +353,61 @@ private fun FilterSection(
     }
 }
 
+/**
+ * 코스 한 칸 — 지도 타일(정사각) 위에 저장 버튼을 얹고, 이름/거리/상태를 그 아래 둔다.
+ * 타일이 셀 폭을 꽉 채우므로 "코스의 그림"이 이 화면에서 가장 큰 요소가 된다(docs/04-ui-guide.md §8).
+ */
 @Composable
-private fun RouteRow(
+private fun RouteTile(
     route: RouteListItem,
     isTogglingSave: Boolean,
     onClick: () -> Unit,
     onToggleSaveClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(DallimColors.Surface)
-            .clickable { onClick() }
-            .padding(Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RouteThumbnailView(
-            coordinates = route.thumbnailGeoJson.toGeoPoints(),
-            modifier = Modifier.size(64.dp),
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = Spacing.md),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = route.emoji, style = DallimTypography.Body)
-                Text(
-                    text = route.name,
-                    style = DallimTypography.Body,
-                    color = DallimColors.TextPrimary,
-                    modifier = Modifier.padding(start = Spacing.xs),
-                )
-            }
-            Text(
-                text = "${RunFormat.km(route.distanceKm)}km · 약 ${route.estimatedMinutes}분",
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-                modifier = Modifier.padding(top = Spacing.xs),
+    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Box {
+            RouteThumbnailView(
+                coordinates = route.thumbnailGeoJson.toGeoPoints(),
+                modifier = Modifier.fillMaxWidth(),
             )
-            RouteStatusBadge(status = route.status.toRouteStatus(), modifier = Modifier.padding(top = Spacing.xs))
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = "${route.finisherCount}명 완주",
-                style = DallimTypography.Caption,
-                color = DallimColors.TextSecondary,
-            )
-            IconButton(onClick = onToggleSaveClick, enabled = !isTogglingSave) {
+            IconButton(
+                onClick = onToggleSaveClick,
+                enabled = !isTogglingSave,
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
                 Icon(
                     imageVector = if (route.isSaved) DallimIcons.BookmarkFilled else DallimIcons.Bookmark,
                     contentDescription = if (route.isSaved) "저장 취소" else "코스 저장",
-                    tint = if (route.isSaved) DallimColors.TextPrimary else DallimColors.TextSecondary,
+                    // 지도 위에 여러 밝기가 섮여 있어 항상 흰색으로 둔다(미저장은 반투명).
+                    tint = if (route.isSaved) DallimColors.White else DallimColors.White.copy(alpha = 0.72f),
                 )
             }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.sm)) {
+            Text(text = route.emoji, style = DallimTypography.Body)
+            Text(
+                text = route.name,
+                style = DallimTypography.Title3,
+                color = DallimColors.TextPrimary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = Spacing.xs),
+            )
+        }
+        Text(
+            text = "${RunFormat.km(route.distanceKm)}km · 약 ${route.estimatedMinutes}분",
+            style = DallimTypography.Caption,
+            color = DallimColors.TextSecondary,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Spacing.xs)) {
+            RouteStatusBadge(status = route.status.toRouteStatus())
+            Text(
+                text = "${route.finisherCount}명 완주",
+                style = DallimTypography.Caption,
+                color = DallimColors.TextTertiary,
+                modifier = Modifier.padding(start = Spacing.sm),
+            )
         }
     }
 }
