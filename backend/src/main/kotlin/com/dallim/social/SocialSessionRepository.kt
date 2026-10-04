@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.andWhere
+import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -105,8 +106,19 @@ open class SocialSessionRepository(private val database: Database) {
         return id
     }
 
-    /** GET /social-sessions (17.1). [routeId]/[beginnerFriendly]/[hasMinTemperature] all optional
-     * filters -- absent means "don't filter on this". Soonest-scheduled first. */
+    /**
+     * GET /social-sessions (17.1). [routeId]/[beginnerFriendly]/[hasMinTemperature] all optional
+     * filters -- absent means "don't filter on this".
+     *
+     * 정렬(2026-10-05 변경): 예전에는 `scheduledAt` 오름차순 하나뿐이라 **이미 끝난(CLOSED) 세션이
+     * 목록 맨 위**에 올라왔다 — 가장 오래된 세션이 제일 앞이었기 때문. 지금 신청할 수 있는 세션을
+     * 먼저 보여주도록 "아직 안 지난 것 먼저(임박순) → 지난 것은 뒤로"로 바꿨다.
+     * 대회 목록(com.dallim.race.RaceService.listRaces)의 "마감 안 된 것 먼저"와 같은 원칙이며,
+     * 페이지네이션이 있어 Kotlin이 아니라 SQL에서 정렬해야 한다(1페이지에 지난 세션만 가득 차지 않도록).
+     * 두 그룹 안에서는 둘 다 `scheduledAt` 오름차순이다 — 대회 목록의 정렬과 동일한 관례.
+     *
+     * CANCELLED는 아래 where에서 이미 빠지므로 "지남/안 지남" 두 갈래만 다루면 된다.
+     */
     fun list(
         routeId: String?,
         beginnerFriendly: Boolean?,
@@ -130,9 +142,12 @@ open class SocialSessionRepository(private val database: Database) {
                 }
             }
 
+        // 지났으면 true(1), 아니면 false(0) — 오름차순이면 "아직 안 지난 것"이 먼저 온다.
+        val isPast = Op.build { SocialSessionTable.scheduledAt less Instant.now() }
+
         val totalCount = filtered().count().toInt()
         val items = filtered()
-            .orderBy(SocialSessionTable.scheduledAt, SortOrder.ASC)
+            .orderBy(isPast to SortOrder.ASC, SocialSessionTable.scheduledAt to SortOrder.ASC)
             .limit(size)
             .offset((page * size).toLong())
             .map { it.toSessionRow() }

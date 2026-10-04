@@ -49,9 +49,24 @@ class RaceService(
             .map { race -> race.toEnriched(categoriesByRace[race.id] ?: emptyList(), now) }
             .filter { categoryFilter == null || categoryFilter in it.categoryOptions.map { c -> c.category } }
             .filter { statusFilter == null || it.status == statusFilter }
-            // 접수 마감 임박순: 아직 안 마감된 것 먼저(registrationEnd 오름차순), 이미 마감된
-            // 건 뒤로(그 안에서도 registrationEnd 오름차순 — 작업 브리핑 지시).
-            .sortedWith(compareBy({ it.status == RaceStatus.CLOSED }, { it.race.registrationEnd }))
+            // 2026-10-05 정렬 재정의. 예전에는 (마감여부, registrationEnd 오름차순) 두 키뿐이라 두 가지가
+            // 이상했다: ① 마감된 대회끼리 "가장 오래전에 마감된 것"이 먼저 와 목록이 과거로 거슬러 올라갔고,
+            // ② 정렬 기준(접수 마감일)이 화면에 보이는 값(D-day = 대회일)과 달라 순서가 무작위로 보였다.
+            //
+            // 지금은 "지금 신청할 수 있는 것 먼저" + "화면에 보이는 D-day와 같은 방향"으로 맞춘다:
+            //   1. 접수중(OPEN) → 2. 접수 예정(UPCOMING) → 3. 접수 마감(CLOSED)
+            //   그 안에서 아직 안 열린 대회가 먼저(대회일 임박순), 이미 열린 대회는 맨 뒤(최근 대회부터).
+            .sortedWith(
+                compareBy<EnrichedRace> {
+                    when (it.status) {
+                        RaceStatus.OPEN -> 0
+                        RaceStatus.UPCOMING -> 1
+                        RaceStatus.CLOSED -> 2
+                    }
+                }
+                    .thenBy { it.dDay < 0 } // 이미 열린 대회는 각 그룹 뒤로
+                    .thenBy { if (it.dDay < 0) -it.race.raceDate.epochSecond else it.race.raceDate.epochSecond },
+            )
 
         val totalCount = enriched.size
         val pageItems = enriched.drop(safePage * safeSize).take(safeSize)

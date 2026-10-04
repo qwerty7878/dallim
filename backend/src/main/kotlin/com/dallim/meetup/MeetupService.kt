@@ -46,7 +46,18 @@ class MeetupService(
         return CreateMeetupResponse(meetupId = meetupId)
     }
 
-    /** GET /routes/{routeId}/meetups — 14.2, soonest first, isFull/isPast computed server-side. */
+    /**
+     * GET /routes/{routeId}/meetups — 14.2. isFull/isPast는 서버가 계산한다.
+     *
+     * 정렬(2026-10-05 변경): 예전에는 `scheduledAt` 오름차순 하나뿐이라 **이미 끝난 모집이 목록 맨 위**에
+     * 올라왔다(가장 오래된 것이 제일 앞). 지금 참가할 수 있는 모집을 먼저 보여주도록
+     * "아직 안 지난 것 먼저(임박순) → 지난 것은 뒤로"로 바꿨다.
+     * 대회 목록(com.dallim.race.RaceService.listRaces)의 "마감 안 된 것 먼저"와 같은 원칙이다.
+     *
+     * 모집이 적은 화면(코스 1개에 달린 모집)이라 페이지네이션이 없어 Kotlin에서 정렬한다 —
+     * 페이지네이션이 있는 소셜 세션 목록은 SQL에서 같은 순서를 만든다
+     * (com.dallim.social.SocialSessionRepository.list).
+     */
     fun listByRoute(routeId: String): MeetupListResponse {
         if (!routeRepository.exists(routeId)) {
             throw NotFoundException(ErrorCodes.ROUTE_NOT_FOUND, "코스를 찾을 수 없습니다.")
@@ -56,19 +67,21 @@ class MeetupService(
         val counts = meetupRepository.countParticipantsByMeetup(rows.map { it.id })
         val now = Instant.now()
 
-        val items = rows.map { row ->
-            val current = counts[row.id] ?: 0
-            MeetupListItem(
-                meetupId = row.id,
-                hostNickname = row.hostNickname,
-                scheduledAt = row.scheduledAt.toString(),
-                maxParticipants = row.maxParticipants,
-                currentParticipants = current,
-                status = row.status,
-                isFull = current >= row.maxParticipants,
-                isPast = row.scheduledAt.isBefore(now),
-            )
-        }
+        val items = rows
+            .sortedWith(compareBy({ it.scheduledAt.isBefore(now) }, { it.scheduledAt }))
+            .map { row ->
+                val current = counts[row.id] ?: 0
+                MeetupListItem(
+                    meetupId = row.id,
+                    hostNickname = row.hostNickname,
+                    scheduledAt = row.scheduledAt.toString(),
+                    maxParticipants = row.maxParticipants,
+                    currentParticipants = current,
+                    status = row.status,
+                    isFull = current >= row.maxParticipants,
+                    isPast = row.scheduledAt.isBefore(now),
+                )
+            }
         return MeetupListResponse(items = items)
     }
 
